@@ -13,7 +13,7 @@ import {
   buildVaultConfigJson,
   minMaxProfitableLiquidation,
 } from './simulator';
-import { LIF } from './morphoMath';
+import { LIF, adaptiveCurveIRM } from './morphoMath';
 import { GOV_LLTVS, type SidebarInputs } from '@/types/simulator';
 
 function quantile(xs: number[], q: number): number {
@@ -37,7 +37,11 @@ export function useSimulator() {
   }, [s, returnsWindow]);
 
   const rTarget = 0.04;
-  const borrowAPY = 0.04;
+  // borrowAPY derives from the static AdaptiveCurveIRM at the chosen target utilization.
+  const borrowAPY = useMemo(
+    () => adaptiveCurveIRM(s.targetUtilization, rTarget),
+    [s.targetUtilization],
+  );
 
   const liquidity = useMemo(() => {
     const out = computeLiquidityNeed({
