@@ -12,6 +12,8 @@ import {
   classifyRiskTier,
   buildVaultConfigJson,
   minMaxProfitableLiquidation,
+  slippage,
+  betaMean,
 } from './simulator';
 import { LIF, adaptiveCurveIRM } from './morphoMath';
 import { GOV_LLTVS, type SidebarInputs } from '@/types/simulator';
@@ -90,15 +92,29 @@ export function useSimulator() {
       poolDepth_USD: s.poolDepth_USD,
       gasCost_USD: 5,
     });
-    const slippageEstimate = 0.02;
+    // Heuristic single-event liquidation size: 1% of total expected borrows
+    // (TVL × LLTV × β-mean). Multiplied by LIF for collateral seized.
+    const meanLTVFrac = betaMean(s.borrowerLTVAlpha, s.borrowerLTVBeta);
+    const p95LiquidationSize_USD =
+      s.witryTVL_USD * s.lltv * meanLTVFrac * 0.01 * LIF(s.lltv);
+    const rawSlip = slippage(p95LiquidationSize_USD, s.poolDepth_USD);
+    const slippageEstimate = Math.max(0, Math.min(0.5, rawSlip));
     const derived = deriveRecommendedLLTV({
       p95Drawdown: p95dd,
       slippage: slippageEstimate,
       safetyMargin: s.safetyMargin,
     });
     const snapped = snapToGovernanceLLTV(derived.raw);
-    return { ...derived, snapped, minMax };
-  }, [result, s.lltv, s.poolDepth_USD, s.safetyMargin]);
+    return { ...derived, snapped, minMax, slippageEstimate };
+  }, [
+    result,
+    s.lltv,
+    s.poolDepth_USD,
+    s.safetyMargin,
+    s.witryTVL_USD,
+    s.borrowerLTVAlpha,
+    s.borrowerLTVBeta,
+  ]);
 
   const vaultJson = useMemo(
     () =>
