@@ -132,6 +132,34 @@ describe('bad debt cascade', () => {
     });
     expect(result.badDebtByPath[0]!).toBeGreaterThan(0);
   });
+
+  it('pre-liquidation reduces bad debt vs. hard-LLTV only', () => {
+    // Deterministic single-path borderline scenario: position starts at
+    // ltvFrac=0.85 (effLTV ≈ 0.73 vs LLTV=0.86), drifts upward through
+    // the preLLTV zone at S=1.15 (effLTV ≈ 0.84), then crashes to 1.50
+    // at the final step. Pool depth (800k) is moderate: hard-liquidation
+    // of the full 731k debt suffers meaningful slippage and produces
+    // residual bad debt, while pre-liquidating half the position earlier
+    // (smaller seize, lower LIF) avoids the deeper drift and reduces it.
+    const args = {
+      paths: [[1.0, 1.05, 1.10, 1.15, 1.50]],
+      ltvFractions: [0.85],
+      lltv: 0.86,
+      tvl_USD: 1_000_000,
+      poolDepth_USD: 800_000,
+      gasCost_USD: 5,
+      iTRYYieldAnnual: 0,
+    };
+    const off = simulateBadDebt({ ...args, preLiquidationEnabled: false });
+    const on = simulateBadDebt({ ...args, preLiquidationEnabled: true });
+    for (let i = 0; i < off.badDebtByPath.length; i++) {
+      expect(on.badDebtByPath[i]!).toBeLessThanOrEqual(off.badDebtByPath[i]!);
+    }
+    // At least one path strictly improves to prove pre-liq is doing work.
+    const offTotal = off.badDebtByPath.reduce((s, x) => s + x, 0);
+    const onTotal = on.badDebtByPath.reduce((s, x) => s + x, 0);
+    expect(onTotal).toBeLessThan(offTotal);
+  });
 });
 
 describe('LLTV derivation', () => {

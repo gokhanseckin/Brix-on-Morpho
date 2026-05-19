@@ -217,6 +217,11 @@ export function simulateBadDebt(a: BadDebtArgs): BadDebtOut {
   }
   const S0 = firstPath[0]!;
 
+  // Pre-liquidation parameters per spec §4D.
+  const preLLTV = Math.max(0, a.lltv - 0.05);
+  const preLIF1 = 1.01;
+  const preLCF2 = 0.5;
+
   const badDebtByPath: number[] = [];
   const liquidatedCountByPath: number[] = [];
 
@@ -226,6 +231,7 @@ export function simulateBadDebt(a: BadDebtArgs): BadDebtOut {
       debt_USD: f * a.lltv * collateralEachUSD,
       collateralBaseUSD: collateralEachUSD,
       closed: false,
+      preLiquidated: false,
       residual_USD: 0,
     }));
 
@@ -235,7 +241,34 @@ export function simulateBadDebt(a: BadDebtArgs): BadDebtOut {
       for (const pos of active) {
         if (pos.closed) continue;
         const collNow = pos.collateralBaseUSD * rel;
-        const hf = healthFactor({ collateralUSD: collNow, debtUSD: pos.debt_USD, lltv: a.lltv });
+        // Effective LTV of this position right now.
+        const effLTV = pos.debt_USD / Math.max(1e-9, collNow);
+
+        // Pre-liquidation: position has drifted between preLLTV and LLTV.
+        // Simplification: one-shot 50% close at LIF=1.01. The remaining
+        // half continues; if it crosses hard LLTV later it gets liquidated.
+        if (
+          a.preLiquidationEnabled &&
+          !pos.preLiquidated &&
+          effLTV >= preLLTV &&
+          effLTV < a.lltv
+        ) {
+          const closeDebt = pos.debt_USD * preLCF2;
+          const seized = closeDebt * preLIF1;
+          const slipPct = slippage(seized, a.poolDepth_USD);
+          // Auto-deleverage routes through the same AMM; collateral seized
+          // and debt repaid are removed from the position pro-rata.
+          const repaid = Math.min(closeDebt, seized * (1 - slipPct));
+          pos.debt_USD -= repaid;
+          // Reduce collateral by the seized fraction of the position.
+          pos.collateralBaseUSD *= 1 - preLCF2 * preLIF1;
+          if (pos.collateralBaseUSD < 0) pos.collateralBaseUSD = 0;
+          pos.preLiquidated = true;
+          // Continue to evaluate hard-LLTV at this timestep too.
+        }
+
+        const collAfter = pos.collateralBaseUSD * rel;
+        const hf = healthFactor({ collateralUSD: collAfter, debtUSD: pos.debt_USD, lltv: a.lltv });
         if (hf <= 1) {
           const { revenue_USD } = liquidatorProfit({
             debt_USD: pos.debt_USD,
@@ -250,7 +283,7 @@ export function simulateBadDebt(a: BadDebtArgs): BadDebtOut {
             pos.residual_USD = Math.max(0, pos.debt_USD - revenue_USD);
           } else {
             pos.closed = true;
-            pos.residual_USD = Math.max(0, pos.debt_USD - collNow);
+            pos.residual_USD = Math.max(0, pos.debt_USD - collAfter);
           }
         }
       }
