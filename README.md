@@ -55,6 +55,10 @@ These were flagged in the original design spec and remain unresolved. Each ships
 4. **iTRYYieldAnnual default?** Confirm `iTRYYieldAnnual` default. 38% is a rough estimate of Turkish MMF yields; should be calibrated against the actual fund. *Default assumption: 38% annual.*
 5. **Leverage-loop simulation?** Should the simulator include leverage-loop simulation for borrowers, not just a viability check? *Default assumption: viability check only (full leverage-loop path simulation deferred — out of scope for v1).*
 
+## Performance
+
+Default Monte Carlo (1000 paths × 90 days) completes in ~1900 ms end-to-end on an Apple-silicon laptop, measured as time-to-first-KPI from navigation. This includes navigation, hydration, and worker boot; the worker run itself is a strict subset of that budget. Measured via `tests-e2e/perf.spec.ts`.
+
 ## Caveats
 
 - All charts and numbers are **scenario projections**, not production risk parameters. Production parameters require the multi-stakeholder sign-off documented in the deployment runbook.
