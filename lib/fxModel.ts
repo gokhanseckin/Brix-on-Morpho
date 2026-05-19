@@ -115,3 +115,40 @@ export function blockBootstrapPaths(a: BlockBootstrapArgs): Path[] {
   }
   return out;
 }
+
+function quantile(sorted: number[], q: number): number {
+  if (sorted.length === 0) return NaN;
+  const idx = q * (sorted.length - 1);
+  const lo = Math.floor(idx), hi = Math.ceil(idx);
+  if (lo === hi) return sorted[lo]!;
+  return sorted[lo]! + (idx - lo) * (sorted[hi]! - sorted[lo]!);
+}
+
+export function percentilesAtEachStep(paths: Path[]): { p5: number[]; p50: number[]; p95: number[] } {
+  const n = paths[0]!.length;
+  const p5 = new Array<number>(n);
+  const p50 = new Array<number>(n);
+  const p95 = new Array<number>(n);
+  for (let t = 0; t < n; t++) {
+    const col = paths.map((p) => p[t]!).sort((a, b) => a - b);
+    p5[t] = quantile(col, 0.05);
+    p50[t] = quantile(col, 0.5);
+    p95[t] = quantile(col, 0.95);
+  }
+  return { p5, p50, p95 };
+}
+
+/** Max % drop within any rolling `window` days for each path. */
+export function rolling3DayMaxDrawdown(paths: Path[], window: number): number[] {
+  return paths.map((p) => {
+    let maxDd = 0;
+    for (let i = 0; i + window < p.length; i++) {
+      const start = p[i]!;
+      let minAfter = start;
+      for (let j = i + 1; j <= i + window; j++) if (p[j]! < minAfter) minAfter = p[j]!;
+      const dd = (start - minAfter) / start;
+      if (dd > maxDd) maxDd = dd;
+    }
+    return maxDd;
+  });
+}

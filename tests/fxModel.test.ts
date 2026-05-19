@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { bootstrapPaths, blockBootstrapPaths, gbmPaths, fitGbmParams, jumpDiffusionPaths } from '@/lib/fxModel';
+import { bootstrapPaths, blockBootstrapPaths, gbmPaths, fitGbmParams, jumpDiffusionPaths, percentilesAtEachStep, rolling3DayMaxDrawdown } from '@/lib/fxModel';
 
 const returns = Array.from({ length: 500 }, (_, i) => 0.001 * (i % 5 - 2)); // deterministic stand-in
 
@@ -50,5 +50,22 @@ describe('jump diffusion', () => {
     const b = jumpDiffusionPaths({ mu: 0.2, sigma: 0.25, lambda: 4, muJ: -0.05, sigmaJ: 0.04, S0: 38, horizonDays: 30, paths: 50, seed: 5 });
     expect(a).toEqual(b);
     expect(a[0]!.length).toBe(31);
+  });
+});
+
+describe('summaries', () => {
+  it('percentilesAtEachStep returns 3 arrays length horizon+1', () => {
+    const paths = [
+      [1, 1.1, 1.2], [1, 0.9, 0.8], [1, 1.0, 1.0], [1, 0.95, 0.85], [1, 1.05, 1.1],
+    ];
+    const { p5, p50, p95 } = percentilesAtEachStep(paths);
+    expect(p5.length).toBe(3);
+    expect(p50[0]).toBeCloseTo(1, 8);
+  });
+
+  it('rolling 3-day max drawdown is nonnegative', () => {
+    const paths = [[1, 0.95, 0.9, 0.85, 0.8]];
+    const dd = rolling3DayMaxDrawdown(paths, 3);
+    expect(dd[0]).toBeGreaterThan(0);
   });
 });
