@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { bootstrapPaths, blockBootstrapPaths } from '@/lib/fxModel';
+import { bootstrapPaths, blockBootstrapPaths, gbmPaths, fitGbmParams } from '@/lib/fxModel';
 
 const returns = Array.from({ length: 500 }, (_, i) => 0.001 * (i % 5 - 2)); // deterministic stand-in
 
@@ -24,5 +24,22 @@ describe('bootstrap', () => {
     const p = blockBootstrapPaths({ returns, S0: 38, horizonDays: 20, paths: 4, seed: 9, blockLength: 5 });
     expect(p.length).toBe(4);
     expect(p[0]!.length).toBe(21);
+  });
+});
+
+describe('GBM', () => {
+  it('converges to S0·exp(μT) over many paths', () => {
+    const paths = gbmPaths({ mu: 0.2, sigma: 0.25, S0: 38, horizonDays: 30, paths: 10_000, seed: 11 });
+    const T = 30 / 252; // trading-year convention
+    const ST = paths.map((p) => p[p.length - 1]!);
+    const mean = ST.reduce((a, b) => a + b, 0) / ST.length;
+    expect(mean).toBeCloseTo(38 * Math.exp(0.2 * T), 0); // loose: within ~$1
+  });
+
+  it('fitGbmParams returns finite μ, σ', () => {
+    const r = Array.from({ length: 500 }, (_, i) => 0.001 * Math.sin(i));
+    const { mu, sigma } = fitGbmParams(r);
+    expect(Number.isFinite(mu)).toBe(true);
+    expect(sigma).toBeGreaterThan(0);
   });
 });
