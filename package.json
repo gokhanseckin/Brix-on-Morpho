@@ -9,6 +9,7 @@
     "lint": "next lint",
     "test": "vitest run --passWithNoTests",
     "test:watch": "vitest",
+    "test:e2e": "playwright test",
     "fx:build": "tsx scripts/build-fx-data.ts"
   },
   "dependencies": {
@@ -22,6 +23,7 @@
     "simple-statistics": "^7.8.9"
   },
   "devDependencies": {
+    "@playwright/test": "^1.60.0",
     "@testing-library/jest-dom": "^6.9.1",
     "@testing-library/react": "^16.3.2",
     "@types/node": "^20",
