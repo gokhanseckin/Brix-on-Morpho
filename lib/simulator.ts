@@ -1,4 +1,4 @@
-import { adaptiveCurveIRM, LIF } from './morphoMath';
+import { adaptiveCurveIRM, healthFactor, LIF } from './morphoMath';
 import { createRng, gauss, type Rng } from './rng';
 
 export interface LiqNeedArgs {
@@ -187,4 +187,87 @@ export function minMaxProfitableLiquidation(a: MinMaxArgs): { min_USD: number; m
     }
   }
   return { min_USD, max_USD };
+}
+
+export interface BadDebtArgs {
+  paths: number[][];
+  ltvFractions: number[];
+  lltv: number;
+  tvl_USD: number;
+  poolDepth_USD: number;
+  gasCost_USD: number;
+  iTRYYieldAnnual: number;
+  preLiquidationEnabled: boolean;
+}
+
+export interface BadDebtOut {
+  badDebtByPath: number[];
+  liquidatedCountByPath: number[];
+  badDebtP95_USD: number;
+  badDebtP95Pct: number;
+}
+
+export function simulateBadDebt(a: BadDebtArgs): BadDebtOut {
+  const N = a.ltvFractions.length;
+  const collateralEachUSD = a.tvl_USD / Math.max(1, N);
+  const firstPath = a.paths[0];
+  if (!firstPath || firstPath.length === 0) {
+    return { badDebtByPath: [], liquidatedCountByPath: [], badDebtP95_USD: 0, badDebtP95Pct: 0 };
+  }
+  const S0 = firstPath[0]!;
+
+  const badDebtByPath: number[] = [];
+  const liquidatedCountByPath: number[] = [];
+
+  for (const path of a.paths) {
+    const active = a.ltvFractions.map((f) => ({
+      ltvFrac: f,
+      debt_USD: f * a.lltv * collateralEachUSD,
+      collateralBaseUSD: collateralEachUSD,
+      closed: false,
+      residual_USD: 0,
+    }));
+
+    for (let t = 1; t < path.length; t++) {
+      const Snow = path[t]!;
+      const rel = (Math.pow(1 + a.iTRYYieldAnnual, t / 365) * S0) / Snow;
+      for (const pos of active) {
+        if (pos.closed) continue;
+        const collNow = pos.collateralBaseUSD * rel;
+        const hf = healthFactor({ collateralUSD: collNow, debtUSD: pos.debt_USD, lltv: a.lltv });
+        if (hf <= 1) {
+          const { revenue_USD } = liquidatorProfit({
+            debt_USD: pos.debt_USD,
+            lltv: a.lltv,
+            poolDepth_USD: a.poolDepth_USD,
+            gasCost_USD: a.gasCost_USD,
+            holdingRisk_USD: 0,
+          });
+          const profit = revenue_USD - pos.debt_USD - a.gasCost_USD;
+          if (profit > 0) {
+            pos.closed = true;
+            pos.residual_USD = Math.max(0, pos.debt_USD - revenue_USD);
+          } else {
+            pos.closed = true;
+            pos.residual_USD = Math.max(0, pos.debt_USD - collNow);
+          }
+        }
+      }
+    }
+
+    const bd = active.reduce((s, p) => s + p.residual_USD, 0);
+    const count = active.filter((p) => p.closed).length;
+    badDebtByPath.push(bd);
+    liquidatedCountByPath.push(count);
+  }
+
+  const sorted = [...badDebtByPath].sort((x, y) => x - y);
+  const idx = Math.floor(0.95 * Math.max(0, sorted.length - 1));
+  const badDebtP95_USD = sorted[idx] ?? 0;
+  return {
+    badDebtByPath,
+    liquidatedCountByPath,
+    badDebtP95_USD,
+    badDebtP95Pct: a.tvl_USD > 0 ? badDebtP95_USD / a.tvl_USD : 0,
+  };
 }

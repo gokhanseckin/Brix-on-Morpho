@@ -6,6 +6,7 @@ import {
   slippage,
   liquidatorProfit,
   minMaxProfitableLiquidation,
+  simulateBadDebt,
 } from '@/lib/simulator';
 import { LIF } from '@/lib/morphoMath';
 
@@ -95,5 +96,35 @@ describe('liquidator economics', () => {
     });
     expect(r.min_USD).toBeGreaterThan(0);
     expect(r.max_USD).toBeGreaterThan(r.min_USD);
+  });
+});
+
+describe('bad debt cascade', () => {
+  it('no bad debt under flat collateral', () => {
+    const result = simulateBadDebt({
+      paths: [[1, 1, 1, 1], [1, 1, 1, 1]],
+      ltvFractions: [0.5, 0.7],
+      lltv: 0.86,
+      tvl_USD: 1_000_000,
+      poolDepth_USD: 500_000,
+      gasCost_USD: 5,
+      iTRYYieldAnnual: 0.38,
+      preLiquidationEnabled: false,
+    });
+    expect(Math.max(...result.badDebtByPath)).toBe(0);
+  });
+
+  it('bad debt > 0 under severe crash', () => {
+    const result = simulateBadDebt({
+      paths: [[1, 1.5, 2.0, 2.5]],
+      ltvFractions: [0.9, 0.95],
+      lltv: 0.86,
+      tvl_USD: 1_000_000,
+      poolDepth_USD: 1000,
+      gasCost_USD: 5,
+      iTRYYieldAnnual: 0,
+      preLiquidationEnabled: false,
+    });
+    expect(result.badDebtByPath[0]!).toBeGreaterThan(0);
   });
 });
