@@ -368,3 +368,54 @@ export function computeStrategy(a: StrategyArgs): StrategyOut {
     leverageLoopsViable: leverageLoopAPY > 0,
   };
 }
+
+export interface VaultJsonArgs {
+  lltv: number;
+  oracle: string;
+  irm: string;
+  performanceFee: number;
+  managementFee: number;
+  timelockSeconds: number;
+  cap_USD: number;
+  preLLTV: number;
+  preLCF: [number, number];
+  preLIF: [number, number];
+}
+
+function to18Decimal(x: number): string {
+  const big = BigInt(Math.round(x * 1e18));
+  return big.toString();
+}
+
+export interface VaultConfigJson {
+  market: { lltv: string; irm: string; oracle: string };
+  vault: {
+    performanceFee: number;
+    managementFee: number;
+    timelock: number;
+    caps: { absoluteUSD: number; relative: number };
+  };
+  preLiquidation: { preLLTV: string; preLCF: [number, number]; preLIF: [number, number] };
+}
+
+export function buildVaultConfigJson(a: VaultJsonArgs): VaultConfigJson {
+  return {
+    market: { lltv: to18Decimal(a.lltv), irm: a.irm, oracle: a.oracle },
+    vault: {
+      performanceFee: a.performanceFee,
+      managementFee: a.managementFee,
+      timelock: a.timelockSeconds,
+      caps: { absoluteUSD: a.cap_USD, relative: 1.0 },
+    },
+    preLiquidation: { preLLTV: to18Decimal(a.preLLTV), preLCF: a.preLCF, preLIF: a.preLIF },
+  };
+}
+
+export function classifyRiskTier(
+  chosen: number,
+  recommended: number
+): 'Conservative' | 'Moderate' | 'Aggressive' {
+  if (chosen <= recommended) return 'Conservative';
+  if (chosen <= recommended + 0.05) return 'Moderate';
+  return 'Aggressive';
+}

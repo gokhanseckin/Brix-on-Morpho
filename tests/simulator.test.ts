@@ -10,6 +10,8 @@ import {
   deriveRecommendedLLTV,
   snapToGovernanceLLTV,
   computeStrategy,
+  buildVaultConfigJson,
+  classifyRiskTier,
 } from '@/lib/simulator';
 import { LIF } from '@/lib/morphoMath';
 
@@ -174,5 +176,30 @@ describe('strategy', () => {
     expect(out.grossSupplyAPY).toBeCloseTo(0.07, 4);
     expect(out.totalSupplyAPY).toBeGreaterThan(out.netSupplyAPY);
     expect(out.daysToTarget).toBeGreaterThan(0);
+  });
+});
+
+describe('vault json', () => {
+  it('lltv encoded as 18-decimal fixed string', () => {
+    const j = buildVaultConfigJson({
+      lltv: 0.77,
+      oracle: '0xORACLE',
+      irm: '0xIRM',
+      performanceFee: 0.1,
+      managementFee: 0.01,
+      timelockSeconds: 604800,
+      cap_USD: 4_000_000,
+      preLLTV: 0.72,
+      preLCF: [0.05, 0.5],
+      preLIF: [1.01, 1.0837],
+    });
+    expect(j.market.lltv).toBe('770000000000000000');
+    expect(j.preLiquidation.preLCF).toEqual([0.05, 0.5]);
+  });
+
+  it('classifyRiskTier: chosen=recommended → Conservative', () => {
+    expect(classifyRiskTier(0.77, 0.77)).toBe('Conservative');
+    expect(classifyRiskTier(0.82, 0.77)).toBe('Moderate');
+    expect(classifyRiskTier(0.86, 0.77)).toBe('Aggressive');
   });
 });
