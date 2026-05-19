@@ -315,3 +315,56 @@ export function snapToGovernanceLLTV(raw: number): LLTV | 0 {
   }
   return chosen;
 }
+
+export interface StrategyArgs {
+  borrowAPY: number;
+  targetUtilization: number;
+  performanceFee: number;
+  managementFee: number;
+  requiredUSDM: number;
+  incentiveBudgetMonthly_USD: number;
+  attractionRate: number;
+  iTRYYieldAnnual: number;
+  expectedTRYDepreciation_annual: number;
+  competingAPY: number;
+}
+
+export interface StrategyOut {
+  grossSupplyAPY: number;
+  netSupplyAPY: number;
+  incentiveAPY: number;
+  totalSupplyAPY: number;
+  daysToTarget: number;
+  retentionAfterIncentivesEnd_USD: number;
+  totalIncentiveSpend_USD: number;
+  leverageLoopAPY: number;
+  leverageLoopsViable: boolean;
+}
+
+export function computeStrategy(a: StrategyArgs): StrategyOut {
+  const grossSupplyAPY = a.borrowAPY * a.targetUtilization;
+  const netSupplyAPY = grossSupplyAPY * (1 - a.performanceFee) - a.managementFee;
+  const incentiveAPY =
+    a.requiredUSDM > 0 ? (a.incentiveBudgetMonthly_USD * 12) / a.requiredUSDM : 0;
+  const totalSupplyAPY = netSupplyAPY + incentiveAPY;
+  const dailyAttract = (a.incentiveBudgetMonthly_USD * a.attractionRate) / 30;
+  const daysToTarget = dailyAttract > 0 ? a.requiredUSDM / dailyAttract : Infinity;
+  const retentionAfterIncentivesEnd_USD =
+    a.competingAPY > 0
+      ? a.requiredUSDM * Math.min(1, netSupplyAPY / a.competingAPY)
+      : a.requiredUSDM;
+  const totalIncentiveSpend_USD = a.incentiveBudgetMonthly_USD * (daysToTarget / 30);
+  const leverageLoopAPY =
+    a.iTRYYieldAnnual - a.borrowAPY * (1 + a.expectedTRYDepreciation_annual);
+  return {
+    grossSupplyAPY,
+    netSupplyAPY,
+    incentiveAPY,
+    totalSupplyAPY,
+    daysToTarget,
+    retentionAfterIncentivesEnd_USD,
+    totalIncentiveSpend_USD,
+    leverageLoopAPY,
+    leverageLoopsViable: leverageLoopAPY > 0,
+  };
+}

@@ -9,6 +9,7 @@ import {
   simulateBadDebt,
   deriveRecommendedLLTV,
   snapToGovernanceLLTV,
+  computeStrategy,
 } from '@/lib/simulator';
 import { LIF } from '@/lib/morphoMath';
 
@@ -153,5 +154,25 @@ describe('LLTV derivation', () => {
     const a = deriveRecommendedLLTV({ p95Drawdown: 0.30, slippage: 0.02, safetyMargin: 0.02 });
     const b = deriveRecommendedLLTV({ p95Drawdown: 0.05, slippage: 0.02, safetyMargin: 0.02 });
     expect(b.raw).toBeGreaterThan(a.raw);
+  });
+});
+
+describe('strategy', () => {
+  it('totals add up', () => {
+    const out = computeStrategy({
+      borrowAPY: 0.10,
+      targetUtilization: 0.7,
+      performanceFee: 0.1,
+      managementFee: 0.01,
+      requiredUSDM: 3_300_000,
+      incentiveBudgetMonthly_USD: 10_000,
+      attractionRate: 5,
+      iTRYYieldAnnual: 0.38,
+      expectedTRYDepreciation_annual: 0.30,
+      competingAPY: 0.05,
+    });
+    expect(out.grossSupplyAPY).toBeCloseTo(0.07, 4);
+    expect(out.totalSupplyAPY).toBeGreaterThan(out.netSupplyAPY);
+    expect(out.daysToTarget).toBeGreaterThan(0);
   });
 });
