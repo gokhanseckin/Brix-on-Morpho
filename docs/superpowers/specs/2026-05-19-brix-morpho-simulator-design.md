@@ -108,7 +108,7 @@ Position is liquidatable when `HF ≤ 1`, equivalently `LTV ≥ LLTV`.
 ```
 LIF = min(1.15, 1 / (β × LLTV + (1 − β))),  with β = 0.3
 ```
-At LLTV=86% → LIF ≈ 1.0457 (≈ 5% bonus). At LLTV=77% → LIF ≈ 1.084. At LLTV=91.5% → LIF ≈ 1.029.
+At LLTV=86% → LIF ≈ 1.0438 (≈ 4.4% bonus). At LLTV=77% → LIF ≈ 1.0741. At LLTV=91.5% → LIF ≈ 1.0262. (Corrected during implementation: prior values 1.0457 / 1.0837 / 1.0289 didn't satisfy β=0.3.)
 
 **AdaptiveCurveIRM (simplified for simulator):**
 Implement the actual Morpho `AdaptiveCurveIRM` curve. For purposes of the simulator (no time evolution), use the static instantaneous curve only — anchored at:
