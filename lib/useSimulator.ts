@@ -82,7 +82,7 @@ export function useSimulator() {
         expectedTRYDepreciation_annual: 0.3,
         competingAPY: 0.05,
       }),
-    [s, liquidity.requiredUSDM],
+    [s, liquidity.requiredUSDM, borrowAPY],
   );
 
   const lltvDerivation = useMemo(() => {
