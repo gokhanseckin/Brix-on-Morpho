@@ -20,7 +20,7 @@ test('Monte Carlo (1000 paths × 90 days) completes under 3000ms (best-effort)',
   // Includes navigation/hydration/worker boot — so an upper bound on worker run time.
   console.log(`PERF: time-to-first-result (1000×90) = ${elapsed}ms`);
 
-  // Soft budget: 3000ms. We do not fail the test above this — performance work
-  // is best-effort per the spec. Use a generous hard ceiling instead.
-  expect(elapsed).toBeLessThan(30_000);
+  // Hard ceiling: 6000ms (~2× the 3s spec budget). Tight enough to catch
+  // real regressions, lenient enough to absorb CI/browser-boot variance.
+  expect(elapsed).toBeLessThan(6000);
 });
