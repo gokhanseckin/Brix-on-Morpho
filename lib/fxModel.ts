@@ -1,4 +1,4 @@
-import { createRng, gauss, type Rng } from './rng';
+import { createRng, gauss } from './rng';
 
 export type Path = number[]; // length = horizonDays + 1
 
