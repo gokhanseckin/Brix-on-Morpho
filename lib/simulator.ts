@@ -1,4 +1,4 @@
-import { adaptiveCurveIRM } from './morphoMath';
+import { adaptiveCurveIRM, LIF } from './morphoMath';
 import { createRng, gauss, type Rng } from './rng';
 
 export interface LiqNeedArgs {
@@ -105,4 +105,86 @@ export function pctUnderwaterAtT(a: PctUnderwaterArgs): number {
     if (f > a.collateralRelChange) underwater++;
   }
   return underwater / a.ltvFractions.length;
+}
+
+/** AMM slippage for selling L USD-worth into one-side reserve D (USD). */
+export function slippage(L_USD: number, D_USD: number): number {
+  if (D_USD <= 0) return 1;
+  return L_USD / (L_USD + D_USD);
+}
+
+export interface LiquidatorArgs {
+  debt_USD: number;
+  lltv: number;
+  poolDepth_USD: number;
+  gasCost_USD: number;
+  holdingRisk_USD: number;
+}
+
+export interface LiquidatorOut {
+  collateralSeized_USD: number;
+  slippagePct: number;
+  revenue_USD: number;
+  profit_USD: number;
+}
+
+export function liquidatorProfit(a: LiquidatorArgs): LiquidatorOut {
+  const lif = LIF(a.lltv);
+  const collateralSeized_USD = a.debt_USD * lif;
+  const slippagePct = slippage(collateralSeized_USD, a.poolDepth_USD);
+  const revenue_USD = collateralSeized_USD * (1 - slippagePct);
+  const profit_USD = revenue_USD - a.debt_USD - a.gasCost_USD - a.holdingRisk_USD;
+  return { collateralSeized_USD, slippagePct, revenue_USD, profit_USD };
+}
+
+export interface MinMaxArgs {
+  lltv: number;
+  poolDepth_USD: number;
+  gasCost_USD: number;
+}
+
+export function minMaxProfitableLiquidation(a: MinMaxArgs): { min_USD: number; max_USD: number } {
+  const profitAt = (debt: number): number =>
+    liquidatorProfit({ ...a, debt_USD: debt, holdingRisk_USD: 0 }).profit_USD;
+  // Coarse scan to locate a profitable peak (profit is non-monotonic: gas dominates small,
+  // slippage dominates large). Then binary-search the two zero-crossings.
+  let peak = 1;
+  let peakProfit = profitAt(peak);
+  for (let i = 1; i <= 80; i++) {
+    const x = Math.pow(10, i / 10);
+    const p = profitAt(x);
+    if (p > peakProfit) {
+      peakProfit = p;
+      peak = x;
+    }
+  }
+  if (peakProfit <= 0) return { min_USD: NaN, max_USD: NaN };
+
+  // min: smallest debt with profit ≥ 0 in [0, peak]
+  let lo = 0;
+  let hi = peak;
+  let min_USD = peak;
+  for (let i = 0; i < 60; i++) {
+    const mid = (lo + hi) / 2;
+    if (profitAt(mid) > 0) {
+      hi = mid;
+      min_USD = mid;
+    } else {
+      lo = mid;
+    }
+  }
+  // max: largest debt with profit ≥ 0 in [peak, peak × 1e6]
+  lo = peak;
+  hi = peak * 1e6;
+  let max_USD = peak;
+  for (let i = 0; i < 60; i++) {
+    const mid = (lo + hi) / 2;
+    if (profitAt(mid) > 0) {
+      lo = mid;
+      max_USD = mid;
+    } else {
+      hi = mid;
+    }
+  }
+  return { min_USD, max_USD };
 }

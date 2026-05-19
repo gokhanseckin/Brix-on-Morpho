@@ -3,7 +3,11 @@ import {
   computeLiquidityNeed,
   sampleBetaLtvFractions,
   pctUnderwaterAtT,
+  slippage,
+  liquidatorProfit,
+  minMaxProfitableLiquidation,
 } from '@/lib/simulator';
+import { LIF } from '@/lib/morphoMath';
 
 describe('liquidity need', () => {
   it('verification anchor: 5M × 0.77 × 0.6 / 0.7 ≈ 3.3M', () => {
@@ -57,5 +61,39 @@ describe('position distribution', () => {
       collateralRelChange: 0.1,
     });
     expect(pct).toBe(1);
+  });
+});
+
+describe('liquidator economics', () => {
+  it('slippage anchor: L=2,D=98 → 0.02', () => {
+    expect(slippage(2, 98)).toBeCloseTo(0.02, 4);
+  });
+
+  it('profit cliff: profit ≈ 0 at exact break-even slippage', () => {
+    const lltv = 0.86;
+    const lif = LIF(lltv);
+    const debt = 1000;
+    const seized = debt * lif;
+    // exact cliff: revenue = debt ⇔ (1 − slip)·LIF = 1 ⇔ slip = 1 − 1/LIF.
+    const slip = 1 - 1 / lif;
+    const D = (seized * (1 - slip)) / slip;
+    const p = liquidatorProfit({
+      debt_USD: debt,
+      lltv,
+      poolDepth_USD: D,
+      gasCost_USD: 0,
+      holdingRisk_USD: 0,
+    });
+    expect(Math.abs(p.profit_USD)).toBeLessThan(1);
+  });
+
+  it('minMaxProfitableLiquidation returns sane bounds', () => {
+    const r = minMaxProfitableLiquidation({
+      lltv: 0.86,
+      poolDepth_USD: 500_000,
+      gasCost_USD: 5,
+    });
+    expect(r.min_USD).toBeGreaterThan(0);
+    expect(r.max_USD).toBeGreaterThan(r.min_USD);
   });
 });
