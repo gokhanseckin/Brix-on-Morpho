@@ -7,6 +7,8 @@ import {
   liquidatorProfit,
   minMaxProfitableLiquidation,
   simulateBadDebt,
+  deriveRecommendedLLTV,
+  snapToGovernanceLLTV,
 } from '@/lib/simulator';
 import { LIF } from '@/lib/morphoMath';
 
@@ -126,5 +128,30 @@ describe('bad debt cascade', () => {
       preLiquidationEnabled: false,
     });
     expect(result.badDebtByPath[0]!).toBeGreaterThan(0);
+  });
+});
+
+describe('LLTV derivation', () => {
+  it('converges within 10 iters', () => {
+    const r = deriveRecommendedLLTV({
+      p95Drawdown: 0.15,
+      slippage: 0.02,
+      safetyMargin: 0.02,
+      maxIter: 10,
+    });
+    expect(r.converged).toBe(true);
+    expect(r.iterations).toBeLessThanOrEqual(10);
+  });
+
+  it('snaps down to governance list', () => {
+    expect(snapToGovernanceLLTV(0.80)).toBe(0.77);
+    expect(snapToGovernanceLLTV(0.95)).toBe(0.945);
+    expect(snapToGovernanceLLTV(0.30)).toBe(0);
+  });
+
+  it('lower drawdown → higher recommended LLTV', () => {
+    const a = deriveRecommendedLLTV({ p95Drawdown: 0.30, slippage: 0.02, safetyMargin: 0.02 });
+    const b = deriveRecommendedLLTV({ p95Drawdown: 0.05, slippage: 0.02, safetyMargin: 0.02 });
+    expect(b.raw).toBeGreaterThan(a.raw);
   });
 });

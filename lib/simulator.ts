@@ -1,5 +1,6 @@
 import { adaptiveCurveIRM, healthFactor, LIF } from './morphoMath';
 import { createRng, gauss, type Rng } from './rng';
+import { GOV_LLTVS, type LLTV } from '@/types/simulator';
 
 export interface LiqNeedArgs {
   witryTVL_USD: number;
@@ -270,4 +271,47 @@ export function simulateBadDebt(a: BadDebtArgs): BadDebtOut {
     badDebtP95_USD,
     badDebtP95Pct: a.tvl_USD > 0 ? badDebtP95_USD / a.tvl_USD : 0,
   };
+}
+
+export interface DeriveArgs {
+  p95Drawdown: number;
+  slippage: number;
+  safetyMargin: number;
+  maxIter?: number;
+  tol?: number;
+}
+
+export interface DeriveOut {
+  raw: number;
+  converged: boolean;
+  iterations: number;
+}
+
+export function deriveRecommendedLLTV(a: DeriveArgs): DeriveOut {
+  const max = a.maxIter ?? 20;
+  const tol = a.tol ?? 1e-4;
+  let L = 0.80;
+  let converged = false;
+  let i = 0;
+  for (; i < max; i++) {
+    const lif = LIF(L);
+    const next = (1 - a.p95Drawdown) / (lif * (1 + a.slippage)) - a.safetyMargin;
+    if (Math.abs(next - L) < tol) {
+      L = next;
+      converged = true;
+      i++;
+      break;
+    }
+    L = next;
+  }
+  return { raw: Math.max(0, Math.min(0.98, L)), converged, iterations: i };
+}
+
+export function snapToGovernanceLLTV(raw: number): LLTV | 0 {
+  const sorted = [...GOV_LLTVS].sort((x, y) => x - y);
+  let chosen: LLTV | 0 = 0;
+  for (const lv of sorted) {
+    if (lv <= raw) chosen = lv;
+  }
+  return chosen;
 }
