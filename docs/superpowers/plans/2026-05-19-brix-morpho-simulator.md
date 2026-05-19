@@ -345,9 +345,11 @@ import { LIF, BETA } from '@/lib/morphoMath';
 
 describe('LIF', () => {
   it('matches spec anchors', () => {
-    expect(LIF(0.77)).toBeCloseTo(1.0837, 3);
-    expect(LIF(0.86)).toBeCloseTo(1.0457, 3);
-    expect(LIF(0.915)).toBeCloseTo(1.0289, 3);
+    // Plan v1 quoted 1.0837 / 1.0457 / 1.0289; those do not satisfy β=0.3.
+    // Correct values from `1/(0.3·LLTV + 0.7)`:
+    expect(LIF(0.77)).toBeCloseTo(1.0741, 3);
+    expect(LIF(0.86)).toBeCloseTo(1.0438, 3);
+    expect(LIF(0.915)).toBeCloseTo(1.0262, 3);
   });
 
   it('caps at 1.15', () => {
@@ -1121,13 +1123,13 @@ describe('liquidator economics', () => {
     expect(slippage(2, 98)).toBeCloseTo(0.02, 4);
   });
 
-  it('profit cliff: profit ≈ 0 when slippage ≈ LIF − 1', () => {
+  it('profit cliff: profit ≈ 0 when slippage = 1 − 1/LIF', () => {
+    // revenue = debt × LIF × (1 − slip); profit=0 ⇔ slip = 1 − 1/LIF (NOT LIF − 1).
     const lltv = 0.86;
     const lif = LIF(lltv);
     const debt = 1000;
     const seized = debt * lif;
-    // pick D such that slippage = lif - 1
-    const slip = lif - 1;
+    const slip = 1 - 1 / lif;
     const D = seized * (1 - slip) / slip;
     const p = liquidatorProfit({ debt_USD: debt, lltv, poolDepth_USD: D, gasCost_USD: 0, holdingRisk_USD: 0 });
     expect(Math.abs(p.profit_USD)).toBeLessThan(1);
