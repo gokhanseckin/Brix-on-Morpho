@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { LIF, BETA, healthFactor, adaptiveCurveIRM } from '@/lib/morphoMath';
+import { LIF, BETA, healthFactor, adaptiveCurveIRM, witryPerITRY, witryUSD } from '@/lib/morphoMath';
 
 describe('LIF', () => {
   it('matches spec anchors', () => {
@@ -47,5 +47,19 @@ describe('adaptiveCurveIRM', () => {
   it('clamps below 0 and above 1', () => {
     expect(adaptiveCurveIRM(-0.1, rt)).toBeCloseTo(rt / 4, 8);
     expect(adaptiveCurveIRM(1.5,  rt)).toBeCloseTo(4 * rt, 8);
+  });
+});
+
+describe('witryUSD', () => {
+  it('witry/iTRY = 1 at t=0', () => {
+    expect(witryPerITRY(0, 0.38)).toBeCloseTo(1, 8);
+  });
+  it('witry/iTRY grows at iTRY APY', () => {
+    // 1 year, 38% APY
+    expect(witryPerITRY(365, 0.38)).toBeCloseTo(1.38, 4);
+  });
+  it('wiTRY USD = (wiTRY/iTRY) / (USD/TRY)', () => {
+    // S=40, yield=0.38, t=365 → 1.38/40 = 0.0345
+    expect(witryUSD({ tDays: 365, iTRYYieldAnnual: 0.38, usdTryRate: 40 })).toBeCloseTo(0.0345, 4);
   });
 });

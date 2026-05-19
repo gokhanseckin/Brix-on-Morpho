@@ -22,3 +22,12 @@ export function adaptiveCurveIRM(u: number, rTarget: number): number {
   const a2 = rTarget * Math.exp(-0.9 * k2);
   return a2 * Math.exp(k2 * x);
 }
+
+export function witryPerITRY(tDays: number, iTRYYieldAnnual: number): number {
+  return Math.pow(1 + iTRYYieldAnnual, tDays / 365);
+}
+
+export interface WitryUsdArgs { tDays: number; iTRYYieldAnnual: number; usdTryRate: number; }
+export function witryUSD(a: WitryUsdArgs): number {
+  return witryPerITRY(a.tDays, a.iTRYYieldAnnual) / a.usdTryRate;
+}
