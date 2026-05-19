@@ -18,11 +18,26 @@ export default function Page() {
             Pre-launch parameter calibration for a Morpho Blue market on MegaETH.
           </p>
         </header>
-        <LiquidityNeed />
-        <FXRisk />
-        <LiquidityStrategy />
-        <LiquidationDesign />
-        <VaultRecommendations />
+        <section id="section-liquidity-need-anchor">
+          <h2 className="sr-only">1. USDM Liquidity Need</h2>
+          <LiquidityNeed />
+        </section>
+        <section id="section-fx-risk-anchor">
+          <h2 className="sr-only">2. FX Risk</h2>
+          <FXRisk />
+        </section>
+        <section id="section-liquidity-strategy-anchor">
+          <h2 className="sr-only">3. Liquidity Strategy</h2>
+          <LiquidityStrategy />
+        </section>
+        <section id="section-liquidation-design-anchor">
+          <h2 className="sr-only">4. Liquidation Design</h2>
+          <LiquidationDesign />
+        </section>
+        <section id="section-vault-recommendations-anchor">
+          <h2 className="sr-only">5. Vault V2 Parameter Recommendations</h2>
+          <VaultRecommendations />
+        </section>
       </main>
     </div>
   );
