@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { bootstrapPaths, blockBootstrapPaths, gbmPaths, fitGbmParams } from '@/lib/fxModel';
+import { bootstrapPaths, blockBootstrapPaths, gbmPaths, fitGbmParams, jumpDiffusionPaths } from '@/lib/fxModel';
 
 const returns = Array.from({ length: 500 }, (_, i) => 0.001 * (i % 5 - 2)); // deterministic stand-in
 
@@ -41,5 +41,14 @@ describe('GBM', () => {
     const { mu, sigma } = fitGbmParams(r);
     expect(Number.isFinite(mu)).toBe(true);
     expect(sigma).toBeGreaterThan(0);
+  });
+});
+
+describe('jump diffusion', () => {
+  it('reproducible & shape', () => {
+    const a = jumpDiffusionPaths({ mu: 0.2, sigma: 0.25, lambda: 4, muJ: -0.05, sigmaJ: 0.04, S0: 38, horizonDays: 30, paths: 50, seed: 5 });
+    const b = jumpDiffusionPaths({ mu: 0.2, sigma: 0.25, lambda: 4, muJ: -0.05, sigmaJ: 0.04, S0: 38, horizonDays: 30, paths: 50, seed: 5 });
+    expect(a).toEqual(b);
+    expect(a[0]!.length).toBe(31);
   });
 });

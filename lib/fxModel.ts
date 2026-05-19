@@ -62,6 +62,41 @@ export function fitGbmParams(returns: number[]): { mu: number; sigma: number } {
   return { mu: mean * 252 + 0.5 * variance * 252, sigma: Math.sqrt(variance * 252) };
 }
 
+export interface JumpArgs extends GbmArgs {
+  lambda: number;
+  muJ: number;
+  sigmaJ: number;
+}
+
+export function jumpDiffusionPaths(a: JumpArgs): Path[] {
+  const rng = createRng(a.seed);
+  const dt = 1 / 252;
+  // κ = E[e^J − 1] = exp(μJ + σJ²/2) − 1
+  const kappa = Math.exp(a.muJ + 0.5 * a.sigmaJ * a.sigmaJ) - 1;
+  const out: Path[] = [];
+  for (let p = 0; p < a.paths; p++) {
+    const s: number[] = new Array(a.horizonDays + 1);
+    s[0] = a.S0;
+    for (let t = 1; t <= a.horizonDays; t++) {
+      const z = gauss(rng);
+      // Poisson(λ·dt): for small dt, draw via inverse-transform or thinning.
+      const lambdaDt = a.lambda * dt;
+      let nJumps = 0;
+      // Knuth: for small λ·dt this is fine
+      const L = Math.exp(-lambdaDt);
+      let k = 0, prod = rng();
+      while (prod > L) { k++; prod *= rng(); }
+      nJumps = k;
+      let jumpSum = 0;
+      for (let j = 0; j < nJumps; j++) jumpSum += a.muJ + a.sigmaJ * gauss(rng);
+      const drift = (a.mu - 0.5 * a.sigma * a.sigma - a.lambda * kappa) * dt;
+      s[t] = s[t - 1]! * Math.exp(drift + a.sigma * Math.sqrt(dt) * z + jumpSum);
+    }
+    out.push(s);
+  }
+  return out;
+}
+
 export function blockBootstrapPaths(a: BlockBootstrapArgs): Path[] {
   const rng = createRng(a.seed);
   const out: Path[] = [];
