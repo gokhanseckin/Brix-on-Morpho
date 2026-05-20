@@ -193,4 +193,45 @@ describe('help registry', () => {
       }
     });
   });
+
+  // PR #6: Section 4 (Liquidation Design) ships real copy.
+  describe('PR #6 — liquidation content is no longer stubbed', () => {
+    const SECTION_4_KPIS = [
+      'minProfitableLiquidation',
+      'maxProfitableLiquidation',
+      'recommendedPoolDepth',
+      'badDebtP95USD',
+      'badDebtP95Pct',
+      'preLiquidationParams',
+    ] as const;
+    const SECTION_4_CHARTS = ['badDebtHistogram'] as const;
+    const SECTION_4_PARAMS = [
+      'poolDepth_USD',
+      'safetyMargin',
+      'preLiquidationEnabled',
+    ] as const;
+
+    it('section-4 KPI entries have real titles + formulas', () => {
+      for (const k of SECTION_4_KPIS) {
+        expect(KPI_HELP[k].title, `KPI ${k} title still stubbed`).not.toBe('Coming soon');
+        expect(KPI_HELP[k].formula.plain).not.toBe('(documentation pending)');
+        expect(KPI_HELP[k].definitions.length, `KPI ${k} has no definitions`).toBeGreaterThan(0);
+      }
+    });
+
+    it('section-4 chart entries have real axes + definitions', () => {
+      for (const c of SECTION_4_CHARTS) {
+        expect(CHART_HELP[c].title).not.toBe('Coming soon');
+        expect(CHART_HELP[c].axes.x).not.toBe('pending');
+        expect(CHART_HELP[c].definitions.length).toBeGreaterThan(0);
+      }
+    });
+
+    it('section-4 param tooltips are no longer the stub one-liner', () => {
+      const stub = 'Coming soon. See /help for details.';
+      for (const p of SECTION_4_PARAMS) {
+        expect(PARAM_HELP[p].oneLiner, `PARAM_HELP.${p} still stubbed`).not.toBe(stub);
+      }
+    });
+  });
 });
