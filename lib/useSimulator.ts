@@ -79,7 +79,7 @@ export function useSimulator() {
         requiredUSDM: requiredUSDMPrecursor,
         incentiveBudgetMonthly_USD: s.incentiveBudgetMonthly_USD,
         attractionRate: s.attractionRate,
-        iTRYYieldAnnual: s.iTRYYieldAnnual,
+        witryYieldAnnual: s.witryYieldAnnual,
         expectedTRYDepreciation_annual: DEFAULT_TRY_DEPRECIATION_ANNUAL,
         competingAPY: COMPETING_STABLECOIN_APY,
       }),

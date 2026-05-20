@@ -60,6 +60,6 @@ describe('witryUSD', () => {
   });
   it('wiTRY USD = (wiTRY/iTRY) / (USD/TRY)', () => {
     // S=40, yield=0.38, t=365 → 1.38/40 = 0.0345
-    expect(witryUSD({ tDays: 365, iTRYYieldAnnual: 0.38, usdTryRate: 40 })).toBeCloseTo(0.0345, 4);
+    expect(witryUSD({ tDays: 365, witryYieldAnnual: 0.38, usdTryRate: 40 })).toBeCloseTo(0.0345, 4);
   });
 });

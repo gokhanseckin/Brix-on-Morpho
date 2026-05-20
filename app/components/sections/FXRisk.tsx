@@ -34,7 +34,7 @@ export function FXRisk() {
   const netWitryData = useMemo(() => {
     if (!fx) return [] as Array<{ day: number; p5: number; p50: number; p95: number }>;
     return fx.p50.map((p50, i) => {
-      const w = witryPerITRY(i, inputs.iTRYYieldAnnual);
+      const w = witryPerITRY(i, inputs.witryYieldAnnual);
       const p5v = fx.p5[i] ?? p50;
       const p95v = fx.p95[i] ?? p50;
       return {
@@ -45,7 +45,7 @@ export function FXRisk() {
         p95: w / p5v,
       };
     });
-  }, [fx, inputs.iTRYYieldAnnual]);
+  }, [fx, inputs.witryYieldAnnual]);
 
   const drawdownBins = useMemo(() => {
     if (!fx?.threeDayDD || fx.threeDayDD.length === 0) return [];
@@ -81,7 +81,7 @@ export function FXRisk() {
     return fx.p50.map((s, t) => {
       // collateralRelChange = wiTRY in USD now / wiTRY in USD at t=0
       // = (witryPerITRY(t) / s) / (1 / S0) = witryPerITRY(t) * S0 / s
-      const collRel = (witryPerITRY(t, inputs.iTRYYieldAnnual) * S0) / s;
+      const collRel = (witryPerITRY(t, inputs.witryYieldAnnual) * S0) / s;
       return {
         day: t,
         pct: pctUnderwaterAtT({
@@ -91,7 +91,7 @@ export function FXRisk() {
         }),
       };
     });
-  }, [fx, inputs.borrowerLTVAlpha, inputs.borrowerLTVBeta, inputs.iTRYYieldAnnual, inputs.lltv, inputs.seed]);
+  }, [fx, inputs.borrowerLTVAlpha, inputs.borrowerLTVBeta, inputs.witryYieldAnnual, inputs.lltv, inputs.seed]);
 
   return (
     <section id="section-fx-risk" className="space-y-6">

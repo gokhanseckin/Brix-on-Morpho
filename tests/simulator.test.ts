@@ -117,7 +117,7 @@ describe('bad debt cascade', () => {
       tvl_USD: 1_000_000,
       poolDepth_USD: 500_000,
       gasCost_USD: 5,
-      iTRYYieldAnnual: 0.38,
+      witryYieldAnnual: 0.38,
       preLiquidationEnabled: false,
     });
     expect(Math.max(...result.badDebtByPath)).toBe(0);
@@ -131,7 +131,7 @@ describe('bad debt cascade', () => {
       tvl_USD: 1_000_000,
       poolDepth_USD: 1000,
       gasCost_USD: 5,
-      iTRYYieldAnnual: 0,
+      witryYieldAnnual: 0,
       preLiquidationEnabled: false,
     });
     expect(result.badDebtByPath[0]!).toBeGreaterThan(0);
@@ -152,7 +152,7 @@ describe('bad debt cascade', () => {
       tvl_USD: 1_000_000,
       poolDepth_USD: 800_000,
       gasCost_USD: 5,
-      iTRYYieldAnnual: 0,
+      witryYieldAnnual: 0,
     };
     const off = simulateBadDebt({ ...args, preLiquidationEnabled: false });
     const on = simulateBadDebt({ ...args, preLiquidationEnabled: true });
@@ -173,7 +173,7 @@ describe('bad debt cascade', () => {
       tvl_USD: 1_000_000,
       poolDepth_USD: 500_000,
       gasCost_USD: 5,
-      iTRYYieldAnnual: 0.38,
+      witryYieldAnnual: 0.38,
       preLiquidationEnabled: false,
     });
     expect(result.liquidatedVolumeByPath).toHaveLength(2);
@@ -191,7 +191,7 @@ describe('bad debt cascade', () => {
       tvl_USD: 1_000_000,
       poolDepth_USD: 50_000_000, // deep pool ⇒ near-zero slippage ⇒ profitable
       gasCost_USD: 5,
-      iTRYYieldAnnual: 0,
+      witryYieldAnnual: 0,
       preLiquidationEnabled: false,
     });
     expect(result.liquidatedVolumeByPath).toHaveLength(1);
@@ -211,7 +211,7 @@ describe('bad debt cascade', () => {
       tvl_USD: 1_000_000,
       poolDepth_USD: 5_000_000,
       gasCost_USD: 5,
-      iTRYYieldAnnual: 0,
+      witryYieldAnnual: 0,
     };
     const off = simulateBadDebt({ ...args, preLiquidationEnabled: false });
     const on = simulateBadDebt({ ...args, preLiquidationEnabled: true });
@@ -254,7 +254,7 @@ describe('strategy', () => {
       requiredUSDM: 3_300_000,
       incentiveBudgetMonthly_USD: 10_000,
       attractionRate: 5,
-      iTRYYieldAnnual: 0.38,
+      witryYieldAnnual: 0.38,
       expectedTRYDepreciation_annual: 0.30,
       competingAPY: 0.05,
     });
