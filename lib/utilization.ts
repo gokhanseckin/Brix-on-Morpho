@@ -89,8 +89,15 @@ export function looperNetAPY(i: LooperEconomicsInput): LooperEconomicsResult {
 
   return { effectiveLeverage, borrowAPY, grossLoopAPY, borrowCost, slippageCost, hfIdleCost, netLoopAPY, loopMargin };
 }
-export function liquidityStress(_i: LiquidityStressInput): LiquidityStressResult {
-  throw new Error('not implemented');
+export function liquidityStress(i: LiquidityStressInput): LiquidityStressResult {
+  const bufferUSD = Math.max(0, (1 - i.uTarget) * i.tvlUSDM_USD);
+  const stressWithdrawalUSD = i.stressPctOfSupply * i.tvlUSDM_USD;
+  const survives = bufferUSD >= stressWithdrawalUSD - 1e-9;
+  const borrowedUSD = i.uTarget * i.tvlUSDM_USD;
+  const dailyRepayment = (i.borrowAPY * borrowedUSD) / 365;
+  const shortfall = Math.max(0, stressWithdrawalUSD - bufferUSD);
+  const daysToRefillEstimate = dailyRepayment > 0 ? shortfall / dailyRepayment : Infinity;
+  return { bufferUSD, stressWithdrawalUSD, survives, daysToRefillEstimate };
 }
 export function sweepUtilizationTargets(_i: RecommendInput): SweepRow[] {
   throw new Error('not implemented');

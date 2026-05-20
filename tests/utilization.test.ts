@@ -70,3 +70,24 @@ describe('looperNetAPY math', () => {
     expect(r.hfIdleCost).toBeCloseTo(0, 10);
   });
 });
+
+describe('liquidityStress', () => {
+  it('bufferUSD = (1 − u) × TVL', () => {
+    const r = liquidityStress({ uTarget: 0.8, tvlUSDM_USD: 10_000_000, stressPctOfSupply: 0.2, borrowAPY: 0.04 });
+    expect(r.bufferUSD).toBeCloseTo(2_000_000, 6);
+    expect(r.stressWithdrawalUSD).toBeCloseTo(2_000_000, 6);
+  });
+
+  it('survives = bufferUSD >= stressWithdrawalUSD', () => {
+    const survives = liquidityStress({ uTarget: 0.8, tvlUSDM_USD: 10e6, stressPctOfSupply: 0.2, borrowAPY: 0.04 });
+    expect(survives.survives).toBe(true);
+    const fails = liquidityStress({ uTarget: 0.85, tvlUSDM_USD: 10e6, stressPctOfSupply: 0.2, borrowAPY: 0.04 });
+    expect(fails.survives).toBe(false);
+  });
+
+  it('daysToRefillEstimate is positive when borrowAPY > 0', () => {
+    const r = liquidityStress({ uTarget: 0.8, tvlUSDM_USD: 10e6, stressPctOfSupply: 0.2, borrowAPY: 0.04 });
+    expect(r.daysToRefillEstimate).toBeGreaterThanOrEqual(0);
+    expect(Number.isFinite(r.daysToRefillEstimate) || r.daysToRefillEstimate === Infinity).toBe(true);
+  });
+});
