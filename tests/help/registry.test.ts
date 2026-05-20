@@ -111,4 +111,49 @@ describe('help registry', () => {
       }
     });
   });
+
+  // PR #4: Section 2 (FX Risk) ships real copy.
+  describe('PR #4 — fx-risk content is no longer stubbed', () => {
+    const SECTION_2_KPIS = [
+      'threeDayMaxDrawdownP50',
+      'threeDayMaxDrawdownP95',
+      'expectedLiquidationVolumeP95',
+      'annualizedVol',
+    ] as const;
+    const SECTION_2_CHARTS = ['fxBands', 'netWitryUsdPaths', 'positionsUnderwater'] as const;
+    const SECTION_2_PARAMS = [
+      'iTRYYieldAnnual',
+      'usdtryBaseline',
+      'historicalPeriod',
+      'simulationMode',
+      'simulationHorizonDays',
+      'pathCount',
+      'tryShockPct',
+      'blockBootstrap',
+      'seed',
+    ] as const;
+
+    it('section-2 KPI entries have real titles + formulas', () => {
+      for (const k of SECTION_2_KPIS) {
+        expect(KPI_HELP[k].title, `KPI ${k} title still stubbed`).not.toBe('Coming soon');
+        expect(KPI_HELP[k].formula.plain).not.toBe('(documentation pending)');
+        expect(KPI_HELP[k].definitions.length, `KPI ${k} has no definitions`).toBeGreaterThan(0);
+      }
+    });
+
+    it('section-2 chart entries have real axes + definitions', () => {
+      for (const c of SECTION_2_CHARTS) {
+        expect(CHART_HELP[c].title).not.toBe('Coming soon');
+        expect(CHART_HELP[c].axes.x).not.toBe('pending');
+        expect(CHART_HELP[c].definitions.length).toBeGreaterThan(0);
+      }
+    });
+
+    it('section-2 param tooltips are no longer the stub one-liner', () => {
+      const stub = 'Coming soon. See /help for details.';
+      for (const p of SECTION_2_PARAMS) {
+        expect(PARAM_HELP[p].oneLiner, `PARAM_HELP.${p} still stubbed`).not.toBe(stub);
+      }
+    });
+  });
 });
