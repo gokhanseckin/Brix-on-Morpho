@@ -21,11 +21,11 @@ export const LIQUIDITY_NEED_PARAMS: Partial<Record<string, ParamHelp>> = {
   },
   borrowerLTVAlpha: {
     oneLiner:
-      'α in the Beta(α, β) distribution for "fraction of LLTV used by a typical borrower". Mean = α/(α+β). Larger α → average borrower closer to the LLTV cap (more aggressive).',
+      'α — pulls borrowers TOWARD the LLTV cap. Raise to model a more aggressive cohort. Mean borrower LTV = α/(α+β) × LLTV. Default α=2, β=1.2 → mean 62.5% of LLTV.',
   },
   borrowerLTVBeta: {
     oneLiner:
-      'β in the Beta(α, β) distribution for "fraction of LLTV used by a typical borrower". Mean = α/(α+β). Larger β → average borrower further from the LLTV cap (more conservative).',
+      'β — pulls borrowers AWAY from the LLTV cap. Raise to model a more conservative cohort. Mean borrower LTV = α/(α+β) × LLTV. Default α=2, β=1.2 → mean 62.5% of LLTV.',
   },
 };
 
@@ -98,9 +98,9 @@ const requiredUSDM: KpiHelp = {
   },
   params: [COMMON_PARAMS.TVL!, COMMON_PARAMS.LLTV!, COMMON_PARAMS.alpha!, COMMON_PARAMS.beta!, COMMON_PARAMS.uTarget!],
   definitions: [
-    { term: 'α (borrowerLTVAlpha)', definition: 'Shape parameter of the borrower-LTV Beta distribution. Larger α → average borrower uses MORE of the LLTV cap.' },
-    { term: 'β (borrowerLTVBeta)', definition: 'Shape parameter of the borrower-LTV Beta distribution. Larger β → average borrower uses LESS of the LLTV cap.' },
-    { term: 'Beta(α, β)', definition: 'A probability distribution on [0, 1] with mean α/(α+β). Used here to model the fraction of LLTV that a typical borrower actually uses. The notation "Beta(2, 1.2)" means α=2, β=1.2 → mean 0.625 → the average borrower sits at 62.5% of the LLTV cap.' },
+    { term: 'α (borrowerLTVAlpha)', definition: 'Shape parameter that pulls the borrower distribution TOWARD the LLTV cap. Raise α to model more aggressive borrowers.' },
+    { term: 'β (borrowerLTVBeta)', definition: 'Shape parameter that pulls the borrower distribution AWAY from the LLTV cap. Raise β to model more conservative borrowers.' },
+    { term: 'Beta(α, β)', definition: 'A probability distribution on [0, 1] controlled by two positive shape parameters. Mean = α/(α+β); spread shrinks as α+β grows. Useful presets — Beta(1,1): uniform; Beta(2, 1.2): mean 62.5% (default, mildly aggressive); Beta(5, 1): mean 83% (aggressive, most near cap); Beta(1, 5): mean 17% (conservative); Beta(10, 10): mean 50% with a tight cluster.' },
     { term: 'u_target', definition: 'Target borrow utilization (e.g. 70%). The IRM curve is anchored so that u_target produces the target borrow APY (r_target = 4% APR).' },
   ],
   impact: {
