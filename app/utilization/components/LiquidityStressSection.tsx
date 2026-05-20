@@ -1,5 +1,6 @@
 'use client';
 import type { UtilizationAnalysisOutput } from '@/lib/useUtilizationAnalysis';
+import { HelpPopover } from '@/app/components/help/HelpPopover';
 
 const pct = (v: number) => `${(v * 100).toFixed(0)}%`;
 const usd = (v: number) => `$${Math.round(v).toLocaleString()}`;
@@ -7,7 +8,7 @@ const usd = (v: number) => `$${Math.round(v).toLocaleString()}`;
 export function LiquidityStressSection({ analysis }: { analysis: UtilizationAnalysisOutput }) {
   return (
     <section className="rounded-lg border bg-white p-4">
-      <h2 className="font-semibold">Liquidity Stress Test</h2>
+      <h2 className="font-semibold inline-flex items-center gap-1">Liquidity Stress Test<HelpPopover chartKey="liquidityStressTable" /></h2>
       <p className="text-sm text-gray-600">
         Stress: {pct(analysis.inputs.stressPctOfSupply)} of supply withdrawn in one day.
       </p>

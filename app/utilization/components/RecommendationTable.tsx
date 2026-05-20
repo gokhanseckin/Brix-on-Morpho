@@ -1,5 +1,6 @@
 'use client';
 import type { UtilizationAnalysisOutput } from '@/lib/useUtilizationAnalysis';
+import { HelpPopover } from '@/app/components/help/HelpPopover';
 
 const pct = (v: number) => `${(v * 100).toFixed(2)}%`;
 const usd = (v: number) => `$${Math.round(v).toLocaleString()}`;
@@ -8,7 +9,7 @@ export function RecommendationTable({ analysis }: { analysis: UtilizationAnalysi
   const rec = analysis.recommended.recommended;
   return (
     <section className="rounded-lg border bg-white p-4">
-      <h2 className="font-semibold">Recommendation Table</h2>
+      <h2 className="font-semibold inline-flex items-center gap-1">Recommendation Table<HelpPopover chartKey="recommendationTable" /></h2>
       <table className="mt-3 w-full text-xs">
         <thead>
           <tr className="text-left text-gray-500">

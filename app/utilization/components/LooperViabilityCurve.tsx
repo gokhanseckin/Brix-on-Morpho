@@ -1,6 +1,7 @@
 'use client';
 import type { UtilizationAnalysisOutput } from '@/lib/useUtilizationAnalysis';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ReferenceLine, ResponsiveContainer, Legend } from 'recharts';
+import { HelpPopover } from '@/app/components/help/HelpPopover';
 
 export function LooperViabilityCurve({ analysis }: { analysis: UtilizationAnalysisOutput }) {
   const data = analysis.viabilityCurve.map(p => ({
@@ -11,7 +12,7 @@ export function LooperViabilityCurve({ analysis }: { analysis: UtilizationAnalys
 
   return (
     <section className="rounded-lg border bg-white p-4">
-      <h2 className="font-semibold">Looper Viability Curve</h2>
+      <h2 className="font-semibold inline-flex items-center gap-1">Looper Viability Curve<HelpPopover chartKey="looperViabilityCurve" /></h2>
       <p className="text-sm text-gray-600">Borrow APY across u_target with wiTRY 7d / 30d reference yields.</p>
       <div className="h-64 mt-3">
         <ResponsiveContainer>

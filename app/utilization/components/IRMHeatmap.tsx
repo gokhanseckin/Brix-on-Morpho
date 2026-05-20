@@ -1,5 +1,6 @@
 'use client';
 import type { UtilizationAnalysisOutput } from '@/lib/useUtilizationAnalysis';
+import { HelpPopover } from '@/app/components/help/HelpPopover';
 
 const HEATMAP_U = Array.from({ length: 10 }, (_, k) => 0.5 + k * 0.05);
 const HEATMAP_R = Array.from({ length: 10 }, (_, k) => 0.01 + k * 0.01);
@@ -25,7 +26,7 @@ export function IRMHeatmap({ analysis }: { analysis: UtilizationAnalysisOutput }
 
   return (
     <section className="rounded-lg border bg-white p-4">
-      <h2 className="font-semibold">IRM Sensitivity Heatmap</h2>
+      <h2 className="font-semibold inline-flex items-center gap-1">IRM Sensitivity Heatmap<HelpPopover chartKey="irmHeatmap" /></h2>
       <p className="text-sm text-gray-600">
         borrowAPY across (u_target, r_target). Cells below wiTRY 7d ({(w7*100).toFixed(2)}%) are loop-feasible.
       </p>
