@@ -3,6 +3,19 @@ import type { SidebarInputs } from '@/types/simulator';
 export interface ParamHelp {
   /** One short line. What it controls + directional consequence. */
   oneLiner: string;
+  /** Rich body rendered on /help/<section>#<paramKey>. Optional. */
+  details?: ParamDetails;
+}
+
+export interface ParamDetails {
+  /** Long-form paragraph(s) describing the parameter in depth. */
+  description?: string;
+  /** Enum-like values for select/toggle params. */
+  options?: Array<{ name: string; description: string; bestFor?: string }>;
+  /** What downstream sections recompute when this param changes. */
+  downstream?: Array<{ section: string; effects: string[] }>;
+  /** What stays the same when this changes. */
+  unchanged?: string[];
 }
 
 export type ParamSource = 'sidebar' | 'derived' | 'constant';

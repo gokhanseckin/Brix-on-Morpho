@@ -8,7 +8,7 @@
 import type { SidebarInputs } from '@/types/simulator';
 import { KPI_KEYS, type KpiKey } from './kpiKeys';
 import { CHART_KEYS, type ChartKey } from './chartKeys';
-import type { ChartHelp, KpiHelp, ParamHelp } from './types';
+import type { ChartHelp, HelpSection, KpiHelp, ParamHelp } from './types';
 import {
   LIQUIDITY_NEED_PARAMS,
   LIQUIDITY_NEED_KPIS,
@@ -126,3 +126,32 @@ export const KPI_HELP: Record<KpiKey, KpiHelp> = Object.fromEntries(
 export const CHART_HELP: Record<ChartKey, ChartHelp> = Object.fromEntries(
   CHART_KEYS.map((k) => [k, SECTION_CHARTS[k] ?? STUB_CHART]),
 ) as Record<ChartKey, ChartHelp>;
+
+/**
+ * Which /help/<section> page a sidebar param's "More info" link points at.
+ * Mirrors the section grouping in the Sidebar component.
+ */
+export const PARAM_SECTION: Record<keyof SidebarInputs, HelpSection> = {
+  witryTVL_USD: 'liquidity-need',
+  lltv: 'liquidity-need',
+  targetUtilization: 'liquidity-need',
+  borrowerLTVAlpha: 'liquidity-need',
+  borrowerLTVBeta: 'liquidity-need',
+  iTRYYieldAnnual: 'fx-risk',
+  usdtryBaseline: 'fx-risk',
+  historicalPeriod: 'fx-risk',
+  simulationMode: 'fx-risk',
+  simulationHorizonDays: 'fx-risk',
+  pathCount: 'fx-risk',
+  tryShockPct: 'fx-risk',
+  blockBootstrap: 'fx-risk',
+  seed: 'fx-risk',
+  incentiveBudgetMonthly_USD: 'strategy',
+  attractionRate: 'strategy',
+  lockPeriodDays: 'strategy',
+  performanceFee: 'strategy',
+  managementFee: 'strategy',
+  poolDepth_USD: 'liquidation',
+  safetyMargin: 'liquidation',
+  preLiquidationEnabled: 'liquidation',
+};

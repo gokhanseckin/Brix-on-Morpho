@@ -22,6 +22,72 @@ export const FX_RISK_PARAMS: Partial<Record<string, ParamHelp>> = {
   simulationMode: {
     oneLiner:
       'Path generator: Bootstrap (resample real returns — heavy-tail-preserving, default), GBM (smooth log-normal), GBM+Jumps (Merton jump-diffusion), Scenario (deterministic linear glide to a chosen shock).',
+    details: {
+      description:
+        'The simulation mode determines how Monte-Carlo USD/TRY paths are generated. All four modes drive Sections 2 (FX Risk), 4 (Liquidation), and 5 (Vault Recommendations). Section 1 (Liquidity Need) and Section 3 (Strategy) are pre-FX and do not depend on path generation.',
+      options: [
+        {
+          name: 'Bootstrap (default)',
+          description:
+            'Resamples real USD/TRY daily returns from the embedded Yahoo history (window length = `historicalPeriod` years). Each path picks a random historical day, applies its return, repeats for `simulationHorizonDays` steps. Preserves heavy tails and skew — what actually happened can happen again. The `blockBootstrap` toggle pulls returns in 5-day blocks to preserve short-run autocorrelation (volatility clustering).',
+          bestFor:
+            'Realistic stress where you trust the historical window to represent the future. Strongest match to recent crisis regimes.',
+        },
+        {
+          name: 'GBM (Geometric Brownian Motion)',
+          description:
+            'Fits μ (drift) and σ (vol) from the historical window, then generates each step as S_t · exp((μ − σ²/2)·dt + σ·√dt·Z) with Z ~ N(0, 1). Smooth log-normal walk with no fat tails, no jumps, and no autocorrelation. Tighter P5/P95 bands than Bootstrap.',
+          bestFor:
+            'Textbook analytic baseline. Useful for comparing against Bootstrap to see how much of the tail risk comes from real history vs. the normal-distribution assumption.',
+        },
+        {
+          name: 'GBM+Jumps (Merton jump-diffusion)',
+          description:
+            'GBM plus a Poisson jump process (default λ ≈ 4 jumps/year, log-normal jump size). Same drift/vol fit as GBM, with a martingale compensator so the mean still tracks S₀ · exp(μT). Reintroduces fat tails that pure GBM misses — single-day step-changes such as central-bank moves or currency interventions.',
+          bestFor:
+            'Tail-aware modeling without abandoning the analytic GBM structure. The tail comes from a parameterized jump process, not from historical resampling.',
+        },
+        {
+          name: 'Scenario',
+          description:
+            'Single deterministic path. Ignores history entirely. Glides linearly from `usdtryBaseline` to `usdtryBaseline × (1 + |tryShockPct|)` over the horizon. The `tryShockPct` slider controls shock magnitude; sign is ignored (always interpreted as TRY weakening).',
+          bestFor:
+            '"What if TRY drops X% in N days?" stress tests with a single number to point at. Use to validate that the LLTV recommendation withstands a specific scenario the team wants to defend.',
+        },
+      ],
+      downstream: [
+        {
+          section: 'Section 2 — FX Risk',
+          effects: [
+            'USD/TRY P5/P50/P95 fan (`fxBands` chart) re-shapes',
+            'Net wiTRY USD value paths and positions-underwater chart update',
+            '3-day max drawdown P50 and P95 KPIs update',
+          ],
+        },
+        {
+          section: 'Section 4 — Liquidation',
+          effects: [
+            'Bad-debt cascade re-runs against the new paths → P95 bad-debt USD and % TVL move',
+            'Bad-debt histogram redistributes',
+            'Path-aggregated P95 liquidation volume updates → recommended pool depth shifts',
+          ],
+        },
+        {
+          section: 'Section 5 — Vault Recommendations',
+          effects: [
+            'Recommended LLTV re-derives from the new P95 3-day drawdown',
+            'Risk tier may flip if your chosen LLTV crosses the new recommendation',
+            'Vault config JSON stays at your chosen LLTV but the recommendation hint changes',
+          ],
+        },
+      ],
+      unchanged: [
+        'All Section 1 numbers (Liquidity Need is pre-FX)',
+        'All Section 3 numbers (Strategy uses static IRM evaluation, not paths)',
+        'Borrow APY curve and Beta distribution charts in Section 1',
+        'Annualized USD/TRY volatility (realised from history regardless of mode)',
+      ],
+    },
   },
   simulationHorizonDays: {
     oneLiner:

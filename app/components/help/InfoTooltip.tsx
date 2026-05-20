@@ -1,13 +1,24 @@
 'use client';
 import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
+import Link from 'next/link';
+import type { Route } from 'next';
+import type { HelpSection } from '@/lib/help/types';
+
+interface MoreInfoLink {
+  section: HelpSection;
+  anchor: string;
+}
 
 /**
  * Sidebar param help. Click to open, ESC or click-outside to close.
  * Renders via portal with fixed positioning so it escapes the sidebar's
  * overflow-y-auto clipping (overflow-y:auto forces overflow-x:auto too).
+ *
+ * If `moreInfo` is provided, a "More info →" link is appended that points
+ * at /help/<section>#<anchor>.
  */
-export function InfoTooltip({ text }: { text: string }) {
+export function InfoTooltip({ text, moreInfo }: { text: string; moreInfo?: MoreInfoLink }) {
   const [open, setOpen] = useState(false);
   const [rect, setRect] = useState<DOMRect | null>(null);
   const [mounted, setMounted] = useState(false);
@@ -98,6 +109,17 @@ export function InfoTooltip({ text }: { text: string }) {
               ×
             </button>
           </div>
+          {moreInfo && (
+            <div className="mt-3 pt-2 border-t border-neutral-200 dark:border-neutral-800 text-right">
+              <Link
+                href={{ pathname: `/help/${moreInfo.section}` as Route, hash: moreInfo.anchor }}
+                className="text-xs font-medium text-blue-600 dark:text-blue-400 hover:underline"
+                onClick={() => setOpen(false)}
+              >
+                More info →
+              </Link>
+            </div>
+          )}
         </div>,
         document.body,
       )}
