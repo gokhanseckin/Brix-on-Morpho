@@ -156,4 +156,41 @@ describe('help registry', () => {
       }
     });
   });
+
+  // PR #5: Section 3 (Liquidity Strategy) ships real copy.
+  describe('PR #5 — strategy content is no longer stubbed', () => {
+    const SECTION_3_KPIS = [
+      'borrowAPY',
+      'grossSupplyAPY',
+      'netSupplyAPY',
+      'incentiveAPY',
+      'totalSupplyAPY',
+      'daysToTarget',
+      'retentionAfterIncentives',
+      'totalIncentiveSpend',
+      'leverageLoopAPY',
+    ] as const;
+    const SECTION_3_PARAMS = [
+      'incentiveBudgetMonthly_USD',
+      'attractionRate',
+      'lockPeriodDays',
+      'performanceFee',
+      'managementFee',
+    ] as const;
+
+    it('section-3 KPI entries have real titles + formulas', () => {
+      for (const k of SECTION_3_KPIS) {
+        expect(KPI_HELP[k].title, `KPI ${k} title still stubbed`).not.toBe('Coming soon');
+        expect(KPI_HELP[k].formula.plain).not.toBe('(documentation pending)');
+        expect(KPI_HELP[k].definitions.length, `KPI ${k} has no definitions`).toBeGreaterThan(0);
+      }
+    });
+
+    it('section-3 param tooltips are no longer the stub one-liner', () => {
+      const stub = 'Coming soon. See /help for details.';
+      for (const p of SECTION_3_PARAMS) {
+        expect(PARAM_HELP[p].oneLiner, `PARAM_HELP.${p} still stubbed`).not.toBe(stub);
+      }
+    });
+  });
 });
