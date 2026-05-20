@@ -35,3 +35,58 @@ export function quantileSorted(sorted: readonly number[], q: number): number {
   if (lo === hi) return sorted[lo]!;
   return sorted[lo]! + (idx - lo) * (sorted[hi]! - sorted[lo]!);
 }
+
+// ---------------------------------------------------------------------------
+// Beta distribution
+// ---------------------------------------------------------------------------
+
+/**
+ * Lanczos log-Gamma. Accurate to ~1e-14 for positive real x. Used to compute
+ * the Beta normalising constant without overflow for larger α + β.
+ */
+function logGamma(x: number): number {
+  // Lanczos coefficients (g = 7, n = 9).
+  const g = 7;
+  const c = [
+    0.99999999999980993,
+    676.5203681218851,
+    -1259.1392167224028,
+    771.32342877765313,
+    -176.61502916214059,
+    12.507343278686905,
+    -0.13857109526572012,
+    9.9843695780195716e-6,
+    1.5056327351493116e-7,
+  ];
+  if (x < 0.5) {
+    // Reflection formula.
+    return Math.log(Math.PI / Math.sin(Math.PI * x)) - logGamma(1 - x);
+  }
+  x -= 1;
+  let a = c[0]!;
+  const t = x + g + 0.5;
+  for (let i = 1; i < c.length; i++) a += c[i]! / (x + i);
+  return 0.5 * Math.log(2 * Math.PI) + (x + 0.5) * Math.log(t) - t + Math.log(a);
+}
+
+function logBeta(a: number, b: number): number {
+  return logGamma(a) + logGamma(b) - logGamma(a + b);
+}
+
+/**
+ * Beta(α, β) probability density at x ∈ (0, 1).
+ *
+ * Returns 0 at the singular boundaries when α < 1 or β < 1 — the true
+ * density is infinite there, but for plotting we want a finite value so
+ * the chart doesn't blow up. Sample in the interior to see the shape.
+ */
+export function betaPdf(x: number, alpha: number, beta: number): number {
+  if (x <= 0 || x >= 1) return 0;
+  if (alpha <= 0 || beta <= 0) return 0;
+  const logPdf =
+    (alpha - 1) * Math.log(x) +
+    (beta - 1) * Math.log(1 - x) -
+    logBeta(alpha, beta);
+  return Math.exp(logPdf);
+}
+

@@ -239,4 +239,29 @@ const irmCurve: ChartHelp = {
   },
 };
 
-export const LIQUIDITY_NEED_CHARTS = { irmCurve };
+const betaDistribution: ChartHelp = {
+  title: 'Borrower LTV distribution — Beta(α, β)',
+  oneLiner:
+    'Probability density of the LTV-fraction-of-cap across the borrower population. Re-renders live as α and β change in the sidebar. The red dashed line marks the mean = α / (α + β).',
+  axes: { x: 'LTV fraction of cap (0 = no borrow, 1 = at LLTV)', y: 'Probability density' },
+  definitions: [
+    { term: 'LTV fraction of cap', definition: 'A borrower\'s actual LTV divided by the LLTV. A value of 0.625 with LLTV = 77% means the borrower sits at 0.625 × 77% ≈ 48% LTV.' },
+    { term: 'Why Beta?', definition: 'Beta is the simplest continuous distribution supported on [0, 1]. Two shape parameters give every realistic borrower mix — uniform, skewed-aggressive, skewed-cautious, or bell-shaped — by varying just α and β.' },
+    { term: 'α (alpha)', definition: 'Pulls mass TOWARD the cap. Bigger α = more aggressive cohort. Defaults to 2.' },
+    { term: 'β (beta)', definition: 'Pulls mass AWAY from the cap. Bigger β = more conservative cohort. Defaults to 1.2.' },
+    { term: 'Mean vs spread', definition: 'α / (α + β) sets the mean (where the cluster sits). α + β sets the tightness (how clustered around the mean). Same mean with bigger α + β = tighter bell, less tail risk.' },
+    { term: 'Useful presets', definition: 'Beta(1, 1) = uniform; Beta(2, 1.2) = default, mildly aggressive (mean 62.5%); Beta(5, 1) = aggressive (mean 83%, most near cap); Beta(1, 5) = conservative (mean 17%); Beta(10, 10) = tight bell at 50%.' },
+  ],
+  bands: [
+    { name: 'Near x = 0', meaning: 'Borrowers barely using their position. Low default risk, low utilization, low supplier yield contribution.' },
+    { name: 'Near the mean (red line)', meaning: 'The typical borrower. Drives the headline "expected borrow" and required USDM.' },
+    { name: 'Near x = 1', meaning: 'Borrowers maxing out the cap. First to be liquidated when FX moves against the collateral; the right tail is where bad-debt risk concentrates.' },
+  ],
+  impact: {
+    health: 'A heavy right tail means many borrowers liquidate together in a crash. A tight bell at the mean means liquidations are spread out and orderly.',
+    sustainability: 'If your real borrower base is more aggressive than the chosen Beta, you under-size USDM and over-estimate retention. Re-fit when you have real data.',
+    profitability: 'Mean position drives utilization, which drives borrow APY, which drives supplier yield. Doubling the mean fraction roughly doubles the carried debt.',
+  },
+};
+
+export const LIQUIDITY_NEED_CHARTS = { irmCurve, betaDistribution };
