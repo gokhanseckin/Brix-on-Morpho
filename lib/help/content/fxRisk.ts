@@ -10,6 +10,41 @@ export const FX_RISK_PARAMS: Partial<Record<string, ParamHelp>> = {
   witryYieldAnnual: {
     oneLiner:
       'Annual yield wiTRY earns by holding iTRY as the Turkish-MMF NAV grows, as a decimal. iTRY itself is a 1:1 stable peg to TRY; the yield accrues at the wiTRY (wrapper) level. Drives the "wiTRY appreciates over time in TRY terms" effect that partially offsets TRY depreciation. Default 38% ≈ typical Turkish MMF.',
+    details: {
+      description:
+        'The wiTRY annual yield drives how fast the wrapper appreciates in TRY terms via MMF NAV growth. Anywhere collateral is valued over time, this yield compounds against TRY depreciation. Note the raw USD/TRY paths themselves are independent of yield — only the yield-adjusted collateral views move when you change this slider.',
+      downstream: [
+        {
+          section: 'Section 2 — FX Risk',
+          effects: [
+            '"Net wiTRY USD value paths" chart (P5/P50/P95 curves) re-shapes — wiTRY appreciates as (1 + yield)^(t/365)',
+            '"% positions underwater by day" chart shifts — higher yield inflates collateral faster, so fewer positions cross LLTV',
+          ],
+        },
+        {
+          section: 'Section 3 — Strategy',
+          effects: [
+            'Leverage-loop card: Loop APY = wiTRY yield − borrow × (1 + TRY depreciation). The green "Viable" / red "Not viable" badge flips if Loop APY crosses zero',
+          ],
+        },
+        {
+          section: 'Section 4 — Liquidation',
+          effects: [
+            'Bad-debt cascade re-runs with the new yield-adjusted collateral → P95 bad-debt USD and % TVL move',
+            'Bad-debt histogram redistributes',
+            'Path-aggregated P95 liquidation volume updates → recommended pool depth hint shifts',
+          ],
+        },
+      ],
+      unchanged: [
+        '3-day max drawdown KPIs (P50 + P95) — measured on raw USD/TRY, no yield',
+        'USD/TRY paths chart (the raw FX fan)',
+        'Drawdown histogram — derived from raw FX paths',
+        'Annualized USD/TRY volatility — realised from history',
+        'Recommended LLTV (Section 5) — driven by P95 of the raw-FX drawdown, not yield-adjusted',
+        'All Section 1 numbers (Liquidity Need is pre-FX)',
+      ],
+    },
   },
   usdtryBaseline: {
     oneLiner:
