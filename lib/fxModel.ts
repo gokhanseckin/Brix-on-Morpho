@@ -138,15 +138,29 @@ export function percentilesAtEachStep(paths: Path[]): { p5: number[]; p50: numbe
   return { p5, p50, p95 };
 }
 
-/** Max % drop within any rolling `window` days for each path. */
+/**
+ * For each USD/TRY path, the largest rolling `window`-day **upward** move
+ * in S (USD/TRY), reported as a positive fraction.
+ *
+ * Report #2 entry #23 fix: the previous implementation measured the largest
+ * downward move (TRY *strengthening*), which is the opposite of the event
+ * spec §2 cares about. wiTRY collateral is denominated in TRY, valued in
+ * USD as `~1/S`; an upward move in S = TRY weakening = collateral USD
+ * value falling = "drawdown" for the lender. The 3-day window proxies the
+ * secondary-market exit risk window for liquidators.
+ *
+ * The yield-accrual offset over a 3-day window is ≤ 0.3% even at iTRY APY
+ * = 38% (`1.38^(3/365) ≈ 1.0028`), well below the FX magnitudes that
+ * dominate drawdown. Ignored here for simplicity.
+ */
 export function rolling3DayMaxDrawdown(paths: Path[], window: number): number[] {
   return paths.map((p) => {
     let maxDd = 0;
     for (let i = 0; i + window < p.length; i++) {
       const start = p[i]!;
-      let minAfter = start;
-      for (let j = i + 1; j <= i + window; j++) if (p[j]! < minAfter) minAfter = p[j]!;
-      const dd = (start - minAfter) / start;
+      let maxAfter = start;
+      for (let j = i + 1; j <= i + window; j++) if (p[j]! > maxAfter) maxAfter = p[j]!;
+      const dd = (maxAfter - start) / start;
       if (dd > maxDd) maxDd = dd;
     }
     return maxDd;

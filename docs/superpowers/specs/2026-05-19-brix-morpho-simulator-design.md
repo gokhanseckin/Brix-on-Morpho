@@ -258,8 +258,11 @@ daysToTarget   = requiredUSDM / (incentiveBudgetMonthly_USD × attractionRate / 
 
 **Calculations:**
 ```
-leverageLoopAPY = iTRYYieldAnnual − borrowAPY × (1 − USD_TRY_return)
-                                              ↑ net of FX
+leverageLoopAPY = iTRYYieldAnnual − borrowAPY × (1 + expectedTRYDepreciation_annual)
+                                              ↑ net of FX: TRY weakening makes
+                                                USD debt cost more in TRY terms.
+                                                Spec typo corrected 2026-05-20
+                                                during PR #2 audit (see report).
 viableForLoops  = leverageLoopAPY > 0
 ```
 Show:

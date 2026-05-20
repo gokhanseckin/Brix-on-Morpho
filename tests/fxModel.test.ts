@@ -51,6 +51,20 @@ describe('jump diffusion', () => {
     expect(a).toEqual(b);
     expect(a[0]!.length).toBe(31);
   });
+
+  it('compensator preserves E[S_T] ≈ S_0·exp(μT) under jumps (report #2 entry 20)', () => {
+    // With Merton's drift correction −λκ, the expected terminal price matches
+    // the pure-GBM expectation. Use a long horizon + many paths to reduce variance.
+    const paths = jumpDiffusionPaths({
+      mu: 0.2, sigma: 0.25, lambda: 4, muJ: -0.05, sigmaJ: 0.04,
+      S0: 38, horizonDays: 252, paths: 20_000, seed: 99,
+    });
+    const ST = paths.map((p) => p[p.length - 1]!);
+    const mean = ST.reduce((a, b) => a + b, 0) / ST.length;
+    const expected = 38 * Math.exp(0.2 * 1); // T=252/252=1 yr
+    // Loose: within ~5% of analytical mean.
+    expect(Math.abs(mean - expected) / expected).toBeLessThan(0.05);
+  });
 });
 
 describe('summaries', () => {
@@ -63,9 +77,16 @@ describe('summaries', () => {
     expect(p50[0]).toBeCloseTo(1, 8);
   });
 
-  it('rolling 3-day max drawdown is nonnegative', () => {
-    const paths = [[1, 0.95, 0.9, 0.85, 0.8]];
-    const dd = rolling3DayMaxDrawdown(paths, 3);
-    expect(dd[0]).toBeGreaterThan(0);
+  it('rolling 3-day max drawdown measures upward S moves (TRY weakening)', () => {
+    // Monotonically rising USD/TRY = TRY weakening = collateral USD drawdown.
+    const rising = [[1, 1.05, 1.10, 1.15, 1.20]];
+    const ddUp = rolling3DayMaxDrawdown(rising, 3);
+    // Worst 3-day move from t=0: (1.15-1)/1 = 0.15; from t=1: (1.20-1.05)/1.05 ≈ 0.143.
+    expect(ddUp[0]).toBeCloseTo(0.15, 6);
+
+    // Falling path (TRY strengthening) is GOOD for collateral → 0 drawdown.
+    const falling = [[1, 0.95, 0.9, 0.85, 0.8]];
+    const ddDown = rolling3DayMaxDrawdown(falling, 3);
+    expect(ddDown[0]).toBe(0);
   });
 });
