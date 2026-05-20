@@ -2,6 +2,8 @@
 
 A purely client-side, static-export Next.js app for pre-launch parameter calibration of the **Brix wiTRY → USDM lending market** on a Morpho Blue fork (MegaETH). Simulates USDM liquidity need, USD/TRY FX risk, supplier/borrower strategy, liquidator economics + bad debt, and produces a deployment-ready vault JSON.
 
+**See [`CHANGELOG.md`](CHANGELOG.md) for the phase-by-phase development log** (47 commits, 43 unit tests + 4 Playwright e2e, with notes on three demo-affecting bugs caught in final review and two numerical inconsistencies caught by TDD).
+
 ## Run
 
 ```bash
