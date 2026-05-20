@@ -52,7 +52,7 @@ export function InfoTooltip({ text }: { text: string }) {
           id={id}
           role="dialog"
           aria-modal="false"
-          className="absolute left-0 z-50 mt-2 w-64 rounded-lg border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-900 p-3 text-xs shadow-xl"
+          className="absolute left-0 z-50 mt-2 w-64 rounded-lg border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-900 p-3 text-xs shadow-xl normal-case tracking-normal"
         >
           <div className="flex items-start justify-between gap-2">
             <span className="leading-snug">{text}</span>

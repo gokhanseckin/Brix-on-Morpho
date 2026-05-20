@@ -66,4 +66,49 @@ describe('help registry', () => {
       expect(CHART_HELP[k], `CHART_HELP missing ${k}`).toBeDefined();
     }
   });
+
+  // PR #3: Section 1 (Liquidity Need) ships real copy. Guard against
+  // accidental regression to stubs.
+  describe('PR #3 — liquidity-need content is no longer stubbed', () => {
+    const SECTION_1_KPIS = [
+      'maxBorrowable',
+      'expectedBorrow',
+      'requiredUSDM',
+      'withdrawalBuffer',
+      'requiredPlusBuffer',
+      'liquidityFloor',
+      'lltvSensitivity',
+    ] as const;
+    const SECTION_1_CHARTS = ['irmCurve'] as const;
+    const SECTION_1_PARAMS = [
+      'witryTVL_USD',
+      'lltv',
+      'targetUtilization',
+      'borrowerLTVAlpha',
+      'borrowerLTVBeta',
+    ] as const;
+
+    it('section-1 KPI entries have real titles + formulas', () => {
+      for (const k of SECTION_1_KPIS) {
+        expect(KPI_HELP[k].title, `KPI ${k} title still stubbed`).not.toBe('Coming soon');
+        expect(KPI_HELP[k].formula.plain).not.toBe('(documentation pending)');
+        expect(KPI_HELP[k].definitions.length, `KPI ${k} has no definitions`).toBeGreaterThan(0);
+      }
+    });
+
+    it('section-1 chart entries have real axes + definitions', () => {
+      for (const c of SECTION_1_CHARTS) {
+        expect(CHART_HELP[c].title).not.toBe('Coming soon');
+        expect(CHART_HELP[c].axes.x).not.toBe('pending');
+        expect(CHART_HELP[c].definitions.length).toBeGreaterThan(0);
+      }
+    });
+
+    it('section-1 param tooltips are no longer the stub one-liner', () => {
+      const stub = 'Coming soon. See /help for details.';
+      for (const p of SECTION_1_PARAMS) {
+        expect(PARAM_HELP[p].oneLiner, `PARAM_HELP.${p} still stubbed`).not.toBe(stub);
+      }
+    });
+  });
 });
