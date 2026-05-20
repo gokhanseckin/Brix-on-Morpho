@@ -90,17 +90,19 @@ export function LiquidityStrategy() {
       </div>
 
       <div className="grid grid-cols-4 gap-4">
-        <Kpi label="Gross supply APY" value={formatPct(strategy.grossSupplyAPY, 2)} />
-        <Kpi label="Net supply APY" value={formatPct(strategy.netSupplyAPY, 2)} hint="post-fees" />
+        <Kpi label="Gross supply APY" value={formatPct(strategy.grossSupplyAPY, 2)} helpKey="grossSupplyAPY" />
+        <Kpi label="Net supply APY" value={formatPct(strategy.netSupplyAPY, 2)} hint="post-fees" helpKey="netSupplyAPY" />
         <Kpi
           label="Incentive APY"
           value={formatPct(strategy.incentiveAPY, 2)}
           hint={`${formatUSD(inputs.incentiveBudgetMonthly_USD)}/mo`}
+          helpKey="incentiveAPY"
         />
         <Kpi
           label="Total supply APY"
           value={formatPct(strategy.totalSupplyAPY, 2)}
           tone="good"
+          helpKey="totalSupplyAPY"
         />
       </div>
 

@@ -45,6 +45,35 @@ export function useSimulator() {
     [s.targetUtilization],
   );
 
+  // Stage 1: compute requiredUSDM ahead of time so strategy + liquidity can
+  // both consume the same value without a useMemo cycle. The formula matches
+  // computeLiquidityNeed's internal calculation exactly.
+  const requiredUSDMPrecursor = useMemo(() => {
+    const meanLTVFrac = betaMean(s.borrowerLTVAlpha, s.borrowerLTVBeta);
+    return (s.witryTVL_USD * s.lltv * meanLTVFrac) / s.targetUtilization;
+  }, [s.witryTVL_USD, s.lltv, s.borrowerLTVAlpha, s.borrowerLTVBeta, s.targetUtilization]);
+
+  // Stage 2: strategy depends on requiredUSDM and produces the real
+  // incentiveAPY + netSupplyAPY that the buffer formula needs.
+  const strategy = useMemo(
+    () =>
+      computeStrategy({
+        borrowAPY,
+        targetUtilization: s.targetUtilization,
+        performanceFee: s.performanceFee,
+        managementFee: s.managementFee,
+        requiredUSDM: requiredUSDMPrecursor,
+        incentiveBudgetMonthly_USD: s.incentiveBudgetMonthly_USD,
+        attractionRate: s.attractionRate,
+        iTRYYieldAnnual: s.iTRYYieldAnnual,
+        expectedTRYDepreciation_annual: 0.3,
+        competingAPY: 0.05,
+      }),
+    [s, requiredUSDMPrecursor, borrowAPY],
+  );
+
+  // Stage 3: liquidity uses the real APYs from strategy, so withdrawal buffer
+  // actually responds to the user's incentive budget.
   const liquidity = useMemo(() => {
     const out = computeLiquidityNeed({
       witryTVL_USD: s.witryTVL_USD,
@@ -52,8 +81,8 @@ export function useSimulator() {
       targetUtilization: s.targetUtilization,
       borrowerLTVAlpha: s.borrowerLTVAlpha,
       borrowerLTVBeta: s.borrowerLTVBeta,
-      incentiveAPY: 0,
-      baseSupplyAPY: 0.05,
+      incentiveAPY: strategy.incentiveAPY,
+      baseSupplyAPY: strategy.netSupplyAPY,
       deadDepositCost: 1,
     });
     const irmCurve = irmCurvePoints(rTarget);
@@ -66,24 +95,7 @@ export function useSimulator() {
         s.targetUtilization,
     }));
     return { ...out, irmCurve, sensitivity };
-  }, [s]);
-
-  const strategy = useMemo(
-    () =>
-      computeStrategy({
-        borrowAPY,
-        targetUtilization: s.targetUtilization,
-        performanceFee: s.performanceFee,
-        managementFee: s.managementFee,
-        requiredUSDM: liquidity.requiredUSDM,
-        incentiveBudgetMonthly_USD: s.incentiveBudgetMonthly_USD,
-        attractionRate: s.attractionRate,
-        iTRYYieldAnnual: s.iTRYYieldAnnual,
-        expectedTRYDepreciation_annual: 0.3,
-        competingAPY: 0.05,
-      }),
-    [s, liquidity.requiredUSDM, borrowAPY],
-  );
+  }, [s, strategy.incentiveAPY, strategy.netSupplyAPY]);
 
   const lltvDerivation = useMemo(() => {
     const p95dd = result?.threeDayDD ? quantile(result.threeDayDD, 0.95) : 0.15;

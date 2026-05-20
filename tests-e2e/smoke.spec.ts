@@ -8,12 +8,13 @@ const HEADINGS = [
   '5. Vault V2 Parameter Recommendations',
 ];
 
-// Read the KPI value (the <Kpi> component renders label in a sibling div above value)
+// Read the KPI value (the <Kpi> component renders label in a div above value div, both inside a container div)
 async function getRequiredSteadyState(page: import('@playwright/test').Page): Promise<string> {
   const label = page.getByText('Required (steady-state)', { exact: true }).first();
   await label.waitFor();
-  // Value is the immediately-following sibling div within the Kpi container.
-  const value = label.locator('xpath=following-sibling::div[1]');
+  // Navigate up to the Kpi container div, then find the value div (second child div).
+  const container = label.locator('xpath=ancestor::div[1]/parent::div');
+  const value = container.locator('div.text-2xl');
   await value.waitFor();
   return (await value.textContent())?.trim() ?? '';
 }
@@ -39,7 +40,7 @@ test.describe('Brix Morpho simulator smoke', () => {
     const before = await getRequiredSteadyState(page);
 
     // The LLTV select is the SelectField labeled "LLTV" in the sidebar.
-    const lltvSelect = page.locator('label').filter({ has: page.locator('span', { hasText: /^LLTV$/ }) }).locator('select');
+    const lltvSelect = page.locator('label').filter({ has: page.locator('span', { hasText: 'LLTV' }) }).locator('select');
     await lltvSelect.waitFor();
 
     // Pick a different governance LLTV. Inspect options to choose one ≠ current.
@@ -65,7 +66,7 @@ test.describe('Brix Morpho simulator smoke', () => {
   test('share link round-trip preserves LLTV', async ({ browser, page }) => {
     await page.goto('/');
 
-    const lltvSelect = page.locator('label').filter({ has: page.locator('span', { hasText: /^LLTV$/ }) }).locator('select');
+    const lltvSelect = page.locator('label').filter({ has: page.locator('span', { hasText: 'LLTV' }) }).locator('select');
     await lltvSelect.waitFor();
     // Force a non-default value so the URL contains an explicit lltv.
     const candidates = ['0.385', '0.625', '0.77', '0.86', '0.915', '0.945', '0.965', '0.98'];
@@ -85,7 +86,7 @@ test.describe('Brix Morpho simulator smoke', () => {
     const ctx = await browser.newContext();
     const p2 = await ctx.newPage();
     await p2.goto(sharedUrl);
-    const lltv2 = p2.locator('label').filter({ has: p2.locator('span', { hasText: /^LLTV$/ }) }).locator('select');
+    const lltv2 = p2.locator('label').filter({ has: p2.locator('span', { hasText: 'LLTV' }) }).locator('select');
     await lltv2.waitFor();
     await expect(lltv2).toHaveValue(target);
     await ctx.close();

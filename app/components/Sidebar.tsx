@@ -1,7 +1,9 @@
 'use client';
 import { useUrlState } from '@/lib/useUrlState';
-import { GOV_LLTVS } from '@/types/simulator';
+import { GOV_LLTVS, type LLTV } from '@/types/simulator';
 import { useState } from 'react';
+import { InfoTooltip } from './help/InfoTooltip';
+import { PARAM_HELP } from '@/lib/help/registry';
 
 const MODES = ['Bootstrap', 'GBM', 'GBM+Jumps', 'Scenario'] as const;
 const HORIZONS = [7, 30, 60, 90] as const;
@@ -31,6 +33,7 @@ export function Sidebar() {
       <Group title="Section 1 · Liquidity Need">
         <NumberField
           label="wiTRY TVL (USD)"
+          helpKey="witryTVL_USD"
           value={s.witryTVL_USD}
           onChange={(v) => setS({ witryTVL_USD: v })}
           min={100_000}
@@ -39,8 +42,9 @@ export function Sidebar() {
         />
         <SelectField
           label="LLTV"
+          helpKey="lltv"
           value={String(s.lltv)}
-          onChange={(v) => setS({ lltv: parseFloat(v) })}
+          onChange={(v) => setS({ lltv: parseFloat(v) as LLTV })}
           options={GOV_LLTVS.map((lv) => ({
             value: String(lv),
             label: `${(lv * 100).toFixed(1)}%`,
@@ -48,6 +52,7 @@ export function Sidebar() {
         />
         <RangeField
           label="Target utilization"
+          helpKey="targetUtilization"
           value={s.targetUtilization}
           onChange={(v) => setS({ targetUtilization: v })}
           min={0}
@@ -57,6 +62,7 @@ export function Sidebar() {
         />
         <NumberField
           label="Borrower LTV α"
+          helpKey="borrowerLTVAlpha"
           value={s.borrowerLTVAlpha}
           onChange={(v) => setS({ borrowerLTVAlpha: v })}
           min={0.1}
@@ -65,6 +71,7 @@ export function Sidebar() {
         />
         <NumberField
           label="Borrower LTV β"
+          helpKey="borrowerLTVBeta"
           value={s.borrowerLTVBeta}
           onChange={(v) => setS({ borrowerLTVBeta: v })}
           min={0.1}
@@ -76,6 +83,7 @@ export function Sidebar() {
       <Group title="Section 2 · FX Risk">
         <RangeField
           label="iTRY annual yield"
+          helpKey="iTRYYieldAnnual"
           value={s.iTRYYieldAnnual}
           onChange={(v) => setS({ iTRYYieldAnnual: v })}
           min={0}
@@ -85,6 +93,7 @@ export function Sidebar() {
         />
         <NumberField
           label="USD/TRY baseline"
+          helpKey="usdtryBaseline"
           value={s.usdtryBaseline}
           onChange={(v) => setS({ usdtryBaseline: v })}
           min={1}
@@ -93,30 +102,35 @@ export function Sidebar() {
         />
         <SelectField
           label="Historical period"
+          helpKey="historicalPeriod"
           value={String(s.historicalPeriod)}
           onChange={(v) => setS({ historicalPeriod: parseInt(v, 10) })}
           options={HISTORICAL_PERIODS.map((p) => ({ value: String(p), label: `${p}Y` }))}
         />
         <SelectField
           label="Simulation mode"
+          helpKey="simulationMode"
           value={s.simulationMode}
           onChange={(v) => setS({ simulationMode: v as (typeof MODES)[number] })}
           options={MODES.map((m) => ({ value: m, label: m }))}
         />
         <SelectField
           label="Horizon (days)"
+          helpKey="simulationHorizonDays"
           value={String(s.simulationHorizonDays)}
           onChange={(v) => setS({ simulationHorizonDays: parseInt(v, 10) })}
           options={HORIZONS.map((h) => ({ value: String(h), label: `${h}d` }))}
         />
         <SelectField
           label="Path count"
+          helpKey="pathCount"
           value={String(s.pathCount)}
           onChange={(v) => setS({ pathCount: parseInt(v, 10) })}
           options={PATH_COUNTS.map((p) => ({ value: String(p), label: String(p) }))}
         />
         <RangeField
           label="TRY shock (scenario)"
+          helpKey="tryShockPct"
           value={s.tryShockPct}
           onChange={(v) => setS({ tryShockPct: v })}
           min={-0.8}
@@ -126,11 +140,13 @@ export function Sidebar() {
         />
         <CheckboxField
           label="Block bootstrap"
+          helpKey="blockBootstrap"
           checked={s.blockBootstrap}
           onChange={(v) => setS({ blockBootstrap: v })}
         />
         <NumberField
           label="RNG seed"
+          helpKey="seed"
           value={s.seed}
           onChange={(v) => setS({ seed: Math.round(v) })}
           min={0}
@@ -142,6 +158,7 @@ export function Sidebar() {
       <Group title="Section 3 · Strategy">
         <NumberField
           label="Incentive budget/month (USD)"
+          helpKey="incentiveBudgetMonthly_USD"
           value={s.incentiveBudgetMonthly_USD}
           onChange={(v) => setS({ incentiveBudgetMonthly_USD: v })}
           min={0}
@@ -150,6 +167,7 @@ export function Sidebar() {
         />
         <RangeField
           label="Attraction rate"
+          helpKey="attractionRate"
           value={s.attractionRate}
           onChange={(v) => setS({ attractionRate: v })}
           min={1}
@@ -159,6 +177,7 @@ export function Sidebar() {
         />
         <SelectField
           label="Lock period (days)"
+          helpKey="lockPeriodDays"
           value={String(s.lockPeriodDays)}
           onChange={(v) => setS({ lockPeriodDays: parseInt(v, 10) })}
           options={LOCK_PERIODS.map((p) => ({ value: String(p), label: `${p}d` }))}
@@ -168,6 +187,7 @@ export function Sidebar() {
       <Group title="Section 4 · Liquidation">
         <NumberField
           label="wiTRY/USDM pool depth (USD)"
+          helpKey="poolDepth_USD"
           value={s.poolDepth_USD}
           onChange={(v) => setS({ poolDepth_USD: v })}
           min={0}
@@ -176,6 +196,7 @@ export function Sidebar() {
         />
         <CheckboxField
           label="Pre-liquidation enabled"
+          helpKey="preLiquidationEnabled"
           checked={s.preLiquidationEnabled}
           onChange={(v) => setS({ preLiquidationEnabled: v })}
         />
@@ -184,6 +205,7 @@ export function Sidebar() {
       <Group title="Section 5 · Vault Params">
         <RangeField
           label="Performance fee"
+          helpKey="performanceFee"
           value={s.performanceFee}
           onChange={(v) => setS({ performanceFee: v })}
           min={0}
@@ -193,6 +215,7 @@ export function Sidebar() {
         />
         <RangeField
           label="Management fee"
+          helpKey="managementFee"
           value={s.managementFee}
           onChange={(v) => setS({ managementFee: v })}
           min={0}
@@ -202,6 +225,7 @@ export function Sidebar() {
         />
         <RangeField
           label="Safety margin (LLTV)"
+          helpKey="safetyMargin"
           value={s.safetyMargin}
           onChange={(v) => setS({ safetyMargin: v })}
           min={0}
@@ -240,10 +264,14 @@ function NumberField(props: {
   min?: number;
   max?: number;
   step?: number;
+  helpKey?: keyof typeof PARAM_HELP;
 }) {
   return (
     <label className="flex flex-col gap-1">
-      <span className="text-xs text-neutral-600 dark:text-neutral-400">{props.label}</span>
+      <span className="text-xs text-neutral-600 dark:text-neutral-400">
+        {props.label}
+        {props.helpKey && <InfoTooltip text={PARAM_HELP[props.helpKey].oneLiner} />}
+      </span>
       <input
         type="number"
         value={props.value}
@@ -268,11 +296,13 @@ function RangeField(props: {
   max: number;
   step: number;
   format: (v: number) => string;
+  helpKey?: keyof typeof PARAM_HELP;
 }) {
   return (
     <label className="flex flex-col gap-1">
       <span className="text-xs text-neutral-600 dark:text-neutral-400">
         {props.label}: <span className="font-mono">{props.format(props.value)}</span>
+        {props.helpKey && <InfoTooltip text={PARAM_HELP[props.helpKey].oneLiner} />}
       </span>
       <input
         type="range"
@@ -294,10 +324,14 @@ function SelectField(props: {
   value: string;
   onChange: (v: string) => void;
   options: Array<{ value: string; label: string }>;
+  helpKey?: keyof typeof PARAM_HELP;
 }) {
   return (
     <label className="flex flex-col gap-1">
-      <span className="text-xs text-neutral-600 dark:text-neutral-400">{props.label}</span>
+      <span className="text-xs text-neutral-600 dark:text-neutral-400">
+        {props.label}
+        {props.helpKey && <InfoTooltip text={PARAM_HELP[props.helpKey].oneLiner} />}
+      </span>
       <select
         value={props.value}
         onChange={(e) => props.onChange(e.target.value)}
@@ -317,6 +351,7 @@ function CheckboxField(props: {
   label: string;
   checked: boolean;
   onChange: (v: boolean) => void;
+  helpKey?: keyof typeof PARAM_HELP;
 }) {
   return (
     <label className="flex items-center gap-2">
@@ -325,7 +360,10 @@ function CheckboxField(props: {
         checked={props.checked}
         onChange={(e) => props.onChange(e.target.checked)}
       />
-      <span className="text-xs text-neutral-600 dark:text-neutral-400">{props.label}</span>
+      <span className="text-xs text-neutral-600 dark:text-neutral-400">
+        {props.label}
+        {props.helpKey && <InfoTooltip text={PARAM_HELP[props.helpKey].oneLiner} />}
+      </span>
     </label>
   );
 }

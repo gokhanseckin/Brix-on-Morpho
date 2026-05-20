@@ -113,7 +113,7 @@ export function VaultRecommendations() {
       </div>
 
       <div className="grid grid-cols-3 gap-4">
-        <Kpi label="Risk tier" value={riskTier} tone={tierTone} />
+        <Kpi label="Risk tier" value={riskTier} tone={tierTone} helpKey="riskTier" />
         <Kpi
           label="User LLTV"
           value={formatPct(inputs.lltv, 1)}
@@ -123,6 +123,7 @@ export function VaultRecommendations() {
           label="Computed (snapped) LLTV"
           value={recommendedLLTVPct}
           hint={`raw ${formatPct(lltvDerivation.raw, 2)}`}
+          helpKey="recommendedLLTV"
         />
       </div>
 
