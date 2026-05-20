@@ -29,7 +29,7 @@ export function LiquidityNeed() {
         <Kpi
           label="Liquidity Floor"
           value={formatUSD(liquidity.liquidityFloor_USD)}
-          hint="20% of required, or dead-deposit cost"
+          hint="max(20% of required, 100 × dead-deposit cost)"
           helpKey="liquidityFloor"
         />
         <Kpi

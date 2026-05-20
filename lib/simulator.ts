@@ -26,9 +26,31 @@ export function betaMean(alpha: number, beta: number): number {
   return alpha / (alpha + beta);
 }
 
+// --- Operational-policy dials ---------------------------------------------
+// These are NOT derived from first principles. They are governance-tunable
+// reserves chosen to absorb plausible operational stress (cascading
+// withdrawals, incentive-chase inflows) without exhausting market liquidity.
+// Surface them in the help system as "policy assumptions", not "derived".
+//
+// LIQUIDITY_FLOOR_FRACTION: minimum share of requiredUSDM kept permanently
+//   parked. Sized to absorb a ~P95 cascading-withdrawal event without
+//   triggering a market shortage.
+// DEAD_DEPOSIT_MULTIPLIER:  hard-floor multiplier on a single dead-deposit
+//   transaction cost; sets a sensible minimum reserve for very small markets
+//   where 20% of required is itself tiny.
+// BUFFER_PCT_BASE:          baseline withdrawal buffer in the absence of
+//   incentives.
+// BUFFER_PCT_INCENTIVE_SLOPE: how much the buffer grows per unit of
+//   (incentiveAPY / baseSupplyAPY). Captures the intuition that aggressive
+//   incentives attract chase-yield capital that withdraws faster.
+export const LIQUIDITY_FLOOR_FRACTION = 0.20;
+export const DEAD_DEPOSIT_MULTIPLIER = 100;
+export const BUFFER_PCT_BASE = 0.15;
+export const BUFFER_PCT_INCENTIVE_SLOPE = 0.10;
+
 export function bufferPctFromIncentive(incentiveAPY: number, baseSupplyAPY: number): number {
   const ratio = baseSupplyAPY > 0 ? incentiveAPY / baseSupplyAPY : 0;
-  return 0.15 + 0.10 * ratio;
+  return BUFFER_PCT_BASE + BUFFER_PCT_INCENTIVE_SLOPE * ratio;
 }
 
 export function computeLiquidityNeed(a: LiqNeedArgs): LiqNeedOut {
@@ -38,7 +60,10 @@ export function computeLiquidityNeed(a: LiqNeedArgs): LiqNeedOut {
   const requiredUSDM = expectedBorrow_USD / a.targetUtilization;
   const bufferPct = bufferPctFromIncentive(a.incentiveAPY, a.baseSupplyAPY);
   const withdrawalBuffer_USD = requiredUSDM * bufferPct;
-  const liquidityFloor_USD = Math.max(a.deadDepositCost * 100, requiredUSDM * 0.20);
+  const liquidityFloor_USD = Math.max(
+    a.deadDepositCost * DEAD_DEPOSIT_MULTIPLIER,
+    requiredUSDM * LIQUIDITY_FLOOR_FRACTION,
+  );
   return {
     maxBorrowable_USD,
     expectedBorrow_USD,
