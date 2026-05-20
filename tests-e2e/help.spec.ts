@@ -1,16 +1,16 @@
 // tests-e2e/help.spec.ts
 import { test, expect } from '@playwright/test';
 
-test('clicking a KPI ? button opens a popover with A/B/C sections', async ({ page }) => {
+test('clicking a KPI ? button opens a popover with calc / definitions / impact', async ({ page }) => {
   await page.goto('/');
   // Pick the Liquidity Floor ? button (first KPI in section 1).
   const trigger = page.getByRole('button', { name: /help: liquidity floor/i }).first();
   await trigger.click();
   const dialog = page.getByRole('dialog');
   await expect(dialog).toBeVisible();
-  await expect(dialog.getByText(/how it's calculated/i)).toBeVisible();
-  await expect(dialog.getByText(/b\.\s*definitions/i)).toBeVisible();
-  await expect(dialog.getByText(/impact on vault/i)).toBeVisible();
+  await expect(dialog.getByRole('heading', { level: 3, name: /how it's calculated/i })).toBeVisible();
+  await expect(dialog.getByRole('heading', { level: 3, name: /definitions/i })).toBeVisible();
+  await expect(dialog.getByRole('heading', { level: 3, name: /impact on vault/i })).toBeVisible();
   await expect(dialog.getByRole('link', { name: /more info/i })).toHaveAttribute(
     'href',
     '/help/liquidity-need#liquidityFloor',
