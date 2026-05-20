@@ -8,10 +8,12 @@ test('Monte Carlo (1000 paths × 90 days) completes under 3000ms (best-effort)',
   await page.goto(url);
 
   // Wait for the "Paths simulated" KPI to display the actual number.
-  // The Kpi label sits above the value div; we wait for "1000" to appear in the value.
+  // Kpi renders: container div > label div (span + optional help btn) + value div.text-2xl
+  // Navigate from the label text up to the container, then find the value div.
   const pathsKpi = page
     .getByText('Paths simulated', { exact: true })
-    .locator('xpath=following-sibling::div[1]');
+    .locator('xpath=ancestor::div[1]/parent::div')
+    .locator('div.text-2xl');
   await pathsKpi.waitFor();
   await expect(pathsKpi).toHaveText('1000', { timeout: 30_000 });
   const elapsed = Date.now() - start;
