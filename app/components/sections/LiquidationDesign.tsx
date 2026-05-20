@@ -16,6 +16,7 @@ import { useMemo } from 'react';
 import { liquidatorProfit } from '@/lib/simulator';
 import { GOV_LLTVS } from '@/types/simulator';
 import { Kpi, formatPct, formatUSD } from '../Kpi';
+import { HelpPopover } from '../help/HelpPopover';
 
 const POOL_DEPTH_GRID_USD = [100_000, 250_000, 500_000, 1_000_000, 2_500_000];
 const HEATMAP_LLTVS = [0.625, 0.77, 0.86, 0.915] as const;
@@ -97,6 +98,7 @@ export function LiquidationDesign() {
         <Kpi
           label="P95 bad debt (USD)"
           value={fx?.badDebt ? formatUSD(fx.badDebt.badDebtP95_USD) : '—'}
+          helpKey="badDebtP95USD"
         />
         <Kpi
           label="P95 bad debt (% TVL)"
@@ -108,6 +110,7 @@ export function LiquidationDesign() {
                 ? 'bad'
                 : 'good'
           }
+          helpKey="badDebtP95Pct"
         />
         <Kpi
           label="Profitable debt range"
@@ -117,6 +120,7 @@ export function LiquidationDesign() {
               : 'unprofitable at any size'
           }
           hint={`pool depth ${formatUSD(inputs.poolDepth_USD)}, gas $5`}
+          helpKey="minProfitableLiquidation"
         />
       </div>
 
@@ -148,7 +152,10 @@ export function LiquidationDesign() {
       </div>
 
       <div>
-        <h3 className="text-sm font-semibold mb-2">Bad-debt distribution across simulated paths</h3>
+        <div className="flex items-center gap-1 mb-2">
+          <h3 className="text-sm font-semibold">Bad-debt distribution across simulated paths</h3>
+          <HelpPopover chartKey="badDebtHistogram" />
+        </div>
         <div className="border border-neutral-200 dark:border-neutral-800 rounded p-2 bg-white dark:bg-neutral-950">
           <ResponsiveContainer width="100%" height={240}>
             <BarChart data={badDebtBins} margin={{ top: 8, right: 16, bottom: 8, left: 8 }}>

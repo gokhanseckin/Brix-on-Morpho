@@ -11,6 +11,7 @@ import {
   CartesianGrid,
 } from 'recharts';
 import { Kpi, formatUSD, formatPct } from '../Kpi';
+import { HelpPopover } from '../help/HelpPopover';
 
 export function LiquidityNeed() {
   const { liquidity, inputs } = useSimulator();
@@ -29,23 +30,29 @@ export function LiquidityNeed() {
           label="Liquidity Floor"
           value={formatUSD(liquidity.liquidityFloor_USD)}
           hint="20% of required, or dead-deposit cost"
+          helpKey="liquidityFloor"
         />
         <Kpi
           label="Required (steady-state)"
           value={formatUSD(liquidity.requiredUSDM)}
           hint={`TVL × LLTV × E[LTV] / u_target`}
+          helpKey="requiredUSDM"
         />
         <Kpi
           label="Required + Buffer"
           value={formatUSD(liquidity.requiredUSDM + liquidity.withdrawalBuffer_USD)}
           hint={`Buffer ${formatPct(liquidity.bufferPct, 1)}`}
+          helpKey="requiredPlusBuffer"
         />
       </div>
 
       <div>
-        <h3 className="text-sm font-semibold mb-2">
-          Borrow APY curve (AdaptiveCurveIRM, target u = {formatPct(inputs.targetUtilization, 0)})
-        </h3>
+        <div className="flex items-center gap-1 mb-2">
+          <h3 className="text-sm font-semibold">
+            Borrow APY curve (AdaptiveCurveIRM, target u = {formatPct(inputs.targetUtilization, 0)})
+          </h3>
+          <HelpPopover chartKey="irmCurve" />
+        </div>
         <div className="border border-neutral-200 dark:border-neutral-800 rounded p-2 bg-white dark:bg-neutral-950">
           <ResponsiveContainer width="100%" height={260}>
             <LineChart data={liquidity.irmCurve} margin={{ top: 8, right: 20, bottom: 8, left: 8 }}>
@@ -73,7 +80,10 @@ export function LiquidityNeed() {
       </div>
 
       <div>
-        <h3 className="text-sm font-semibold mb-2">Sensitivity: required USDM by LLTV</h3>
+        <div className="flex items-center gap-1 mb-2">
+          <h3 className="text-sm font-semibold">Sensitivity: required USDM by LLTV</h3>
+          <HelpPopover kpiKey="lltvSensitivity" />
+        </div>
         <table className="text-sm border-collapse w-full max-w-md">
           <thead>
             <tr className="border-b border-neutral-300 dark:border-neutral-700">

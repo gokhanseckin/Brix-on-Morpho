@@ -16,6 +16,7 @@ import { useMemo } from 'react';
 import { witryPerITRY } from '@/lib/morphoMath';
 import { pctUnderwaterAtT, sampleBetaLtvFractions } from '@/lib/simulator';
 import { Kpi, formatPct } from '../Kpi';
+import { HelpPopover } from '../help/HelpPopover';
 
 export function FXRisk() {
   const { fx, inputs, running } = useSimulator();
@@ -107,6 +108,7 @@ export function FXRisk() {
           label="Annualized USD/TRY vol"
           value={fx ? formatPct(fx.annualizedVol, 1) : running ? '…' : '—'}
           hint={`${inputs.historicalPeriod}Y window`}
+          helpKey="annualizedVol"
         />
         <Kpi
           label="Paths simulated"
@@ -136,7 +138,10 @@ export function FXRisk() {
       </div>
 
       <div>
-        <h3 className="text-sm font-semibold mb-2">USD/TRY paths (P5 / P50 / P95)</h3>
+        <div className="flex items-center gap-1 mb-2">
+          <h3 className="text-sm font-semibold">USD/TRY paths (P5 / P50 / P95)</h3>
+          <HelpPopover chartKey="fxBands" />
+        </div>
         <div className="border border-neutral-200 dark:border-neutral-800 rounded p-2 bg-white dark:bg-neutral-950">
           <ResponsiveContainer width="100%" height={260}>
             <LineChart data={pathData} margin={{ top: 8, right: 20, bottom: 8, left: 8 }}>
@@ -155,9 +160,12 @@ export function FXRisk() {
 
       {fx?.p50 && (
         <div>
-          <h3 className="text-sm font-semibold mb-2">
-            Net wiTRY USD value path (wiTRY accrual / USD-per-TRY)
-          </h3>
+          <div className="flex items-center gap-1 mb-2">
+            <h3 className="text-sm font-semibold">
+              Net wiTRY USD value path (wiTRY accrual / USD-per-TRY)
+            </h3>
+            <HelpPopover chartKey="netWitryUsdPaths" />
+          </div>
           <div className="border border-neutral-200 dark:border-neutral-800 rounded p-2 bg-white dark:bg-neutral-950">
             <ResponsiveContainer width="100%" height={260}>
               <LineChart data={netWitryData} margin={{ top: 8, right: 20, bottom: 8, left: 8 }}>
@@ -192,7 +200,10 @@ export function FXRisk() {
         </div>
 
         <div>
-          <h3 className="text-sm font-semibold mb-2">% positions underwater by day (P50 path)</h3>
+          <div className="flex items-center gap-1 mb-2">
+            <h3 className="text-sm font-semibold">% positions underwater by day (P50 path)</h3>
+            <HelpPopover chartKey="positionsUnderwater" />
+          </div>
           <div className="border border-neutral-200 dark:border-neutral-800 rounded p-2 bg-white dark:bg-neutral-950">
             <ResponsiveContainer width="100%" height={240}>
               <LineChart data={underwaterByDay} margin={{ top: 8, right: 16, bottom: 8, left: 8 }}>
