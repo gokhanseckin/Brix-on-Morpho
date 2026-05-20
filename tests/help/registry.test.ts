@@ -234,4 +234,46 @@ describe('help registry', () => {
       }
     });
   });
+
+  // PR #7: Section 5 (Vault Recommendations) ships real copy.
+  // Section 5 owns no sidebar inputs — all params are derived — so no
+  // param-stub guard. Only KPIs are checked.
+  describe('PR #7 — vault content is no longer stubbed', () => {
+    const SECTION_5_KPIS = [
+      'recommendedLLTV',
+      'riskTier',
+      'vaultConfigJson',
+    ] as const;
+
+    it('section-5 KPI entries have real titles + formulas', () => {
+      for (const k of SECTION_5_KPIS) {
+        expect(KPI_HELP[k].title, `KPI ${k} title still stubbed`).not.toBe('Coming soon');
+        expect(KPI_HELP[k].formula.plain).not.toBe('(documentation pending)');
+        expect(KPI_HELP[k].definitions.length, `KPI ${k} has no definitions`).toBeGreaterThan(0);
+      }
+    });
+
+    // Help system is now fully populated — no sidebar param should remain
+    // stubbed. This guards against future SidebarInputs additions slipping in
+    // without help copy.
+    it('no sidebar param is left on the stub one-liner', () => {
+      const stub = 'Coming soon. See /help for details.';
+      for (const [k, v] of Object.entries(PARAM_HELP)) {
+        expect(v.oneLiner, `PARAM_HELP.${k} still stubbed`).not.toBe(stub);
+      }
+    });
+
+    // Same for KPIs and charts now that all 5 sections shipped.
+    it('no KPI is left on the stub title', () => {
+      for (const [k, v] of Object.entries(KPI_HELP)) {
+        expect(v.title, `KPI_HELP.${k} still stubbed`).not.toBe('Coming soon');
+      }
+    });
+
+    it('no chart is left on the stub title', () => {
+      for (const [k, v] of Object.entries(CHART_HELP)) {
+        expect(v.title, `CHART_HELP.${k} still stubbed`).not.toBe('Coming soon');
+      }
+    });
+  });
 });
