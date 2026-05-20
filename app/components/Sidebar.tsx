@@ -3,7 +3,20 @@ import { useUrlState } from '@/lib/useUrlState';
 import { GOV_LLTVS, type LLTV } from '@/types/simulator';
 import { useState } from 'react';
 import { InfoTooltip } from './help/InfoTooltip';
-import { PARAM_HELP } from '@/lib/help/registry';
+import { PARAM_HELP, PARAM_SECTION } from '@/lib/help/registry';
+
+function paramTooltip(helpKey: keyof typeof PARAM_HELP) {
+  const help = PARAM_HELP[helpKey];
+  if (help.details) {
+    return (
+      <InfoTooltip
+        text={help.oneLiner}
+        moreInfo={{ section: PARAM_SECTION[helpKey], anchor: helpKey }}
+      />
+    );
+  }
+  return <InfoTooltip text={help.oneLiner} />;
+}
 
 const MODES = ['Bootstrap', 'GBM', 'GBM+Jumps', 'Scenario'] as const;
 const HORIZONS = [7, 30, 60, 90] as const;
@@ -270,7 +283,7 @@ function NumberField(props: {
     <label className="flex flex-col gap-1">
       <span className="text-xs text-neutral-600 dark:text-neutral-400">
         {props.label}
-        {props.helpKey && <InfoTooltip text={PARAM_HELP[props.helpKey].oneLiner} />}
+        {props.helpKey && paramTooltip(props.helpKey)}
       </span>
       <input
         type="number"
@@ -302,7 +315,7 @@ function RangeField(props: {
     <label className="flex flex-col gap-1">
       <span className="text-xs text-neutral-600 dark:text-neutral-400">
         {props.label}: <span className="font-mono">{props.format(props.value)}</span>
-        {props.helpKey && <InfoTooltip text={PARAM_HELP[props.helpKey].oneLiner} />}
+        {props.helpKey && paramTooltip(props.helpKey)}
       </span>
       <input
         type="range"
@@ -330,7 +343,7 @@ function SelectField(props: {
     <label className="flex flex-col gap-1">
       <span className="text-xs text-neutral-600 dark:text-neutral-400">
         {props.label}
-        {props.helpKey && <InfoTooltip text={PARAM_HELP[props.helpKey].oneLiner} />}
+        {props.helpKey && paramTooltip(props.helpKey)}
       </span>
       <select
         value={props.value}
@@ -362,7 +375,7 @@ function CheckboxField(props: {
       />
       <span className="text-xs text-neutral-600 dark:text-neutral-400">
         {props.label}
-        {props.helpKey && <InfoTooltip text={PARAM_HELP[props.helpKey].oneLiner} />}
+        {props.helpKey && paramTooltip(props.helpKey)}
       </span>
     </label>
   );

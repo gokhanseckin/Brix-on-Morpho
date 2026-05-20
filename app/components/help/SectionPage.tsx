@@ -3,7 +3,7 @@
 // and feeds them registry entries — content lives in lib/help/content/.
 import { KatexBlock } from './KatexBlock';
 import { WorkedExample } from './WorkedExample';
-import type { ChartHelp, KpiHelp } from '@/lib/help/types';
+import type { ChartHelp, KpiHelp, ParamHelp } from '@/lib/help/types';
 
 export function KpiEntry({ id, help }: { id: string; help: KpiHelp }) {
   return (
@@ -104,6 +104,80 @@ export function ChartEntry({ id, help }: { id: string; help: ChartHelp }) {
         <li><span className="font-medium">Sustainability:</span> {help.impact.sustainability}</li>
         <li><span className="font-medium">Profitability:</span> {help.impact.profitability}</li>
       </ul>
+    </section>
+  );
+}
+
+export function ParamEntry({
+  id,
+  label,
+  help,
+}: {
+  id: string;
+  label: string;
+  help: ParamHelp;
+}) {
+  const d = help.details;
+  return (
+    <section id={id} className="space-y-3 scroll-mt-16">
+      <h3 className="text-base font-semibold">
+        <span className="font-mono text-sm text-neutral-500">{id}</span>{' '}
+        <span className="text-neutral-400">·</span> {label}
+      </h3>
+      <p className="text-sm text-neutral-700 dark:text-neutral-300 max-w-prose">{help.oneLiner}</p>
+
+      {d?.description && (
+        <p className="text-sm text-neutral-700 dark:text-neutral-300 max-w-prose">
+          {d.description}
+        </p>
+      )}
+
+      {d?.options && d.options.length > 0 && (
+        <>
+          <SubHead>Options</SubHead>
+          <ul className="text-xs text-neutral-700 dark:text-neutral-300 space-y-2">
+            {d.options.map((o) => (
+              <li key={o.name}>
+                <span className="font-medium">{o.name}</span> — {o.description}
+                {o.bestFor && (
+                  <div className="mt-0.5 text-neutral-500">
+                    <span className="italic">Best for:</span> {o.bestFor}
+                  </div>
+                )}
+              </li>
+            ))}
+          </ul>
+        </>
+      )}
+
+      {d?.downstream && d.downstream.length > 0 && (
+        <>
+          <SubHead>What recomputes when this changes</SubHead>
+          <ul className="text-xs text-neutral-700 dark:text-neutral-300 space-y-2">
+            {d.downstream.map((s) => (
+              <li key={s.section}>
+                <span className="font-medium">{s.section}</span>
+                <ul className="ml-4 mt-0.5 list-disc list-inside space-y-0.5 text-neutral-600 dark:text-neutral-400">
+                  {s.effects.map((e) => (
+                    <li key={e}>{e}</li>
+                  ))}
+                </ul>
+              </li>
+            ))}
+          </ul>
+        </>
+      )}
+
+      {d?.unchanged && d.unchanged.length > 0 && (
+        <>
+          <SubHead>What stays the same</SubHead>
+          <ul className="text-xs text-neutral-700 dark:text-neutral-300 space-y-0.5 list-disc list-inside">
+            {d.unchanged.map((u) => (
+              <li key={u}>{u}</li>
+            ))}
+          </ul>
+        </>
+      )}
     </section>
   );
 }
