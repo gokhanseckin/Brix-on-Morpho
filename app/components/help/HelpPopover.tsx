@@ -1,6 +1,7 @@
 'use client';
 import { useEffect, useId, useRef, useState } from 'react';
 import Link from 'next/link';
+import type { Route } from 'next';
 import { KPI_HELP, CHART_HELP } from '@/lib/help/registry';
 import { KPI_SECTION, type KpiKey } from '@/lib/help/kpiKeys';
 import { CHART_SECTION, type ChartKey } from '@/lib/help/chartKeys';
@@ -84,7 +85,7 @@ export function HelpPopover(props: Props) {
           <HelpSection help={isKpi ? KPI_HELP[props.kpiKey!] : asKpiHelp(CHART_HELP[props.chartKey!])} />
           <div className="mt-4 pt-3 border-t border-neutral-200 dark:border-neutral-800 text-right">
             <Link
-              href={`/help/${section}#${anchor}`}
+              href={{ pathname: `/help/${section}` as Route, hash: anchor }}
               className="text-xs font-medium text-blue-600 dark:text-blue-400 hover:underline"
             >
               More info →
