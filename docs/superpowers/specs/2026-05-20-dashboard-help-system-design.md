@@ -222,11 +222,13 @@ Total: ~22 + ~32 ≈ 54 entries. (Exact counts firm up in PR #1 as I read the se
 
 ## Seven-PR roadmap
 
+> **Naming convention note.** The "#N" in this roadmap is the **logical PR number** (the work-item number), not the GitHub PR number. They diverged once we filed follow-up issues alongside content PRs: e.g. roadmap **PR #3 (LiquidityNeed)** shipped as **GH PR #5** because GH #3 / #4 were already used for follow-up issues. When referring to a specific GitHub PR, use the GH number; when planning by scope, use the roadmap number.
+
 | PR | Scope | Notes |
 |---|---|---|
 | **#1 Infrastructure** | All components, empty registry, `/help` routes with stub content, KaTeX + mermaid lazy loading, unit tests, one e2e | Ships a usable empty help system: every `?` opens a popover that says "Coming soon" with a link to `/help/<section>`. ✅ Done. |
-| **#2 Validate formulas and logic** | Audit every formula in `lib/simulator.ts`, `lib/morphoMath.ts`, `lib/fxModel.ts`, `lib/simulation.worker.ts`; cross-check against the original design spec, Morpho governance docs, and standard finance references. Produce a validation report. Fix bugs found, eliminate remaining magic numbers, add missing tests. | Prerequisite for content PRs — worked examples and "how it's calculated" copy depend on the formulas being correct. Handover doc: `docs/superpowers/plans/2026-05-20-pr2-validate-formulas-handover.md`. ✅ Done — see [validation report](./2026-05-20-formula-validation-report.md). |
-| **#3 LiquidityNeed content** | Sidebar tooltips for params in section 1 + all KPI/chart help for LiquidityNeed + populated `/help/liquidity-need` | Iterate copy in chat. |
+| **#2 Validate formulas and logic** | Audit every formula in `lib/simulator.ts`, `lib/morphoMath.ts`, `lib/fxModel.ts`, `lib/simulation.worker.ts`; cross-check against the original design spec, Morpho governance docs, and standard finance references. Produce a validation report. Fix bugs found, eliminate remaining magic numbers, add missing tests. | Prerequisite for content PRs — worked examples and "how it's calculated" copy depend on the formulas being correct. Handover doc: `docs/superpowers/plans/2026-05-20-pr2-validate-formulas-handover.md`. ✅ Done as **GH PR #2** — see [validation report](./2026-05-20-formula-validation-report.md). |
+| **#3 LiquidityNeed content** | Sidebar tooltips for params in section 1 + all KPI/chart help for LiquidityNeed + populated `/help/liquidity-need` | Iterate copy in chat. ✅ Done as **GH PR #5**. |
 | **#4 FXRisk content** | Sidebar tooltips for section 2 + all FXRisk KPI/chart help + populated `/help/fx-risk` | Iterate in chat. |
 | **#5 Strategy content** | Sidebar tooltips for section 3 + all LiquidityStrategy KPI help + populated `/help/strategy` | Iterate in chat. |
 | **#6 Liquidation content** | Sidebar tooltips for section 4 + all LiquidationDesign KPI help + populated `/help/liquidation` | Iterate in chat. |
