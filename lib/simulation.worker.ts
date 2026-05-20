@@ -12,6 +12,20 @@ import {
 import { simulateBadDebt, sampleBetaLtvFractions } from './simulator';
 import type { SidebarInputs } from '@/types/simulator';
 
+// --- Simulation constants (see report #2 entry 36) ------------------------
+// BOOTSTRAP_BLOCK_LENGTH_DAYS: block length for the block-bootstrap option;
+//   ~1 trading week preserves short-run autocorrelation per spec §2.
+// BORROWER_POPULATION_SAMPLES: number of synthetic borrowers drawn from the
+//   Beta(α,β) LTV distribution for the bad-debt cascade.
+// JUMP_*: Merton jump-diffusion calibration constants per spec §2.
+// DEFAULT_GAS_COST_USD: nominal cushion (MegaETH gas is near-zero).
+const BOOTSTRAP_BLOCK_LENGTH_DAYS = 5;
+const BORROWER_POPULATION_SAMPLES = 1000;
+const JUMP_LAMBDA_PER_YEAR = 4;
+const JUMP_LOG_MEAN = -0.05;
+const JUMP_LOG_STD = 0.04;
+const DEFAULT_GAS_COST_USD = 5;
+
 export interface WorkerInput {
   inputs: SidebarInputs;
   returnsWindow: number[]; // pre-windowed historical returns
@@ -45,7 +59,7 @@ const api = {
     switch (inputs.simulationMode) {
       case 'Bootstrap':
         paths = inputs.blockBootstrap
-          ? blockBootstrapPaths({ returns: returnsWindow, blockLength: 5, ...common })
+          ? blockBootstrapPaths({ returns: returnsWindow, blockLength: BOOTSTRAP_BLOCK_LENGTH_DAYS, ...common })
           : bootstrapPaths({ returns: returnsWindow, ...common });
         break;
       case 'GBM': {
@@ -58,15 +72,19 @@ const api = {
         paths = jumpDiffusionPaths({
           mu,
           sigma,
-          lambda: 4,
-          muJ: -0.05,
-          sigmaJ: 0.04,
+          lambda: JUMP_LAMBDA_PER_YEAR,
+          muJ: JUMP_LOG_MEAN,
+          sigmaJ: JUMP_LOG_STD,
           ...common,
         });
         break;
       }
       case 'Scenario': {
-        // Single deterministic path: linear glide from S0 to S0*(1+|shock|)
+        // Single deterministic path: linear glide from S0 to S0·(1+|shock|).
+        // `tryShockPct` is signed in the UI (negative = TRY drop), but the
+        // simulator always glides upward (USD/TRY rising = TRY weakening =
+        // collateral USD value falling) — hence the abs(). See report #2
+        // entry #21.
         const n = inputs.simulationHorizonDays + 1;
         const end = inputs.usdtryBaseline * (1 + Math.abs(inputs.tryShockPct));
         const path = Array.from({ length: n }, (_, i) =>
@@ -81,7 +99,7 @@ const api = {
     const ltvFractions = sampleBetaLtvFractions({
       alpha: inputs.borrowerLTVAlpha,
       beta: inputs.borrowerLTVBeta,
-      n: 1000,
+      n: BORROWER_POPULATION_SAMPLES,
       seed: inputs.seed,
     });
     const badDebtOut = simulateBadDebt({
@@ -90,7 +108,7 @@ const api = {
       lltv: inputs.lltv,
       tvl_USD: inputs.witryTVL_USD,
       poolDepth_USD: inputs.poolDepth_USD,
-      gasCost_USD: 5,
+      gasCost_USD: DEFAULT_GAS_COST_USD,
       iTRYYieldAnnual: inputs.iTRYYieldAnnual,
       preLiquidationEnabled: inputs.preLiquidationEnabled,
     });
