@@ -12,6 +12,10 @@ import {
   computeStrategy,
   buildVaultConfigJson,
   classifyRiskTier,
+  bufferPctFromIncentive,
+  irmCurvePoints,
+  BUFFER_PCT_BASE,
+  BUFFER_PCT_INCENTIVE_SLOPE,
 } from '@/lib/simulator';
 import { LIF } from '@/lib/morphoMath';
 
@@ -204,6 +208,34 @@ describe('strategy', () => {
     expect(out.grossSupplyAPY).toBeCloseTo(0.07, 4);
     expect(out.totalSupplyAPY).toBeGreaterThan(out.netSupplyAPY);
     expect(out.daysToTarget).toBeGreaterThan(0);
+  });
+});
+
+describe('bufferPctFromIncentive (report #2 entry 7)', () => {
+  it('equals BUFFER_PCT_BASE when there are no incentives', () => {
+    expect(bufferPctFromIncentive(0, 0.05)).toBeCloseTo(BUFFER_PCT_BASE, 10);
+  });
+  it('grows linearly with incentive/base ratio', () => {
+    // incentive=base ⇒ ratio=1 ⇒ buffer = BASE + SLOPE
+    expect(bufferPctFromIncentive(0.05, 0.05)).toBeCloseTo(
+      BUFFER_PCT_BASE + BUFFER_PCT_INCENTIVE_SLOPE,
+      10,
+    );
+  });
+  it('returns BUFFER_PCT_BASE when baseSupplyAPY ≤ 0 (degenerate)', () => {
+    expect(bufferPctFromIncentive(0.1, 0)).toBeCloseTo(BUFFER_PCT_BASE, 10);
+  });
+});
+
+describe('irmCurvePoints (report #2 entry 9)', () => {
+  it('produces `steps` evenly-spaced points covering [0,1]', () => {
+    const pts = irmCurvePoints(0.04, 51);
+    expect(pts.length).toBe(51);
+    expect(pts[0]!.u).toBe(0);
+    expect(pts[50]!.u).toBeCloseTo(1, 10);
+    // r at u=0.9 should equal rTarget per AdaptiveCurveIRM anchor.
+    const target = pts.find((p) => Math.abs(p.u - 0.9) < 1e-9);
+    expect(target?.r).toBeCloseTo(0.04, 8);
   });
 });
 

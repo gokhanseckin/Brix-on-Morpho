@@ -48,6 +48,16 @@ export const DEAD_DEPOSIT_MULTIPLIER = 100;
 export const BUFFER_PCT_BASE = 0.15;
 export const BUFFER_PCT_INCENTIVE_SLOPE = 0.10;
 
+// PRE_LIQUIDATION_LLTV_OFFSET: distance below hard LLTV at which the
+//   pre-liquidation zone begins. Spec §4D recommends 5pp.
+// RISK_TIER_MODERATE_BAND_LLTV: width of the Moderate band above the
+//   computed recommended LLTV before a configuration is classed Aggressive.
+//   Spec §5 Risk Gauge.
+export const PRE_LIQUIDATION_LLTV_OFFSET = 0.05;
+export const RISK_TIER_MODERATE_BAND_LLTV = 0.05;
+export const PRE_LIQUIDATION_LCF: [number, number] = [0.05, 0.5];
+export const PRE_LIQUIDATION_LIF_MIN = 1.01;
+
 export function bufferPctFromIncentive(incentiveAPY: number, baseSupplyAPY: number): number {
   const ratio = baseSupplyAPY > 0 ? incentiveAPY / baseSupplyAPY : 0;
   return BUFFER_PCT_BASE + BUFFER_PCT_INCENTIVE_SLOPE * ratio;
@@ -243,9 +253,9 @@ export function simulateBadDebt(a: BadDebtArgs): BadDebtOut {
   const S0 = firstPath[0]!;
 
   // Pre-liquidation parameters per spec §4D.
-  const preLLTV = Math.max(0, a.lltv - 0.05);
-  const preLIF1 = 1.01;
-  const preLCF2 = 0.5;
+  const preLLTV = Math.max(0, a.lltv - PRE_LIQUIDATION_LLTV_OFFSET);
+  const preLIF1 = PRE_LIQUIDATION_LIF_MIN;
+  const preLCF2 = PRE_LIQUIDATION_LCF[1];
 
   const badDebtByPath: number[] = [];
   const liquidatedCountByPath: number[] = [];
@@ -285,11 +295,16 @@ export function simulateBadDebt(a: BadDebtArgs): BadDebtOut {
           // and debt repaid are removed from the position pro-rata.
           const repaid = Math.min(closeDebt, seized * (1 - slipPct));
           pos.debt_USD -= repaid;
-          // Reduce collateral by the seized fraction of the position.
-          pos.collateralBaseUSD *= 1 - preLCF2 * preLIF1;
+          // Report #2 entry #27 fix: the fraction of collateral seized is
+          // seized_USD / collNow_USD, NOT preLCF2 · preLIF1 (which only
+          // happens to equal the fraction when debt = collateral).
+          const fractionSeized = Math.min(1, seized / Math.max(1e-9, collNow));
+          pos.collateralBaseUSD *= 1 - fractionSeized;
           if (pos.collateralBaseUSD < 0) pos.collateralBaseUSD = 0;
           pos.preLiquidated = true;
-          // Continue to evaluate hard-LLTV at this timestep too.
+          // Spec §4D defines a full piecewise-linear LCF/LIF schedule
+          // interpolated by effLTV in [preLLTV, LLTV]; this is a coarse
+          // one-shot approximation. Continue to hard-LLTV check below.
         }
 
         const collAfter = pos.collateralBaseUSD * rel;
@@ -362,6 +377,9 @@ export function deriveRecommendedLLTV(a: DeriveArgs): DeriveOut {
     }
     L = next;
   }
+  // On non-convergence (rare; can happen with degenerate inputs that drive
+  // L out of [0, 1]), returns the last iterate clamped to a sensible band.
+  // Consumers should treat converged=false as a hint to widen safetyMargin.
   return { raw: Math.max(0, Math.min(0.98, L)), converged, iterations: i };
 }
 
@@ -412,6 +430,12 @@ export function computeStrategy(a: StrategyArgs): StrategyOut {
       ? a.requiredUSDM * Math.min(1, netSupplyAPY / a.competingAPY)
       : a.requiredUSDM;
   const totalIncentiveSpend_USD = a.incentiveBudgetMonthly_USD * (daysToTarget / 30);
+  // Leverage-loop borrower deposits wiTRY (earns iTRYYield in TRY) and
+  // borrows USDM. Debt cost in TRY-real-terms = borrowAPY × (TRY/USD ratio
+  // at repayment / today). If TRY depreciates `d` over the year, that
+  // ratio is `(1 + d)`. So real cost = borrowAPY · (1 + d). Report #2
+  // open question #1: spec §3B text has a sign typo (`1 − USD_TRY_return`)
+  // that conflicts with this; code is the economically correct form.
   const leverageLoopAPY =
     a.iTRYYieldAnnual - a.borrowAPY * (1 + a.expectedTRYDepreciation_annual);
   return {
@@ -474,6 +498,6 @@ export function classifyRiskTier(
   recommended: number
 ): 'Conservative' | 'Moderate' | 'Aggressive' {
   if (chosen <= recommended) return 'Conservative';
-  if (chosen <= recommended + 0.05) return 'Moderate';
+  if (chosen <= recommended + RISK_TIER_MODERATE_BAND_LLTV) return 'Moderate';
   return 'Aggressive';
 }
