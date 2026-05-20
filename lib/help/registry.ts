@@ -3,7 +3,8 @@
 //   ✓ Section 1 (Liquidity Need) — roadmap PR #3
 //   ✓ Section 2 (FX Risk)        — roadmap PR #4
 //   ✓ Section 3 (Strategy)       — roadmap PR #5
-//   ☐ Section 4-5                — roadmap PR #6-#7
+//   ✓ Section 4 (Liquidation)    — roadmap PR #6
+//   ☐ Section 5                  — roadmap PR #7
 import type { SidebarInputs } from '@/types/simulator';
 import { KPI_KEYS, type KpiKey } from './kpiKeys';
 import { CHART_KEYS, type ChartKey } from './chartKeys';
@@ -23,6 +24,11 @@ import {
   STRATEGY_KPIS,
   STRATEGY_CHARTS,
 } from './content/strategy';
+import {
+  LIQUIDATION_PARAMS,
+  LIQUIDATION_KPIS,
+  LIQUIDATION_CHARTS,
+} from './content/liquidation';
 
 const STUB_ONE_LINER = 'Coming soon. See /help for details.';
 
@@ -58,18 +64,21 @@ const SECTION_PARAMS: Partial<Record<string, ParamHelp>> = {
   ...LIQUIDITY_NEED_PARAMS,
   ...FX_RISK_PARAMS,
   ...STRATEGY_PARAMS,
+  ...LIQUIDATION_PARAMS,
 };
 
 const SECTION_KPIS: Partial<Record<KpiKey, KpiHelp>> = {
   ...LIQUIDITY_NEED_KPIS,
   ...FX_RISK_KPIS,
   ...STRATEGY_KPIS,
+  ...LIQUIDATION_KPIS,
 };
 
 const SECTION_CHARTS: Partial<Record<ChartKey, ChartHelp>> = {
   ...LIQUIDITY_NEED_CHARTS,
   ...FX_RISK_CHARTS,
   ...STRATEGY_CHARTS,
+  ...LIQUIDATION_CHARTS,
 };
 
 const sectionParam = (k: keyof SidebarInputs): ParamHelp =>
