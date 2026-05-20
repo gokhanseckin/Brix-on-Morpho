@@ -1,15 +1,19 @@
 'use client';
+import { HelpPopover } from './help/HelpPopover';
+import type { KpiKey } from '@/lib/help/kpiKeys';
 
 export function Kpi({
   label,
   value,
   hint,
   tone,
+  helpKey,
 }: {
   label: string;
   value: string;
   hint?: string;
   tone?: 'default' | 'good' | 'warn' | 'bad';
+  helpKey?: KpiKey;
 }) {
   const toneCls =
     tone === 'good'
@@ -21,7 +25,10 @@ export function Kpi({
           : 'border-neutral-300 dark:border-neutral-700';
   return (
     <div className={`p-4 border rounded-lg ${toneCls}`}>
-      <div className="text-xs uppercase tracking-wide text-neutral-500">{label}</div>
+      <div className="text-xs uppercase tracking-wide text-neutral-500 flex items-center">
+        <span>{label}</span>
+        {helpKey && <HelpPopover kpiKey={helpKey} />}
+      </div>
       <div className="text-2xl font-semibold mt-1">{value}</div>
       {hint && <div className="text-xs text-neutral-500 mt-1">{hint}</div>}
     </div>
