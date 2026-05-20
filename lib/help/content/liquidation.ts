@@ -97,7 +97,7 @@ const recommendedPoolDepth: KpiHelp = {
     COMMON_PARAMS.poolDepth!,
   ],
   definitions: [
-    { term: 'P95 single-event size', definition: 'Not a Monte-Carlo P95 — a heuristic: 1% of expected borrows × LIF, taken as a representative tail liquidation. The full path-aggregated P95 (`expectedLiquidationVolumeP95_USD`) is tracked in [issue #4](https://github.com/gokhanseckin/Brix-on-Morpho/issues/4).' },
+    { term: 'P95 single-event size', definition: 'A heuristic — 1% of expected borrows × LIF — taken as a representative tail liquidation to seed the LLTV derivation. The Section 4 recommendation card uses the path-aggregated `expectedLiquidationVolumeP95_USD` from the bad-debt cascade (P95 of total seized USD per path) as the live sizing number.' },
     { term: 'Slippage budget', definition: 'Typically 2% target — keeps liquidators inside the LIF profit window. The simulator does not store this as a constant today; the UI hint floors recommended depth at $250k as a launch minimum.' },
     { term: 'Capital cost', definition: 'Recommended depth is supplier capital locked at AMM yield instead of Morpho yield — a real opportunity cost. Bigger pool = safer but lower-yielding.' },
   ],
