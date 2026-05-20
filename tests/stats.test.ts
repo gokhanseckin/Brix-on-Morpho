@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { quantile, quantileSorted } from '@/lib/stats';
+import { quantile, quantileSorted, betaPdf } from '@/lib/stats';
 
 describe('quantile (R-7 linear interpolation)', () => {
   it('returns 0 on empty input', () => {
@@ -34,5 +34,44 @@ describe('quantile (R-7 linear interpolation)', () => {
     for (const q of [0.05, 0.25, 0.5, 0.75, 0.95]) {
       expect(quantileSorted(xs, q)).toBeCloseTo(quantile(xs, q), 12);
     }
+  });
+});
+
+describe('betaPdf', () => {
+  it('Beta(1, 1) is the uniform density on (0, 1) — PDF = 1 everywhere', () => {
+    for (const x of [0.1, 0.25, 0.5, 0.75, 0.9]) {
+      expect(betaPdf(x, 1, 1)).toBeCloseTo(1, 10);
+    }
+  });
+
+  it('returns 0 at the boundaries x = 0 and x = 1 (singular for α<1 or β<1)', () => {
+    expect(betaPdf(0, 2, 2)).toBe(0);
+    expect(betaPdf(1, 2, 2)).toBe(0);
+  });
+
+  it('Beta(2, 2) peaks at x = 0.5 with density 1.5', () => {
+    // pdf(0.5; 2, 2) = 6·0.5·0.5 = 1.5 (analytic)
+    expect(betaPdf(0.5, 2, 2)).toBeCloseTo(1.5, 10);
+  });
+
+  it('Beta(2, 1.2) — default — pdf integrates to ~1 over a fine grid', () => {
+    // Trapezoidal check that the density is properly normalised.
+    let area = 0;
+    const N = 1000;
+    for (let i = 1; i < N; i++) {
+      const x0 = i / N;
+      const x1 = (i + 1) / N;
+      area += 0.5 * (betaPdf(x0, 2, 1.2) + betaPdf(x1, 2, 1.2)) * (x1 - x0);
+    }
+    expect(area).toBeCloseTo(1, 2); // 2 dp is plenty for plot sanity
+  });
+
+  it('Beta(10, 10) is tighter than Beta(5, 5) — higher peak at the centre', () => {
+    expect(betaPdf(0.5, 10, 10)).toBeGreaterThan(betaPdf(0.5, 5, 5));
+  });
+
+  it('returns 0 for invalid shape parameters', () => {
+    expect(betaPdf(0.5, 0, 1)).toBe(0);
+    expect(betaPdf(0.5, 1, -1)).toBe(0);
   });
 });
