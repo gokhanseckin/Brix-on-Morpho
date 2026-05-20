@@ -8,6 +8,7 @@ import { KpiEntry, ChartEntry, ParamEntry } from '@/app/components/help/SectionP
 // `details` get an anchor on the page; we only need labels for those.
 const PARAM_LABELS: Partial<Record<keyof SidebarInputs, string>> = {
   simulationMode: 'Simulation mode',
+  witryYieldAnnual: 'wiTRY annual yield',
 };
 
 export default function HelpFXRisk() {
