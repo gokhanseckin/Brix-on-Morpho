@@ -4,7 +4,7 @@
 //   ✓ Section 2 (FX Risk)        — roadmap PR #4
 //   ✓ Section 3 (Strategy)       — roadmap PR #5
 //   ✓ Section 4 (Liquidation)    — roadmap PR #6
-//   ☐ Section 5                  — roadmap PR #7
+//   ✓ Section 5 (Vault)          — roadmap PR #7
 import type { SidebarInputs } from '@/types/simulator';
 import { KPI_KEYS, type KpiKey } from './kpiKeys';
 import { CHART_KEYS, type ChartKey } from './chartKeys';
@@ -29,6 +29,11 @@ import {
   LIQUIDATION_KPIS,
   LIQUIDATION_CHARTS,
 } from './content/liquidation';
+import {
+  VAULT_PARAMS,
+  VAULT_KPIS,
+  VAULT_CHARTS,
+} from './content/vault';
 
 const STUB_ONE_LINER = 'Coming soon. See /help for details.';
 
@@ -65,6 +70,7 @@ const SECTION_PARAMS: Partial<Record<string, ParamHelp>> = {
   ...FX_RISK_PARAMS,
   ...STRATEGY_PARAMS,
   ...LIQUIDATION_PARAMS,
+  ...VAULT_PARAMS,
 };
 
 const SECTION_KPIS: Partial<Record<KpiKey, KpiHelp>> = {
@@ -72,6 +78,7 @@ const SECTION_KPIS: Partial<Record<KpiKey, KpiHelp>> = {
   ...FX_RISK_KPIS,
   ...STRATEGY_KPIS,
   ...LIQUIDATION_KPIS,
+  ...VAULT_KPIS,
 };
 
 const SECTION_CHARTS: Partial<Record<ChartKey, ChartHelp>> = {
@@ -79,6 +86,7 @@ const SECTION_CHARTS: Partial<Record<ChartKey, ChartHelp>> = {
   ...FX_RISK_CHARTS,
   ...STRATEGY_CHARTS,
   ...LIQUIDATION_CHARTS,
+  ...VAULT_CHARTS,
 };
 
 const sectionParam = (k: keyof SidebarInputs): ParamHelp =>

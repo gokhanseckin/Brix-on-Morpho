@@ -1,36 +1,25 @@
-import { KPI_HELP } from '@/lib/help/registry';
-import { CHART_HELP } from '@/lib/help/registry';
+import { KPI_HELP, CHART_HELP } from '@/lib/help/registry';
 import { KPI_KEYS, KPI_SECTION } from '@/lib/help/kpiKeys';
 import { CHART_KEYS, CHART_SECTION } from '@/lib/help/chartKeys';
+import { KpiEntry, ChartEntry } from '@/app/components/help/SectionPage';
 
 export default function HelpVault() {
   const kpis = KPI_KEYS.filter((k) => KPI_SECTION[k] === 'vault');
   const charts = CHART_KEYS.filter((c) => CHART_SECTION[c] === 'vault');
   return (
-    <div className="space-y-8">
-      <h2 className="text-xl font-semibold">5. Vault</h2>
-      {kpis.map((k) => (
-        <Entry key={k} id={k} title={KPI_HELP[k].title} oneLiner={KPI_HELP[k].oneLiner} />
-      ))}
-      {charts.map((c) => (
-        <Entry key={c} id={c} title={CHART_HELP[c].title} oneLiner={CHART_HELP[c].oneLiner} />
-      ))}
+    <div className="space-y-10">
+      <header>
+        <h2 className="text-xl font-semibold">5. Vault Recommendations</h2>
+        <p className="text-sm text-neutral-500 mt-1 max-w-prose">
+          The fixed-point LLTV derivation, the risk-tier classification of the
+          user-chosen LLTV vs the recommendation, and the deploy-ready vault
+          config JSON. Aggregates every upstream section into a single artifact
+          ready for the MetaMorpho deployment scripts.
+        </p>
+      </header>
+
+      {kpis.map((k) => <KpiEntry key={k} id={k} help={KPI_HELP[k]} />)}
+      {charts.map((c) => <ChartEntry key={c} id={c} help={CHART_HELP[c]} />)}
     </div>
   );
-}
-
-function Entry({ id, title, oneLiner }: { id: string; title: string; oneLiner: string }) {
-  return (
-    <section id={id}>
-      <h3 className="text-base font-semibold">{title === 'Coming soon' ? humanize(id) : title}</h3>
-      <p className="text-sm text-neutral-500 mt-1">{oneLiner}</p>
-      <p className="text-xs text-neutral-400 italic mt-2">
-        Full formula, worked example, chart, and diagram land in a follow-up PR.
-      </p>
-    </section>
-  );
-}
-
-function humanize(key: string): string {
-  return key.replace(/([A-Z])/g, ' $1').replace(/^./, (c) => c.toUpperCase()).trim();
 }
