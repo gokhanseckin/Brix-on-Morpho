@@ -21,11 +21,11 @@ export const LIQUIDITY_NEED_PARAMS: Partial<Record<string, ParamHelp>> = {
   },
   borrowerLTVAlpha: {
     oneLiner:
-      'Beta(α,β) shape parameter for the fraction of LLTV a borrower uses. Larger α pushes the mean borrower toward the LLTV cap (more aggressive).',
+      'α in the Beta(α, β) distribution for "fraction of LLTV used by a typical borrower". Mean = α/(α+β). Larger α → average borrower closer to the LLTV cap (more aggressive).',
   },
   borrowerLTVBeta: {
     oneLiner:
-      'Beta(α,β) shape parameter for the fraction of LLTV a borrower uses. Larger β pushes the mean borrower away from the LLTV cap (more conservative).',
+      'β in the Beta(α, β) distribution for "fraction of LLTV used by a typical borrower". Mean = α/(α+β). Larger β → average borrower further from the LLTV cap (more conservative).',
   },
 };
 
@@ -69,7 +69,10 @@ const expectedBorrow: KpiHelp = {
   },
   params: [COMMON_PARAMS.TVL!, COMMON_PARAMS.LLTV!, COMMON_PARAMS.alpha!, COMMON_PARAMS.beta!],
   definitions: [
-    { term: 'E[LTV/LLTV]', definition: 'Mean fraction of LLTV used across borrowers. For Beta(α,β) this is α/(α+β). Default Beta(2, 1.2) → 0.625, i.e. average borrower at 62.5% of LLTV.' },
+    { term: 'α (borrowerLTVAlpha)', definition: 'Shape parameter of the Beta distribution. Larger α pulls the average borrower CLOSER to the LLTV cap (more aggressive use of leverage).' },
+    { term: 'β (borrowerLTVBeta)', definition: 'Shape parameter of the Beta distribution. Larger β pulls the average borrower AWAY from the LLTV cap (more conservative).' },
+    { term: 'Beta(α, β)', definition: 'A probability distribution on the interval [0, 1] controlled by two positive numbers α and β. We use it to model "what fraction of the LLTV cap does a typical borrower actually use?". Its mean is α/(α+β). Examples: Beta(1, 1) is uniform (every fraction equally likely); Beta(2, 1.2) has mean 0.625 → average borrower uses 62.5% of LLTV; Beta(5, 1) puts most mass near the cap → aggressive cohort; Beta(1, 5) puts most mass near 0 → conservative cohort.' },
+    { term: 'E[LTV/LLTV]', definition: 'The expected (mean) fraction of LLTV that borrowers use. For Beta(α,β) the mean is α/(α+β). Default Beta(2, 1.2) → 2/3.2 = 0.625, so the average borrower sits at 62.5% of the LLTV cap.' },
   ],
   impact: {
     health: 'Approximates carried debt under typical conditions, used to size required USDM.',
@@ -77,10 +80,11 @@ const expectedBorrow: KpiHelp = {
     profitability: 'Drives realized utilization → realized borrow APY → supplier yield.',
   },
   workedExample: {
-    description: '$5M TVL, LLTV=77%, Beta(2, 1.2) ⇒ mean LTV fraction 0.625.',
+    description: 'Defaults: $5M TVL, LLTV=77%, borrower LTV distribution Beta(α=2, β=1.2). The "Beta(2, 1.2)" notation just means α=2 and β=1.2.',
     steps: [
-      { label: 'mean LTV fraction', expression: '2 / (2 + 1.2) = 0.625', usesInputs: ['borrowerLTVAlpha', 'borrowerLTVBeta'] },
-      { label: 'expected borrow', expression: '5,000,000 × 0.77 × 0.625 = $2,406,250', usesInputs: ['witryTVL_USD', 'lltv'] },
+      { label: 'mean borrower LTV fraction', expression: 'α / (α + β) = 2 / (2 + 1.2) = 0.625 → 62.5% of LLTV', usesInputs: ['borrowerLTVAlpha', 'borrowerLTVBeta'] },
+      { label: 'mean borrower LTV', expression: '0.625 × 77% = 48.1%', usesInputs: ['lltv'] },
+      { label: 'expected borrow', expression: '$5,000,000 × 0.77 × 0.625 = $2,406,250', usesInputs: ['witryTVL_USD', 'lltv'] },
     ],
   },
 };
@@ -89,11 +93,14 @@ const requiredUSDM: KpiHelp = {
   title: 'Required USDM (steady-state)',
   oneLiner: 'How much USDM must sit in the vault so that expectedBorrow exactly produces the configured target utilization.',
   formula: {
-    plain: 'requiredUSDM = expectedBorrow / targetUtilization\n             = (TVL × LLTV × E[LTV/LLTV]) / targetUtilization',
+    plain: 'requiredUSDM = expectedBorrow / targetUtilization\n             = (TVL × LLTV × α / (α + β)) / targetUtilization',
     latex: 'requiredUSDM = \\frac{TVL \\times LLTV \\times \\frac{\\alpha}{\\alpha+\\beta}}{u_{\\text{target}}}',
   },
   params: [COMMON_PARAMS.TVL!, COMMON_PARAMS.LLTV!, COMMON_PARAMS.alpha!, COMMON_PARAMS.beta!, COMMON_PARAMS.uTarget!],
   definitions: [
+    { term: 'α (borrowerLTVAlpha)', definition: 'Shape parameter of the borrower-LTV Beta distribution. Larger α → average borrower uses MORE of the LLTV cap.' },
+    { term: 'β (borrowerLTVBeta)', definition: 'Shape parameter of the borrower-LTV Beta distribution. Larger β → average borrower uses LESS of the LLTV cap.' },
+    { term: 'Beta(α, β)', definition: 'A probability distribution on [0, 1] with mean α/(α+β). Used here to model the fraction of LLTV that a typical borrower actually uses. The notation "Beta(2, 1.2)" means α=2, β=1.2 → mean 0.625 → the average borrower sits at 62.5% of the LLTV cap.' },
     { term: 'u_target', definition: 'Target borrow utilization (e.g. 70%). The IRM curve is anchored so that u_target produces the target borrow APY (r_target = 4% APR).' },
   ],
   impact: {
@@ -102,10 +109,11 @@ const requiredUSDM: KpiHelp = {
     profitability: 'Drives the denominator of incentiveAPY in Section 3, so directly affects supplier yield economics.',
   },
   workedExample: {
-    description: '$5M TVL, LLTV=77%, Beta(2, 1.2) borrowers, target utilization 70%.',
+    description: 'Defaults: $5M TVL, LLTV=77%, borrowers ~ Beta(α=2, β=1.2) (average uses 62.5% of LLTV), target utilization 70%.',
     steps: [
-      { label: 'expected borrow', expression: '5,000,000 × 0.77 × 0.625 = $2,406,250', usesInputs: ['witryTVL_USD', 'lltv', 'borrowerLTVAlpha', 'borrowerLTVBeta'] },
-      { label: 'required USDM', expression: '2,406,250 / 0.70 ≈ $3,437,500', usesInputs: ['targetUtilization'] },
+      { label: 'mean borrower LTV fraction', expression: 'α / (α + β) = 2 / 3.2 = 0.625', usesInputs: ['borrowerLTVAlpha', 'borrowerLTVBeta'] },
+      { label: 'expected borrow', expression: '$5,000,000 × 0.77 × 0.625 = $2,406,250', usesInputs: ['witryTVL_USD', 'lltv'] },
+      { label: 'required USDM', expression: '$2,406,250 / 0.70 ≈ $3,437,500', usesInputs: ['targetUtilization'] },
     ],
   },
 };
