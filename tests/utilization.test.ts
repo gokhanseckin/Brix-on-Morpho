@@ -91,3 +91,21 @@ describe('liquidityStress', () => {
     expect(Number.isFinite(r.daysToRefillEstimate) || r.daysToRefillEstimate === Infinity).toBe(true);
   });
 });
+
+describe('sweepUtilizationTargets', () => {
+  it('returns rows across the search range at the requested step', () => {
+    const rows = sweepUtilizationTargets(CANONICAL);
+    expect(rows.length).toBeGreaterThan(0);
+    expect(rows[0]!.uTarget).toBeCloseTo(0.5, 6);
+    expect(rows[rows.length - 1]!.uTarget).toBeLessThanOrEqual(0.9 + 1e-9);
+    for (let k = 1; k < rows.length; k++) {
+      expect(rows[k]!.borrowAPY).toBeGreaterThanOrEqual(rows[k - 1]!.borrowAPY - 1e-9);
+    }
+  });
+
+  it('verdict reflects feasibility and stress survival', () => {
+    const rows = sweepUtilizationTargets(CANONICAL);
+    const row = rows.find(r => Math.abs(r.uTarget - 0.7) < 1e-6)!;
+    expect(['feasible','tight','infeasible']).toContain(row.verdict);
+  });
+});

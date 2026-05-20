@@ -99,8 +99,45 @@ export function liquidityStress(i: LiquidityStressInput): LiquidityStressResult 
   const daysToRefillEstimate = dailyRepayment > 0 ? shortfall / dailyRepayment : Infinity;
   return { bufferUSD, stressWithdrawalUSD, survives, daysToRefillEstimate };
 }
-export function sweepUtilizationTargets(_i: RecommendInput): SweepRow[] {
-  throw new Error('not implemented');
+export function sweepUtilizationTargets(i: RecommendInput): SweepRow[] {
+  const [lo, hi] = i.searchRange;
+  const out: SweepRow[] = [];
+  for (let u = lo; u <= hi + 1e-9; u += i.searchStep) {
+    const u2 = Math.round(u * 1e6) / 1e6;
+    const e7 = looperNetAPY({
+      uTarget: u2, rTarget: i.rTarget, lltv: i.lltv, hfBuffer: i.hfBuffer,
+      witryYieldAnnual: i.witryYield7d, perLoopSlippageBps: i.perLoopSlippageBps,
+    });
+    const e30 = looperNetAPY({
+      uTarget: u2, rTarget: i.rTarget, lltv: i.lltv, hfBuffer: i.hfBuffer,
+      witryYieldAnnual: i.witryYield30d, perLoopSlippageBps: i.perLoopSlippageBps,
+    });
+    const stress = liquidityStress({
+      uTarget: u2, tvlUSDM_USD: i.tvlUSDM_USD,
+      stressPctOfSupply: i.stressPctOfSupply, borrowAPY: e7.borrowAPY,
+    });
+    const distanceToKink = 0.9 - u2;
+    const meetsLoop = e7.loopMargin > 0;
+    const meetsKink = distanceToKink >= i.kinkClearance;
+    const meetsStress = stress.survives;
+    const verdict: SweepRow['verdict'] =
+      meetsLoop && meetsKink && meetsStress ? 'feasible'
+      : (meetsLoop && meetsKink) ? 'tight'
+      : 'infeasible';
+    out.push({
+      uTarget: u2,
+      borrowAPY: e7.borrowAPY,
+      supplierAPY: e7.borrowAPY * u2,
+      loopMargin7d: e7.loopMargin,
+      loopMargin30d: e30.loopMargin,
+      bufferUSD: stress.bufferUSD,
+      stressWithdrawalUSD: stress.stressWithdrawalUSD,
+      survives: stress.survives,
+      distanceToKink,
+      verdict,
+    });
+  }
+  return out;
 }
 export function recommendUTarget(_i: RecommendInput): RecommendResult {
   throw new Error('not implemented');
