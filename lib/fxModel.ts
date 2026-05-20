@@ -1,4 +1,5 @@
 import { createRng, gauss } from './rng';
+import { quantileSorted } from './stats';
 
 export type Path = number[]; // length = horizonDays + 1
 
@@ -116,14 +117,6 @@ export function blockBootstrapPaths(a: BlockBootstrapArgs): Path[] {
   return out;
 }
 
-function quantile(sorted: number[], q: number): number {
-  if (sorted.length === 0) return NaN;
-  const idx = q * (sorted.length - 1);
-  const lo = Math.floor(idx), hi = Math.ceil(idx);
-  if (lo === hi) return sorted[lo]!;
-  return sorted[lo]! + (idx - lo) * (sorted[hi]! - sorted[lo]!);
-}
-
 export function percentilesAtEachStep(paths: Path[]): { p5: number[]; p50: number[]; p95: number[] } {
   const n = paths[0]!.length;
   const p5 = new Array<number>(n);
@@ -131,9 +124,9 @@ export function percentilesAtEachStep(paths: Path[]): { p5: number[]; p50: numbe
   const p95 = new Array<number>(n);
   for (let t = 0; t < n; t++) {
     const col = paths.map((p) => p[t]!).sort((a, b) => a - b);
-    p5[t] = quantile(col, 0.05);
-    p50[t] = quantile(col, 0.5);
-    p95[t] = quantile(col, 0.95);
+    p5[t] = quantileSorted(col, 0.05);
+    p50[t] = quantileSorted(col, 0.5);
+    p95[t] = quantileSorted(col, 0.95);
   }
   return { p5, p50, p95 };
 }
