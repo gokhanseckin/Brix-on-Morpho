@@ -1,15 +1,38 @@
 'use client';
-import { useEffect, useId, useRef, useState } from 'react';
+import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 
 /**
  * Sidebar param help. Click to open, ESC or click-outside to close.
- * Visually + behaviorally matches HelpPopover (the body `?` button) so the
- * two interactions feel like the same thing at different granularities.
+ * Renders via portal with fixed positioning so it escapes the sidebar's
+ * overflow-y-auto clipping (overflow-y:auto forces overflow-x:auto too).
  */
 export function InfoTooltip({ text }: { text: string }) {
   const [open, setOpen] = useState(false);
+  const [rect, setRect] = useState<DOMRect | null>(null);
+  const [mounted, setMounted] = useState(false);
   const triggerRef = useRef<HTMLButtonElement>(null);
+  const popoverRef = useRef<HTMLDivElement>(null);
   const id = useId();
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  useLayoutEffect(() => {
+    if (!open) return;
+    const update = () => {
+      const r = triggerRef.current?.getBoundingClientRect();
+      if (r) setRect(r);
+    };
+    update();
+    window.addEventListener('scroll', update, true);
+    window.addEventListener('resize', update);
+    return () => {
+      window.removeEventListener('scroll', update, true);
+      window.removeEventListener('resize', update);
+    };
+  }, [open]);
 
   useEffect(() => {
     if (!open) return;
@@ -21,8 +44,11 @@ export function InfoTooltip({ text }: { text: string }) {
     };
     const onClick = (e: MouseEvent) => {
       const target = e.target as Node;
-      const dlg = document.getElementById(id);
-      if (dlg && !dlg.contains(target) && !triggerRef.current?.contains(target)) {
+      if (
+        popoverRef.current &&
+        !popoverRef.current.contains(target) &&
+        !triggerRef.current?.contains(target)
+      ) {
         setOpen(false);
       }
     };
@@ -32,7 +58,9 @@ export function InfoTooltip({ text }: { text: string }) {
       document.removeEventListener('keydown', onKey);
       document.removeEventListener('mousedown', onClick);
     };
-  }, [open, id]);
+  }, [open]);
+
+  const popoverStyle = computePopoverStyle(rect);
 
   return (
     <span className="relative inline-block align-middle ml-2">
@@ -47,12 +75,14 @@ export function InfoTooltip({ text }: { text: string }) {
       >
         ?
       </button>
-      {open && (
+      {open && mounted && rect && createPortal(
         <div
+          ref={popoverRef}
           id={id}
           role="dialog"
           aria-modal="false"
-          className="absolute left-0 z-50 mt-2 w-64 rounded-lg border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-900 p-3 text-xs shadow-xl normal-case tracking-normal"
+          style={popoverStyle}
+          className="fixed z-[100] w-64 rounded-lg border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-900 p-3 text-xs shadow-xl normal-case tracking-normal"
         >
           <div className="flex items-start justify-between gap-2">
             <span className="leading-snug">{text}</span>
@@ -68,8 +98,24 @@ export function InfoTooltip({ text }: { text: string }) {
               ×
             </button>
           </div>
-        </div>
+        </div>,
+        document.body,
       )}
     </span>
   );
+}
+
+const POPOVER_WIDTH = 256; // matches w-64
+const VIEWPORT_PADDING = 8;
+
+function computePopoverStyle(rect: DOMRect | null): React.CSSProperties {
+  if (!rect) return { visibility: 'hidden' };
+  const viewportW = typeof window !== 'undefined' ? window.innerWidth : POPOVER_WIDTH;
+  // Default: align left edge with trigger, drop below. Flip leftward if it
+  // would overflow the right viewport edge.
+  let left = rect.left;
+  if (left + POPOVER_WIDTH + VIEWPORT_PADDING > viewportW) {
+    left = Math.max(VIEWPORT_PADDING, viewportW - POPOVER_WIDTH - VIEWPORT_PADDING);
+  }
+  return { top: rect.bottom + 8, left };
 }
