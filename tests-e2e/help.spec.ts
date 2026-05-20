@@ -27,6 +27,31 @@ test('Esc closes the popover and returns focus to the trigger', async ({ page })
   await expect(trigger).toBeFocused();
 });
 
+test('sidebar param tooltip is not clipped by the sidebar overflow', async ({ page }) => {
+  // Regression: sidebar has overflow-y-auto which forces overflow-x:auto
+  // and clips any absolute-positioned children. Tooltip should portal out
+  // and render fully visible regardless of width vs. sidebar.
+  await page.goto('/');
+  // First "More info" trigger in the sidebar — it's the wiTRY TVL tooltip.
+  const trigger = page.getByRole('button', { name: 'More info' }).first();
+  await trigger.click();
+  const dialog = page.getByRole('dialog').last();
+  await expect(dialog).toBeVisible();
+  // The popover should be a direct child of <body> (portaled out), not
+  // nested inside the <aside>.
+  const isInBody = await dialog.evaluate((el) => el.parentElement === document.body);
+  expect(isInBody).toBe(true);
+  // Bounding box should fit within the viewport (not negative-left or
+  // overflowing right).
+  const box = await dialog.boundingBox();
+  expect(box).not.toBeNull();
+  if (box) {
+    const viewport = page.viewportSize();
+    expect(box.x).toBeGreaterThanOrEqual(0);
+    if (viewport) expect(box.x + box.width).toBeLessThanOrEqual(viewport.width);
+  }
+});
+
 test('/help/liquidity-need renders all section entries', async ({ page }) => {
   await page.goto('/help/liquidity-need');
   await expect(page.getByRole('heading', { name: '1. Liquidity Need' })).toBeVisible();
