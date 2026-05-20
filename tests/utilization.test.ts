@@ -109,3 +109,41 @@ describe('sweepUtilizationTargets', () => {
     expect(['feasible','tight','infeasible']).toContain(row.verdict);
   });
 });
+
+describe('recommendUTarget', () => {
+  it('picks the largest u where loop+stress+kink all pass', () => {
+    const r = recommendUTarget(CANONICAL);
+    expect(r.recommended).not.toBeNull();
+    expect(r.recommended!).toBeLessThanOrEqual(0.83 + 1e-9);
+    expect(r.recommended!).toBeGreaterThanOrEqual(0.5);
+    expect(r.unmetConstraints).toEqual([]);
+  });
+
+  it('returns null when stress is unsatisfiable, flags stressSurvival, exposes bestEffort', () => {
+    // stressPctOfSupply: 0.51 means buffer at u=0.5 is 0.5*TVL < 0.51*TVL — no u in [0.5,0.9] survives
+    const r = recommendUTarget({ ...CANONICAL, stressPctOfSupply: 0.51 });
+    expect(r.recommended).toBeNull();
+    expect(r.unmetConstraints).toContain('stressSurvival');
+    expect(r.bestEffort).toBeGreaterThan(0);
+  });
+
+  it('returns null when loop is unprofitable at every u', () => {
+    const r = recommendUTarget({ ...CANONICAL, witryYield7d: 0.005 });
+    expect(r.recommended).toBeNull();
+    expect(r.unmetConstraints).toContain('loopMargin');
+  });
+
+  it('enforces kink clearance of 0.07', () => {
+    const r = recommendUTarget(CANONICAL);
+    if (r.recommended !== null) {
+      expect(0.9 - r.recommended).toBeGreaterThanOrEqual(0.07 - 1e-9);
+    }
+  });
+
+  it('canonical recommended value is stable in 0.6..0.83 range', () => {
+    const r = recommendUTarget(CANONICAL);
+    expect(r.recommended).not.toBeNull();
+    expect(r.recommended!).toBeGreaterThanOrEqual(0.6);
+    expect(r.recommended!).toBeLessThanOrEqual(0.83);
+  });
+});

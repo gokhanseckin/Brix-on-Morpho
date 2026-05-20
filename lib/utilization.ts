@@ -139,6 +139,24 @@ export function sweepUtilizationTargets(i: RecommendInput): SweepRow[] {
   }
   return out;
 }
-export function recommendUTarget(_i: RecommendInput): RecommendResult {
-  throw new Error('not implemented');
+export function recommendUTarget(i: RecommendInput): RecommendResult {
+  const rows = sweepUtilizationTargets(i);
+  const feasible = rows.filter(r => r.verdict === 'feasible');
+  if (feasible.length > 0) {
+    const best = feasible.reduce((a, b) => (b.uTarget > a.uTarget ? b : a));
+    return { recommended: best.uTarget, unmetConstraints: [], bestEffort: best.uTarget };
+  }
+  const loopAndKink = rows.filter(r => r.loopMargin7d > 0 && r.distanceToKink >= i.kinkClearance);
+  const bestEffort = loopAndKink.length > 0
+    ? loopAndKink.reduce((a, b) => (b.uTarget > a.uTarget ? b : a)).uTarget
+    : 0;
+  const unmet: RecommendResult['unmetConstraints'] = [];
+  const anyLoop = rows.some(r => r.loopMargin7d > 0);
+  const anyStress = rows.some(r => r.survives);
+  const anyKink = rows.some(r => r.distanceToKink >= i.kinkClearance);
+  if (!anyLoop) unmet.push('loopMargin');
+  if (!anyStress) unmet.push('stressSurvival');
+  if (!anyKink) unmet.push('kinkClearance');
+  if (unmet.length === 0) unmet.push('stressSurvival');
+  return { recommended: null, unmetConstraints: unmet, bestEffort };
 }
