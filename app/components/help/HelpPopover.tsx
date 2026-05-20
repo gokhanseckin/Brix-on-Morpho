@@ -66,7 +66,7 @@ export function HelpPopover(props: Props) {
           role="dialog"
           aria-modal="false"
           aria-label={effectiveTitle}
-          className="absolute right-0 z-50 mt-2 w-[380px] max-h-[80vh] overflow-auto rounded-lg border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-900 p-4 shadow-xl normal-case tracking-normal sm:right-0 max-sm:fixed max-sm:inset-x-0 max-sm:bottom-0 max-sm:rounded-t-lg max-sm:rounded-b-none max-sm:w-auto"
+          className="absolute right-0 z-50 mt-2 w-[380px] max-h-[80vh] overflow-y-auto overflow-x-hidden rounded-lg border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-900 p-4 shadow-xl normal-case tracking-normal sm:right-0 max-sm:fixed max-sm:inset-x-0 max-sm:bottom-0 max-sm:rounded-t-lg max-sm:rounded-b-none max-sm:w-auto"
         >
           <div className="flex items-start justify-between mb-3">
             <h2 className="text-sm font-semibold">{effectiveTitle}</h2>
