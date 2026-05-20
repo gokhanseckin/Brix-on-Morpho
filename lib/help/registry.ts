@@ -41,6 +41,8 @@ export const PARAM_HELP: Record<keyof SidebarInputs, ParamHelp> = {
   borrowerLTVAlpha: { oneLiner: STUB_ONE_LINER },
   borrowerLTVBeta: { oneLiner: STUB_ONE_LINER },
   iTRYYieldAnnual: { oneLiner: STUB_ONE_LINER },
+  witryYieldUSD_7d:  { oneLiner: 'Trailing-7-day USD APY of holding wiTRY. Used by /utilization as the conservative loop-viability threshold.' },
+  witryYieldUSD_30d: { oneLiner: 'Trailing-30-day USD APY of holding wiTRY. Shown as the optimistic reference on /utilization.' },
   usdtryBaseline: { oneLiner: STUB_ONE_LINER },
   historicalPeriod: { oneLiner: STUB_ONE_LINER },
   simulationMode: { oneLiner: STUB_ONE_LINER },
