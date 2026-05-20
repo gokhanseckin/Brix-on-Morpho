@@ -220,18 +220,19 @@ Total: ~22 + ~32 ≈ 54 entries. (Exact counts firm up in PR #1 as I read the se
 - Open dashboard → click the first `?` → assert popover visible with A/B/C headings → press Esc → assert popover dismissed and focus returned to the trigger.
 - Navigate to `/help/liquidity-need` → assert a KaTeX-rendered formula is present (look for `.katex` class) → assert a worked-example block is present.
 
-## Six-PR roadmap
+## Seven-PR roadmap
 
 | PR | Scope | Notes |
 |---|---|---|
-| **#1 Infrastructure** | All components, empty registry, `/help` routes with stub content, KaTeX + mermaid lazy loading, unit tests, one e2e | Ships a usable empty help system: every `?` opens a popover that says "Coming soon" with a link to `/help/<section>`. |
-| **#2 LiquidityNeed** | Sidebar tooltips for params in section 1 + all KPI/chart help for LiquidityNeed + populated `/help/liquidity-need` | Iterate copy in chat. |
-| **#3 FXRisk** | Sidebar tooltips for section 2 + all FXRisk KPI/chart help + populated `/help/fx-risk` | Iterate in chat. |
-| **#4 Strategy** | Sidebar tooltips for section 3 + all LiquidityStrategy KPI help + populated `/help/strategy` | Iterate in chat. |
-| **#5 Liquidation** | Sidebar tooltips for section 4 + all LiquidationDesign KPI help + populated `/help/liquidation` | Iterate in chat. |
-| **#6 Vault** | Sidebar tooltips for section 5 + all VaultRecommendations KPI help + populated `/help/vault` | Iterate in chat. |
+| **#1 Infrastructure** | All components, empty registry, `/help` routes with stub content, KaTeX + mermaid lazy loading, unit tests, one e2e | Ships a usable empty help system: every `?` opens a popover that says "Coming soon" with a link to `/help/<section>`. ✅ Done. |
+| **#2 Validate formulas and logic** | Audit every formula in `lib/simulator.ts`, `lib/morphoMath.ts`, `lib/fxModel.ts`, `lib/simulation.worker.ts`; cross-check against the original design spec, Morpho governance docs, and standard finance references. Produce a validation report. Fix bugs found, eliminate remaining magic numbers, add missing tests. | Prerequisite for content PRs — worked examples and "how it's calculated" copy depend on the formulas being correct. Handover doc: `docs/superpowers/plans/2026-05-20-pr2-validate-formulas-handover.md`. |
+| **#3 LiquidityNeed content** | Sidebar tooltips for params in section 1 + all KPI/chart help for LiquidityNeed + populated `/help/liquidity-need` | Iterate copy in chat. |
+| **#4 FXRisk content** | Sidebar tooltips for section 2 + all FXRisk KPI/chart help + populated `/help/fx-risk` | Iterate in chat. |
+| **#5 Strategy content** | Sidebar tooltips for section 3 + all LiquidityStrategy KPI help + populated `/help/strategy` | Iterate in chat. |
+| **#6 Liquidation content** | Sidebar tooltips for section 4 + all LiquidationDesign KPI help + populated `/help/liquidation` | Iterate in chat. |
+| **#7 Vault content** | Sidebar tooltips for section 5 + all VaultRecommendations KPI help + populated `/help/vault` | Iterate in chat. |
 
-Each PR is independently reviewable and ships a strict improvement over the previous state.
+Each PR is independently reviewable and ships a strict improvement over the previous state. PR #2 has no UI surface — it's a code-and-docs audit that hardens the math layer before content is written on top of it.
 
 ## Risks and mitigations
 
