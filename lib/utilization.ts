@@ -1,4 +1,5 @@
 // lib/utilization.ts
+import { adaptiveCurveIRM } from './morphoMath';
 export interface LooperEconomicsInput {
   uTarget: number;
   rTarget: number;
@@ -66,8 +67,27 @@ export interface RecommendResult {
   bestEffort: number;
 }
 
-export function looperNetAPY(_i: LooperEconomicsInput): LooperEconomicsResult {
-  throw new Error('not implemented');
+export function looperNetAPY(i: LooperEconomicsInput): LooperEconomicsResult {
+  const borrowFraction = i.lltv / i.hfBuffer;
+  // Closed-form geometric-sum leverage. Capped at 50× for numerical safety
+  // (HF buffer ≥ 1.1 makes that ceiling unreachable in practice).
+  const effectiveLeverage = borrowFraction >= 1
+    ? 50
+    : Math.min(50, 1 / (1 - borrowFraction));
+
+  const borrowAPY = adaptiveCurveIRM(i.uTarget, i.rTarget);
+  const borrowedShare = effectiveLeverage - 1;            // levered debt / equity
+
+  const grossLoopAPY = effectiveLeverage * i.witryYieldAnnual;
+  const borrowCost   = borrowedShare * borrowAPY;
+  const slippageCost = borrowedShare * (i.perLoopSlippageBps / 10_000);
+  // Capital held back to maintain HF buffer earns nothing.
+  const hfIdleCost   = i.witryYieldAnnual * (1 - 1 / i.hfBuffer) * borrowedShare;
+
+  const netLoopAPY = grossLoopAPY - borrowCost - slippageCost - hfIdleCost;
+  const loopMargin = netLoopAPY - i.witryYieldAnnual;
+
+  return { effectiveLeverage, borrowAPY, grossLoopAPY, borrowCost, slippageCost, hfIdleCost, netLoopAPY, loopMargin };
 }
 export function liquidityStress(_i: LiquidityStressInput): LiquidityStressResult {
   throw new Error('not implemented');
