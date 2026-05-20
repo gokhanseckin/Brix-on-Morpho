@@ -232,7 +232,7 @@ export interface BadDebtArgs {
   tvl_USD: number;
   poolDepth_USD: number;
   gasCost_USD: number;
-  iTRYYieldAnnual: number;
+  witryYieldAnnual: number;
   preLiquidationEnabled: boolean;
 }
 
@@ -282,7 +282,7 @@ export function simulateBadDebt(a: BadDebtArgs): BadDebtOut {
 
     for (let t = 1; t < path.length; t++) {
       const Snow = path[t]!;
-      const rel = (Math.pow(1 + a.iTRYYieldAnnual, t / 365) * S0) / Snow;
+      const rel = (Math.pow(1 + a.witryYieldAnnual, t / 365) * S0) / Snow;
       for (const pos of active) {
         if (pos.closed) continue;
         const collNow = pos.collateralBaseUSD * rel;
@@ -417,7 +417,7 @@ export interface StrategyArgs {
   requiredUSDM: number;
   incentiveBudgetMonthly_USD: number;
   attractionRate: number;
-  iTRYYieldAnnual: number;
+  witryYieldAnnual: number;
   expectedTRYDepreciation_annual: number;
   competingAPY: number;
 }
@@ -447,14 +447,14 @@ export function computeStrategy(a: StrategyArgs): StrategyOut {
       ? a.requiredUSDM * Math.min(1, netSupplyAPY / a.competingAPY)
       : a.requiredUSDM;
   const totalIncentiveSpend_USD = a.incentiveBudgetMonthly_USD * (daysToTarget / 30);
-  // Leverage-loop borrower deposits wiTRY (earns iTRYYield in TRY) and
+  // Leverage-loop borrower deposits wiTRY (earns witryYield in TRY) and
   // borrows USDM. Debt cost in TRY-real-terms = borrowAPY × (TRY/USD ratio
   // at repayment / today). If TRY depreciates `d` over the year, that
   // ratio is `(1 + d)`. So real cost = borrowAPY · (1 + d). Report #2
   // open question #1: spec §3B text has a sign typo (`1 − USD_TRY_return`)
   // that conflicts with this; code is the economically correct form.
   const leverageLoopAPY =
-    a.iTRYYieldAnnual - a.borrowAPY * (1 + a.expectedTRYDepreciation_annual);
+    a.witryYieldAnnual - a.borrowAPY * (1 + a.expectedTRYDepreciation_annual);
   return {
     grossSupplyAPY,
     netSupplyAPY,

@@ -13,7 +13,7 @@ const EXPECTED_PARAM_KEYS = [
   'targetUtilization',
   'borrowerLTVAlpha',
   'borrowerLTVBeta',
-  'iTRYYieldAnnual',
+  'witryYieldAnnual',
   'usdtryBaseline',
   'historicalPeriod',
   'simulationMode',
@@ -122,7 +122,7 @@ describe('help registry', () => {
     ] as const;
     const SECTION_2_CHARTS = ['fxBands', 'netWitryUsdPaths', 'positionsUnderwater'] as const;
     const SECTION_2_PARAMS = [
-      'iTRYYieldAnnual',
+      'witryYieldAnnual',
       'usdtryBaseline',
       'historicalPeriod',
       'simulationMode',

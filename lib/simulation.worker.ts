@@ -112,7 +112,7 @@ const api = {
       tvl_USD: inputs.witryTVL_USD,
       poolDepth_USD: inputs.poolDepth_USD,
       gasCost_USD: DEFAULT_GAS_COST_USD,
-      iTRYYieldAnnual: inputs.iTRYYieldAnnual,
+      witryYieldAnnual: inputs.witryYieldAnnual,
       preLiquidationEnabled: inputs.preLiquidationEnabled,
     });
     // annualized vol

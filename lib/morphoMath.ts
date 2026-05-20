@@ -25,11 +25,11 @@ export function adaptiveCurveIRM(u: number, rTarget: number): number {
   return rTarget * Math.exp(IRM_K2 * (x - 0.9));
 }
 
-export function witryPerITRY(tDays: number, iTRYYieldAnnual: number): number {
-  return Math.pow(1 + iTRYYieldAnnual, tDays / 365);
+export function witryPerITRY(tDays: number, witryYieldAnnual: number): number {
+  return Math.pow(1 + witryYieldAnnual, tDays / 365);
 }
 
-export interface WitryUsdArgs { tDays: number; iTRYYieldAnnual: number; usdTryRate: number; }
+export interface WitryUsdArgs { tDays: number; witryYieldAnnual: number; usdTryRate: number; }
 export function witryUSD(a: WitryUsdArgs): number {
-  return witryPerITRY(a.tDays, a.iTRYYieldAnnual) / a.usdTryRate;
+  return witryPerITRY(a.tDays, a.witryYieldAnnual) / a.usdTryRate;
 }

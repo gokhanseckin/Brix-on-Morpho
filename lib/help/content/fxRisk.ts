@@ -7,9 +7,9 @@ import type { ChartHelp, KpiHelp, ParamHelp } from '../types';
 // ---------------------------------------------------------------------------
 
 export const FX_RISK_PARAMS: Partial<Record<string, ParamHelp>> = {
-  iTRYYieldAnnual: {
+  witryYieldAnnual: {
     oneLiner:
-      'Annual yield on iTRY (the staked Turkish-MMF asset wiTRY wraps), as a decimal. Drives the "wiTRY appreciates over time in TRY terms" effect that partially offsets TRY depreciation. Default 38% ≈ typical Turkish MMF.',
+      'Annual yield wiTRY earns by holding iTRY as the Turkish-MMF NAV grows, as a decimal. iTRY itself is a 1:1 stable peg to TRY; the yield accrues at the wiTRY (wrapper) level. Drives the "wiTRY appreciates over time in TRY terms" effect that partially offsets TRY depreciation. Default 38% ≈ typical Turkish MMF.',
   },
   usdtryBaseline: {
     oneLiner:
@@ -239,16 +239,16 @@ const fxBands: ChartHelp = {
 
 const netWitryUsdPaths: ChartHelp = {
   title: 'Net wiTRY USD value paths',
-  oneLiner: 'The same Monte-Carlo paths, but expressed as wiTRY USD value: (1 + iTRYYield)^(t/365) / S(t). Shows the partial offset of iTRY yield against TRY depreciation.',
+  oneLiner: 'The same Monte-Carlo paths, but expressed as wiTRY USD value: (1 + witryYield)^(t/365) / S(t). Shows the partial offset of wiTRY yield against TRY depreciation.',
   axes: { x: 'Day (0 = today)', y: 'wiTRY USD value per 1 iTRY' },
   definitions: [
-    { term: 'iTRY yield offset', definition: 'wiTRY appreciates in TRY terms at the iTRY yield rate. Even when TRY depreciates, the USD value of wiTRY falls less than 1/S would suggest.' },
-    { term: 'Break-even', definition: 'wiTRY USD value stays flat when TRY depreciates exactly at the iTRY yield rate (e.g. 38%/yr). Above that, USD value falls; below, USD value rises.' },
+    { term: 'wiTRY yield offset', definition: 'wiTRY appreciates in TRY terms at the MMF NAV rate (iTRY itself is a 1:1 stable peg — the yield accrues at the wrapper level). Even when TRY depreciates, the USD value of wiTRY falls less than 1/S would suggest.' },
+    { term: 'Break-even', definition: 'wiTRY USD value stays flat when TRY depreciates exactly at the wiTRY yield rate (e.g. 38%/yr). Above that, USD value falls; below, USD value rises.' },
     { term: 'Color flip vs fxBands', definition: 'Because wiTRY USD = ~1/S, the P5 of S corresponds to the P95 of wiTRY USD value and vice versa. Colors are remapped so green = good (high wiTRY USD), red = bad.' },
   ],
   impact: {
     health: 'This is what the LIQUIDATOR is actually seizing, not raw S. The yield offset is real protection.',
-    sustainability: 'If iTRYYield is overstated vs. actual MMF yields, this chart over-promises the offset and the vault is undersized.',
+    sustainability: 'If witryYield is overstated vs. actual MMF yields, this chart over-promises the offset and the vault is undersized.',
     profitability: 'Borrow demand from leverage-loopers depends on this curve being positive over their hold horizon.',
   },
 };

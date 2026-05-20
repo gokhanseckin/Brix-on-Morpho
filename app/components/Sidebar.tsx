@@ -95,10 +95,10 @@ export function Sidebar() {
 
       <Group title="Section 2 · FX Risk">
         <RangeField
-          label="iTRY annual yield"
-          helpKey="iTRYYieldAnnual"
-          value={s.iTRYYieldAnnual}
-          onChange={(v) => setS({ iTRYYieldAnnual: v })}
+          label="wiTRY annual yield"
+          helpKey="witryYieldAnnual"
+          value={s.witryYieldAnnual}
+          onChange={(v) => setS({ witryYieldAnnual: v })}
           min={0}
           max={1}
           step={0.01}

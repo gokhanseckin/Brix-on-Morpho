@@ -21,7 +21,7 @@ export default function HelpFXRisk() {
       <header>
         <h2 className="text-xl font-semibold">2. FX Risk</h2>
         <p className="text-sm text-neutral-500 mt-1 max-w-prose">
-          Monte-Carlo USD/TRY paths, the net wiTRY USD value (after iTRY yield
+          Monte-Carlo USD/TRY paths, the net wiTRY USD value (after wiTRY yield
           offset), and how many borrower positions go underwater over the horizon.
           Drives the P95 3-day drawdown that anchors the LLTV recommendation in
           Section 5.

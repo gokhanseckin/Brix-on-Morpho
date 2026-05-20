@@ -39,7 +39,7 @@ const COMMON_PARAMS: Record<string, KpiHelp['params'][number]> = {
   mgmtFee: { name: 'managementFee', source: 'sidebar', ref: 'managementFee' },
   budget: { name: 'incentiveBudgetMonthly_USD', source: 'sidebar', ref: 'incentiveBudgetMonthly_USD' },
   attract: { name: 'attractionRate', source: 'sidebar', ref: 'attractionRate' },
-  iTRY: { name: 'iTRYYieldAnnual', source: 'sidebar', ref: 'iTRYYieldAnnual' },
+  iTRY: { name: 'witryYieldAnnual', source: 'sidebar', ref: 'witryYieldAnnual' },
   requiredUSDM: { name: 'requiredUSDM', source: 'derived', note: 'From Section 1 (Liquidity Need).' },
   borrowAPY: { name: 'borrowAPY', source: 'derived', note: 'AdaptiveCurveIRM evaluated at targetUtilization.' },
 };
@@ -259,7 +259,7 @@ const leverageLoopAPY: KpiHelp = {
   oneLiner:
     'Net yield a wiTRY → borrow USDM → buy more wiTRY looper sees, in USD terms. Positive means looping is profitable and borrow demand is structurally supported.',
   formula: {
-    plain: 'leverageLoopAPY = iTRYYieldAnnual − borrowAPY × (1 + expectedTRYDepreciation_annual)',
+    plain: 'leverageLoopAPY = witryYieldAnnual − borrowAPY × (1 + expectedTRYDepreciation_annual)',
     latex: 'leverageLoopAPY = y_{\\text{iTRY}} - borrowAPY \\cdot (1 + d_{\\text{TRY}})',
   },
   params: [
@@ -269,21 +269,21 @@ const leverageLoopAPY: KpiHelp = {
   ],
   definitions: [
     { term: 'Why (1 + d) and not (1 − d)', definition: 'A USDM debt repaid after TRY weakens by d costs (1 + d) more in TRY terms. The validation report (open question #1, resolved) confirms this sign; the spec §3B text has a typo. Code is canonical.' },
-    { term: 'iTRY yield', definition: 'The TRY-denominated yield on iTRY (the Turkish-MMF asset wiTRY wraps). Default 38%/year — typical Turkish MMF.' },
+    { term: 'wiTRY yield', definition: 'The TRY-denominated yield wiTRY earns as the Turkish-MMF NAV grows. iTRY is a 1:1 stable peg to TRY; the yield accrues at the wiTRY wrapper level. Default 38%/year — typical Turkish MMF.' },
     { term: 'expectedTRYDepreciation', definition: 'Annualized USD/TRY depreciation expectation. Default 30%/year. A policy dial — surface as an assumption when sharing scenarios.' },
     { term: 'leverageLoopsViable flag', definition: 'The dashboard\'s green/red box flips on leverageLoopAPY > 0. Negative means rational borrowers stay out of loops, and borrow demand has to come from elsewhere (hedging, USDM-for-spending, etc.).' },
   ],
   impact: {
     health: 'A primary source of organic borrow demand. If negative, the strategy depends on non-loop borrowers (often less elastic).',
-    sustainability: 'Sensitive to both rate (Brix can influence) and TRY-depreciation expectation (Brix cannot). Stress-test by toggling iTRYYield ± 5pp.',
+    sustainability: 'Sensitive to both rate (Brix can influence) and TRY-depreciation expectation (Brix cannot). Stress-test by toggling witryYield ± 5pp.',
     profitability: 'A larger positive loop APY pulls utilization toward target, raising supplier APY across the section.',
   },
   workedExample: {
-    description: 'Defaults: iTRYYield 38%, borrowAPY ≈ 2.1%, expected TRY depreciation 30%.',
+    description: 'Defaults: witryYield 38%, borrowAPY ≈ 2.1%, expected TRY depreciation 30%.',
     steps: [
-      { label: 'real borrow cost', expression: '2.1% × (1 + 0.30) ≈ 2.73%', usesInputs: ['iTRYYieldAnnual'] },
-      { label: 'loop APY', expression: '38% − 2.73% ≈ 35.27%', usesInputs: ['iTRYYieldAnnual'] },
-      { label: 'interpretation', expression: 'Highly viable. The big cushion mostly reflects iTRY yield > USD-equivalent depreciation; if either flips, viability flips.', usesInputs: [] },
+      { label: 'real borrow cost', expression: '2.1% × (1 + 0.30) ≈ 2.73%', usesInputs: ['witryYieldAnnual'] },
+      { label: 'loop APY', expression: '38% − 2.73% ≈ 35.27%', usesInputs: ['witryYieldAnnual'] },
+      { label: 'interpretation', expression: 'Highly viable. The big cushion mostly reflects wiTRY yield > USD-equivalent depreciation; if either flips, viability flips.', usesInputs: [] },
     ],
   },
 };

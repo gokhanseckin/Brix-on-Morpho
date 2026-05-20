@@ -136,11 +136,11 @@ export function LiquidityStrategy() {
               {strategy.leverageLoopsViable ? 'Viable' : 'Not viable'}
             </div>
             <div className="text-sm mt-1">
-              Loop APY = iTRY yield − borrow × (1 + TRY depreciation) ={' '}
+              Loop APY = wiTRY yield − borrow × (1 + TRY depreciation) ={' '}
               {formatPct(strategy.leverageLoopAPY, 2)}
             </div>
             <div className="text-xs text-neutral-500 mt-2">
-              Assumes 30% annual TRY depreciation; iTRY yield {formatPct(inputs.iTRYYieldAnnual, 0)}.
+              Assumes 30% annual TRY depreciation; wiTRY yield {formatPct(inputs.witryYieldAnnual, 0)}.
             </div>
           </div>
         </div>
