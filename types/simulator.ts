@@ -1,8 +1,8 @@
 // types/simulator.ts
 export type SimulationMode = 'Bootstrap' | 'GBM' | 'GBM+Jumps' | 'Scenario';
 export type HistoricalPeriod = 1 | 3 | 5;
-export type LLTV = 0.385 | 0.625 | 0.77 | 0.86 | 0.915 | 0.945 | 0.965 | 0.98;
-export const GOV_LLTVS: LLTV[] = [0.385, 0.625, 0.77, 0.86, 0.915, 0.945, 0.965, 0.98];
+export type LLTV = 0 | 0.385 | 0.625 | 0.77 | 0.86 | 0.915 | 0.945 | 0.965 | 0.98;
+export const GOV_LLTVS: LLTV[] = [0, 0.385, 0.625, 0.77, 0.86, 0.915, 0.945, 0.965, 0.98];
 
 export interface SidebarInputs {
   witryTVL_USD: number;

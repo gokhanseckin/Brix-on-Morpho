@@ -5,14 +5,25 @@ import {
   parseAsInteger,
   parseAsBoolean,
   parseAsStringLiteral,
+  createParser,
 } from 'nuqs';
+import { GOV_LLTVS, type LLTV } from '@/types/simulator';
 
 const MODES = ['Bootstrap', 'GBM', 'GBM+Jumps', 'Scenario'] as const;
+
+// Reject any LLTV not in the Morpho governance-allowed set.
+const parseAsLLTV = createParser({
+  parse: (v: string): LLTV | null => {
+    const n = parseFloat(v);
+    return (GOV_LLTVS as readonly number[]).includes(n) ? (n as LLTV) : null;
+  },
+  serialize: (v: LLTV) => String(v),
+});
 
 export function useUrlState() {
   return useQueryStates({
     witryTVL_USD: parseAsFloat.withDefault(5_000_000),
-    lltv: parseAsFloat.withDefault(0.77),
+    lltv: parseAsLLTV.withDefault(0.77),
     targetUtilization: parseAsFloat.withDefault(0.7),
     borrowerLTVAlpha: parseAsFloat.withDefault(2),
     borrowerLTVBeta: parseAsFloat.withDefault(1.2),

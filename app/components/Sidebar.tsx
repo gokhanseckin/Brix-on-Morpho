@@ -1,6 +1,6 @@
 'use client';
 import { useUrlState } from '@/lib/useUrlState';
-import { GOV_LLTVS } from '@/types/simulator';
+import { GOV_LLTVS, type LLTV } from '@/types/simulator';
 import { useState } from 'react';
 
 const MODES = ['Bootstrap', 'GBM', 'GBM+Jumps', 'Scenario'] as const;
@@ -40,7 +40,7 @@ export function Sidebar() {
         <SelectField
           label="LLTV"
           value={String(s.lltv)}
-          onChange={(v) => setS({ lltv: parseFloat(v) })}
+          onChange={(v) => setS({ lltv: parseFloat(v) as LLTV })}
           options={GOV_LLTVS.map((lv) => ({
             value: String(lv),
             label: `${(lv * 100).toFixed(1)}%`,
