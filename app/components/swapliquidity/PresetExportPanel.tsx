@@ -2,6 +2,7 @@
 import { useMemo } from 'react';
 import { useUrlState } from '@/lib/useUrlState';
 import { buildAsymmetricLadder } from '@/lib/poolPreset';
+import { HelpPopover } from '@/app/components/help/HelpPopover';
 
 export function PresetExportPanel() {
   const [state] = useUrlState();
@@ -24,7 +25,10 @@ export function PresetExportPanel() {
 
   return (
     <section id="section-export" className="space-y-3">
-      <h2 className="text-lg font-semibold">4. Preset export</h2>
+      <div className="flex items-center gap-1">
+        <h2 className="text-lg font-semibold">4. Preset export</h2>
+        <HelpPopover chartKey="presetExportSchema" />
+      </div>
       <p className="text-sm text-neutral-500">
         Paste into kumbaya.xyz deploy script. Homepage §4 also reads this preset (via URL state).
       </p>
