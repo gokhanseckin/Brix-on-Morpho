@@ -12,11 +12,13 @@ import { HelpPopover } from '@/app/components/help/HelpPopover';
 import type { KpiKey } from '@/lib/help/kpiKeys';
 
 export default function UtilizationPage() {
+  const [tvlUSDM, setTvlUSDM] = useState(10_000_000);
   const [stressPct, setStressPct] = useState(0.20);
   const [hfBuffer, setHfBuffer] = useState(1.5);
   const [rTarget, setRTarget] = useState(0.04);
 
   const analysis = useUtilizationAnalysis({
+    tvlUSDM_USD: tvlUSDM,
     stressPctOfSupply: stressPct,
     hfBuffer,
     rTargetOverride: rTarget,
@@ -29,7 +31,18 @@ export default function UtilizationPage() {
         <Link href="/" className="text-sm text-blue-600 underline">← back to sim</Link>
       </header>
 
-      <section className="grid grid-cols-1 md:grid-cols-3 gap-4 rounded-lg border p-4">
+      <section className="space-y-4 rounded-lg border p-4">
+        <NumberInput
+          label="Vault TVL — total USDM supply"
+          helpKey="tvlUSDMInput"
+          value={tvlUSDM}
+          onChange={setTvlUSDM}
+          min={100_000}
+          max={500_000_000}
+          step={100_000}
+          format={v => `$${(v / 1_000_000).toFixed(1)}M`}
+        />
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <Slider
           label="Stress withdrawal"
           helpKey="stressPctOfSupplyInput"
@@ -60,6 +73,7 @@ export default function UtilizationPage() {
           format={v => `${(v * 100).toFixed(2)}%`}
           onChange={setRTarget}
         />
+        </div>
       </section>
 
       <RecommendationCard analysis={analysis} />
@@ -68,6 +82,42 @@ export default function UtilizationPage() {
       <LoopEconomicsBreakdown analysis={analysis} />
       <IRMHeatmap analysis={analysis} />
       <RecommendationTable analysis={analysis} />
+    </div>
+  );
+}
+
+function NumberInput(props: {
+  label: string;
+  helpKey?: KpiKey;
+  value: number;
+  min: number;
+  max: number;
+  step: number;
+  format: (v: number) => string;
+  onChange: (v: number) => void;
+}) {
+  return (
+    <div className="flex flex-col gap-1 text-sm">
+      <span className="flex items-center gap-1">
+        <span className="font-medium">{props.label}</span>
+        {props.helpKey && <HelpPopover kpiKey={props.helpKey} />}
+        <span className="ml-auto font-mono text-blue-600">{props.format(props.value)}</span>
+      </span>
+      <p className="text-xs text-neutral-500">
+        How much USDM is deposited in the vault in total. The liquidity buffer and stress-test amounts below are calculated from this number.
+      </p>
+      <input
+        type="number"
+        min={props.min}
+        max={props.max}
+        step={props.step}
+        value={props.value}
+        onChange={e => {
+          const parsed = parseFloat(e.target.value);
+          if (Number.isFinite(parsed) && parsed >= props.min) props.onChange(parsed);
+        }}
+        className="rounded border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-800 px-3 py-2 text-sm w-full max-w-xs"
+      />
     </div>
   );
 }

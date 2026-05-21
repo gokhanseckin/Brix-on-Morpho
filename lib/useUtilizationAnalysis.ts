@@ -9,6 +9,7 @@ import {
 import { adaptiveCurveIRM } from './morphoMath';
 
 export interface PageSliders {
+  tvlUSDM_USD: number;
   stressPctOfSupply: number;
   hfBuffer: number;
   rTargetOverride: number;
@@ -43,7 +44,7 @@ export function useUtilizationAnalysis(s: PageSliders): UtilizationAnalysisOutpu
     witryYield7d:  url.witryYieldUSD_7d,
     witryYield30d: url.witryYieldUSD_30d,
     perLoopSlippageBps: 30,
-    tvlUSDM_USD: url.witryTVL_USD * url.targetUtilization,
+    tvlUSDM_USD: s.tvlUSDM_USD,
     stressPctOfSupply: s.stressPctOfSupply,
     kinkClearance: 0.07,
     searchRange: [0.5, 0.9],
