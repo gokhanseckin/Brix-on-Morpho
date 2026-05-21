@@ -10,6 +10,7 @@ import {
   rolling3DayMaxDrawdown,
 } from './fxModel';
 import { simulateBadDebt, sampleBetaLtvFractions } from './simulator';
+import { quantile } from './stats';
 import type { SidebarInputs } from '@/types/simulator';
 
 // --- Simulation constants (see report #2 entry 36) ------------------------
@@ -42,6 +43,8 @@ export interface WorkerOutput {
     badDebtP95_USD: number;
     badDebtP95Pct: number;
     liquidatedCountByPath: number[];
+    liquidatedVolumeByPath: number[];
+    expectedLiquidationVolumeP95_USD: number;
   };
   annualizedVol: number;
 }
@@ -109,7 +112,7 @@ const api = {
       tvl_USD: inputs.witryTVL_USD,
       poolDepth_USD: inputs.poolDepth_USD,
       gasCost_USD: DEFAULT_GAS_COST_USD,
-      iTRYYieldAnnual: inputs.iTRYYieldAnnual,
+      witryYieldAnnual: inputs.witryYieldAnnual,
       preLiquidationEnabled: inputs.preLiquidationEnabled,
     });
     // annualized vol
@@ -130,6 +133,11 @@ const api = {
         badDebtP95_USD: badDebtOut.badDebtP95_USD,
         badDebtP95Pct: badDebtOut.badDebtP95Pct,
         liquidatedCountByPath: badDebtOut.liquidatedCountByPath,
+        liquidatedVolumeByPath: badDebtOut.liquidatedVolumeByPath,
+        expectedLiquidationVolumeP95_USD: quantile(
+          badDebtOut.liquidatedVolumeByPath,
+          0.95,
+        ),
       },
       annualizedVol,
     };

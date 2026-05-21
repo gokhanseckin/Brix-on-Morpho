@@ -245,10 +245,16 @@ export function LiquidationDesign() {
         <div className="text-sm">
           At LLTV={(inputs.lltv * 100).toFixed(1)}%, P95 bad debt ={' '}
           {fx?.badDebt ? formatUSD(fx.badDebt.badDebtP95_USD) : '—'} (
-          {fx?.badDebt ? formatPct(fx.badDebt.badDebtP95Pct, 2) : '—'} of TVL). Recommended
-          wiTRY/USDM pool depth ≥ {formatUSD(Math.max(inputs.poolDepth_USD, 250_000))}. Keep
-          pre-liquidation enabled (preLLTV = {(Math.max(0, inputs.lltv - 0.05) * 100).toFixed(1)}%);
-          governance-snapped LLTV from FX P95 drawdown is{' '}
+          {fx?.badDebt ? formatPct(fx.badDebt.badDebtP95Pct, 2) : '—'} of TVL). P95 single-horizon
+          liquidation volume ={' '}
+          {fx?.badDebt ? formatUSD(fx.badDebt.expectedLiquidationVolumeP95_USD) : '—'}; recommended
+          wiTRY/USDM pool depth ≥{' '}
+          {fx?.badDebt
+            ? formatUSD(Math.max(fx.badDebt.expectedLiquidationVolumeP95_USD / 0.02, 250_000))
+            : formatUSD(Math.max(inputs.poolDepth_USD, 250_000))}{' '}
+          (P95 volume ÷ 2% slippage budget; $250k floor). Keep pre-liquidation enabled (preLLTV ={' '}
+          {(Math.max(0, inputs.lltv - 0.05) * 100).toFixed(1)}%); governance-snapped LLTV from FX
+          P95 drawdown is{' '}
           {lltvDerivation.snapped ? `${(lltvDerivation.snapped * 100).toFixed(1)}%` : '—'}.
         </div>
         <div className="text-xs text-neutral-500 mt-2">

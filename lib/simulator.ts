@@ -232,13 +232,15 @@ export interface BadDebtArgs {
   tvl_USD: number;
   poolDepth_USD: number;
   gasCost_USD: number;
-  iTRYYieldAnnual: number;
+  witryYieldAnnual: number;
   preLiquidationEnabled: boolean;
 }
 
 export interface BadDebtOut {
   badDebtByPath: number[];
   liquidatedCountByPath: number[];
+  /** Sum of seized USD per path (pre-liquidation + hard liquidation revenue). */
+  liquidatedVolumeByPath: number[];
   badDebtP95_USD: number;
   badDebtP95Pct: number;
 }
@@ -248,7 +250,13 @@ export function simulateBadDebt(a: BadDebtArgs): BadDebtOut {
   const collateralEachUSD = a.tvl_USD / Math.max(1, N);
   const firstPath = a.paths[0];
   if (!firstPath || firstPath.length === 0) {
-    return { badDebtByPath: [], liquidatedCountByPath: [], badDebtP95_USD: 0, badDebtP95Pct: 0 };
+    return {
+      badDebtByPath: [],
+      liquidatedCountByPath: [],
+      liquidatedVolumeByPath: [],
+      badDebtP95_USD: 0,
+      badDebtP95Pct: 0,
+    };
   }
   const S0 = firstPath[0]!;
 
@@ -259,8 +267,10 @@ export function simulateBadDebt(a: BadDebtArgs): BadDebtOut {
 
   const badDebtByPath: number[] = [];
   const liquidatedCountByPath: number[] = [];
+  const liquidatedVolumeByPath: number[] = [];
 
   for (const path of a.paths) {
+    let pathSeizedVolume_USD = 0;
     const active = a.ltvFractions.map((f) => ({
       ltvFrac: f,
       debt_USD: f * a.lltv * collateralEachUSD,
@@ -272,7 +282,7 @@ export function simulateBadDebt(a: BadDebtArgs): BadDebtOut {
 
     for (let t = 1; t < path.length; t++) {
       const Snow = path[t]!;
-      const rel = (Math.pow(1 + a.iTRYYieldAnnual, t / 365) * S0) / Snow;
+      const rel = (Math.pow(1 + a.witryYieldAnnual, t / 365) * S0) / Snow;
       for (const pos of active) {
         if (pos.closed) continue;
         const collNow = pos.collateralBaseUSD * rel;
@@ -290,6 +300,7 @@ export function simulateBadDebt(a: BadDebtArgs): BadDebtOut {
         ) {
           const closeDebt = pos.debt_USD * preLCF2;
           const seized = closeDebt * preLIF1;
+          pathSeizedVolume_USD += seized;
           const slipPct = slippage(seized, a.poolDepth_USD);
           // Auto-deleverage routes through the same AMM; collateral seized
           // and debt repaid are removed from the position pro-rata.
@@ -321,6 +332,10 @@ export function simulateBadDebt(a: BadDebtArgs): BadDebtOut {
           if (profit > 0) {
             pos.closed = true;
             pos.residual_USD = Math.max(0, pos.debt_USD - revenue_USD);
+            // Liquidator actually executed: this revenue is the USD volume
+            // that hit the secondary AMM. Unprofitable branch is NOT counted
+            // because no liquidator fires there.
+            pathSeizedVolume_USD += revenue_USD;
           } else {
             pos.closed = true;
             pos.residual_USD = Math.max(0, pos.debt_USD - collAfter);
@@ -333,6 +348,7 @@ export function simulateBadDebt(a: BadDebtArgs): BadDebtOut {
     const count = active.filter((p) => p.closed).length;
     badDebtByPath.push(bd);
     liquidatedCountByPath.push(count);
+    liquidatedVolumeByPath.push(pathSeizedVolume_USD);
   }
 
   const sorted = [...badDebtByPath].sort((x, y) => x - y);
@@ -341,6 +357,7 @@ export function simulateBadDebt(a: BadDebtArgs): BadDebtOut {
   return {
     badDebtByPath,
     liquidatedCountByPath,
+    liquidatedVolumeByPath,
     badDebtP95_USD,
     badDebtP95Pct: a.tvl_USD > 0 ? badDebtP95_USD / a.tvl_USD : 0,
   };
@@ -400,7 +417,7 @@ export interface StrategyArgs {
   requiredUSDM: number;
   incentiveBudgetMonthly_USD: number;
   attractionRate: number;
-  iTRYYieldAnnual: number;
+  witryYieldAnnual: number;
   expectedTRYDepreciation_annual: number;
   competingAPY: number;
 }
@@ -430,14 +447,14 @@ export function computeStrategy(a: StrategyArgs): StrategyOut {
       ? a.requiredUSDM * Math.min(1, netSupplyAPY / a.competingAPY)
       : a.requiredUSDM;
   const totalIncentiveSpend_USD = a.incentiveBudgetMonthly_USD * (daysToTarget / 30);
-  // Leverage-loop borrower deposits wiTRY (earns iTRYYield in TRY) and
+  // Leverage-loop borrower deposits wiTRY (earns witryYield in TRY) and
   // borrows USDM. Debt cost in TRY-real-terms = borrowAPY × (TRY/USD ratio
   // at repayment / today). If TRY depreciates `d` over the year, that
   // ratio is `(1 + d)`. So real cost = borrowAPY · (1 + d). Report #2
   // open question #1: spec §3B text has a sign typo (`1 − USD_TRY_return`)
   // that conflicts with this; code is the economically correct form.
   const leverageLoopAPY =
-    a.iTRYYieldAnnual - a.borrowAPY * (1 + a.expectedTRYDepreciation_annual);
+    a.witryYieldAnnual - a.borrowAPY * (1 + a.expectedTRYDepreciation_annual);
   return {
     grossSupplyAPY,
     netSupplyAPY,

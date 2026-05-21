@@ -117,7 +117,7 @@ describe('bad debt cascade', () => {
       tvl_USD: 1_000_000,
       poolDepth_USD: 500_000,
       gasCost_USD: 5,
-      iTRYYieldAnnual: 0.38,
+      witryYieldAnnual: 0.38,
       preLiquidationEnabled: false,
     });
     expect(Math.max(...result.badDebtByPath)).toBe(0);
@@ -131,7 +131,7 @@ describe('bad debt cascade', () => {
       tvl_USD: 1_000_000,
       poolDepth_USD: 1000,
       gasCost_USD: 5,
-      iTRYYieldAnnual: 0,
+      witryYieldAnnual: 0,
       preLiquidationEnabled: false,
     });
     expect(result.badDebtByPath[0]!).toBeGreaterThan(0);
@@ -152,7 +152,7 @@ describe('bad debt cascade', () => {
       tvl_USD: 1_000_000,
       poolDepth_USD: 800_000,
       gasCost_USD: 5,
-      iTRYYieldAnnual: 0,
+      witryYieldAnnual: 0,
     };
     const off = simulateBadDebt({ ...args, preLiquidationEnabled: false });
     const on = simulateBadDebt({ ...args, preLiquidationEnabled: true });
@@ -163,6 +163,59 @@ describe('bad debt cascade', () => {
     const offTotal = off.badDebtByPath.reduce((s, x) => s + x, 0);
     const onTotal = on.badDebtByPath.reduce((s, x) => s + x, 0);
     expect(onTotal).toBeLessThan(offTotal);
+  });
+
+  it('liquidatedVolumeByPath is zero under flat collateral (nothing liquidates)', () => {
+    const result = simulateBadDebt({
+      paths: [[1, 1, 1, 1], [1, 1, 1, 1]],
+      ltvFractions: [0.5, 0.7],
+      lltv: 0.86,
+      tvl_USD: 1_000_000,
+      poolDepth_USD: 500_000,
+      gasCost_USD: 5,
+      witryYieldAnnual: 0.38,
+      preLiquidationEnabled: false,
+    });
+    expect(result.liquidatedVolumeByPath).toHaveLength(2);
+    expect(Math.max(...result.liquidatedVolumeByPath)).toBe(0);
+  });
+
+  it('liquidatedVolumeByPath accumulates seized USD when liquidations fire', () => {
+    // Deterministic crash forces hard liquidations with enough pool depth
+    // that the profit branch fires (not the unprofitable branch). Aggregate
+    // volume should be positive and bounded above by total debt × LIF.
+    const result = simulateBadDebt({
+      paths: [[1.0, 1.2, 1.5, 2.0]],
+      ltvFractions: [0.95],
+      lltv: 0.86,
+      tvl_USD: 1_000_000,
+      poolDepth_USD: 50_000_000, // deep pool ⇒ near-zero slippage ⇒ profitable
+      gasCost_USD: 5,
+      witryYieldAnnual: 0,
+      preLiquidationEnabled: false,
+    });
+    expect(result.liquidatedVolumeByPath).toHaveLength(1);
+    const vol = result.liquidatedVolumeByPath[0]!;
+    expect(vol).toBeGreaterThan(0);
+    // Upper bound: collateralUSD × LIF (collateral covers debt × LIF when LTV < 1).
+    expect(vol).toBeLessThanOrEqual(1_000_000 * 1.1);
+  });
+
+  it('pre-liquidation contributes to liquidatedVolumeByPath even when no hard liquidation fires', () => {
+    // Position drifts into the preLLTV band but never crosses the hard LLTV.
+    // With pre-liq on, the partial close should register seized volume.
+    const args = {
+      paths: [[1.0, 1.05, 1.10, 1.15]],
+      ltvFractions: [0.85],
+      lltv: 0.86,
+      tvl_USD: 1_000_000,
+      poolDepth_USD: 5_000_000,
+      gasCost_USD: 5,
+      witryYieldAnnual: 0,
+    };
+    const off = simulateBadDebt({ ...args, preLiquidationEnabled: false });
+    const on = simulateBadDebt({ ...args, preLiquidationEnabled: true });
+    expect(on.liquidatedVolumeByPath[0]!).toBeGreaterThan(off.liquidatedVolumeByPath[0]!);
   });
 });
 
@@ -201,7 +254,7 @@ describe('strategy', () => {
       requiredUSDM: 3_300_000,
       incentiveBudgetMonthly_USD: 10_000,
       attractionRate: 5,
-      iTRYYieldAnnual: 0.38,
+      witryYieldAnnual: 0.38,
       expectedTRYDepreciation_annual: 0.30,
       competingAPY: 0.05,
     });

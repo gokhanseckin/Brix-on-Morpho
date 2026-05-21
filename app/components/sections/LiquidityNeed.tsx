@@ -1,4 +1,5 @@
 'use client';
+import { useMemo } from 'react';
 import { useSimulator } from '@/lib/useSimulator';
 import {
   LineChart,
@@ -10,11 +11,25 @@ import {
   ResponsiveContainer,
   CartesianGrid,
 } from 'recharts';
+import { betaPdf } from '@/lib/stats';
+import { betaMean } from '@/lib/simulator';
 import { Kpi, formatUSD, formatPct } from '../Kpi';
 import { HelpPopover } from '../help/HelpPopover';
 
+const BETA_CURVE_SAMPLES = 100;
+
 export function LiquidityNeed() {
   const { liquidity, inputs } = useSimulator();
+  const betaCurve = useMemo(() => {
+    // Sample the interior (avoid the singular boundaries when α<1 or β<1).
+    const pts: Array<{ x: number; pdf: number }> = [];
+    for (let i = 1; i < BETA_CURVE_SAMPLES; i++) {
+      const x = i / BETA_CURVE_SAMPLES;
+      pts.push({ x, pdf: betaPdf(x, inputs.borrowerLTVAlpha, inputs.borrowerLTVBeta) });
+    }
+    return pts;
+  }, [inputs.borrowerLTVAlpha, inputs.borrowerLTVBeta]);
+  const betaMeanFrac = betaMean(inputs.borrowerLTVAlpha, inputs.borrowerLTVBeta);
   return (
     <section id="section-liquidity-need" className="space-y-6">
       <div>
@@ -76,6 +91,61 @@ export function LiquidityNeed() {
               <Line type="monotone" dataKey="r" stroke="#3b82f6" dot={false} strokeWidth={2} />
             </LineChart>
           </ResponsiveContainer>
+        </div>
+      </div>
+
+      <div>
+        <div className="flex items-center gap-1 mb-2">
+          <h3 className="text-sm font-semibold">
+            Borrower LTV distribution — Beta(α = {inputs.borrowerLTVAlpha.toFixed(1)}, β ={' '}
+            {inputs.borrowerLTVBeta.toFixed(1)})
+          </h3>
+          <HelpPopover chartKey="betaDistribution" />
+        </div>
+        <div className="border border-neutral-200 dark:border-neutral-800 rounded p-2 bg-white dark:bg-neutral-950">
+          <ResponsiveContainer width="100%" height={260}>
+            <LineChart data={betaCurve} margin={{ top: 8, right: 20, bottom: 8, left: 8 }}>
+              <CartesianGrid strokeDasharray="3 3" opacity={0.3} />
+              <XAxis
+                dataKey="x"
+                type="number"
+                domain={[0, 1]}
+                tickFormatter={(x: number) => `${Math.round(x * 100)}%`}
+                label={{
+                  value: 'LTV fraction of cap',
+                  position: 'insideBottom',
+                  offset: -2,
+                }}
+              />
+              <YAxis
+                tickFormatter={(x: number) => x.toFixed(1)}
+                label={{ value: 'density', angle: -90, position: 'insideLeft' }}
+              />
+              <Tooltip
+                formatter={(v) => `${Number(v).toFixed(3)}`}
+                labelFormatter={(x) => `LTV fraction = ${(Number(x) * 100).toFixed(0)}%`}
+              />
+              <ReferenceLine
+                x={betaMeanFrac}
+                stroke="#ef4444"
+                strokeDasharray="4 4"
+                label={{
+                  value: `mean ${(betaMeanFrac * 100).toFixed(1)}%`,
+                  fill: '#ef4444',
+                  fontSize: 11,
+                  position: 'top',
+                }}
+              />
+              <Line type="monotone" dataKey="pdf" stroke="#3b82f6" dot={false} strokeWidth={2} />
+            </LineChart>
+          </ResponsiveContainer>
+        </div>
+        <div className="text-xs text-neutral-500 mt-1">
+          Mean = α / (α + β) ={' '}
+          {inputs.borrowerLTVAlpha.toFixed(1)} / (
+          {inputs.borrowerLTVAlpha.toFixed(1)} + {inputs.borrowerLTVBeta.toFixed(1)}) ={' '}
+          {(betaMeanFrac * 100).toFixed(1)}% of LLTV.
+          Average borrower&apos;s actual LTV ≈ {(betaMeanFrac * inputs.lltv * 100).toFixed(1)}%.
         </div>
       </div>
 

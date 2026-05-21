@@ -19,6 +19,7 @@ import {
   PRE_LIQUIDATION_LIF_MIN,
 } from './simulator';
 import { LIF, adaptiveCurveIRM } from './morphoMath';
+import { quantile } from './stats';
 import { GOV_LLTVS, type SidebarInputs } from '@/types/simulator';
 
 // --- Policy dials surfaced as constants -----------------------------------
@@ -36,11 +37,6 @@ const DEFAULT_GAS_COST_USD = 5;                   // nominal cushion (MegaETH ga
 const P95_LIQUIDATION_FRACTION_OF_BORROWS = 0.01; // 1% of expected borrows
 const SLIPPAGE_ESTIMATE_CAP = 0.5;                // hard ceiling on derived slippage
 const DEFAULT_VAULT_TIMELOCK_SECONDS = 604_800;   // 7 days, spec §5
-
-function quantile(xs: number[], q: number): number {
-  const sorted = [...xs].sort((a, b) => a - b);
-  return sorted[Math.floor(q * (sorted.length - 1))] ?? 0;
-}
 
 export function useSimulator() {
   const [s] = useUrlState();
@@ -83,7 +79,7 @@ export function useSimulator() {
         requiredUSDM: requiredUSDMPrecursor,
         incentiveBudgetMonthly_USD: s.incentiveBudgetMonthly_USD,
         attractionRate: s.attractionRate,
-        iTRYYieldAnnual: s.iTRYYieldAnnual,
+        witryYieldAnnual: s.witryYieldAnnual,
         expectedTRYDepreciation_annual: DEFAULT_TRY_DEPRECIATION_ANNUAL,
         competingAPY: COMPETING_STABLECOIN_APY,
       }),

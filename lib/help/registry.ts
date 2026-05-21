@@ -1,9 +1,40 @@
 // lib/help/registry.ts
-// Stub entries for PR #1. Real copy lands in PRs #2-#6.
+// Stub entries for sections still pending; section content overlaid as it ships.
+//   ✓ Section 1 (Liquidity Need) — roadmap PR #3
+//   ✓ Section 2 (FX Risk)        — roadmap PR #4
+//   ✓ Section 3 (Strategy)       — roadmap PR #5
+//   ✓ Section 4 (Liquidation)    — roadmap PR #6
+//   ✓ Section 5 (Vault)          — roadmap PR #7
+//   ✓ Section 6 (Utilization)    — roadmap PR #8
 import type { SidebarInputs } from '@/types/simulator';
 import { KPI_KEYS, type KpiKey } from './kpiKeys';
 import { CHART_KEYS, type ChartKey } from './chartKeys';
-import type { ChartHelp, KpiHelp, ParamHelp } from './types';
+import type { ChartHelp, HelpSection, KpiHelp, ParamHelp } from './types';
+import {
+  LIQUIDITY_NEED_PARAMS,
+  LIQUIDITY_NEED_KPIS,
+  LIQUIDITY_NEED_CHARTS,
+} from './content/liquidityNeed';
+import {
+  FX_RISK_PARAMS,
+  FX_RISK_KPIS,
+  FX_RISK_CHARTS,
+} from './content/fxRisk';
+import {
+  STRATEGY_PARAMS,
+  STRATEGY_KPIS,
+  STRATEGY_CHARTS,
+} from './content/strategy';
+import {
+  LIQUIDATION_PARAMS,
+  LIQUIDATION_KPIS,
+  LIQUIDATION_CHARTS,
+} from './content/liquidation';
+import {
+  VAULT_PARAMS,
+  VAULT_KPIS,
+  VAULT_CHARTS,
+} from './content/vault';
 
 const STUB_ONE_LINER = 'Coming soon. See /help for details.';
 
@@ -32,39 +63,27 @@ const STUB_CHART: ChartHelp = {
   },
 };
 
-// PARAM_HELP must have an entry for every key of SidebarInputs.
-// The registry test asserts this — adding a sidebar input without help breaks CI.
-export const PARAM_HELP: Record<keyof SidebarInputs, ParamHelp> = {
-  witryTVL_USD: { oneLiner: STUB_ONE_LINER },
-  lltv: { oneLiner: STUB_ONE_LINER },
-  targetUtilization: { oneLiner: STUB_ONE_LINER },
-  borrowerLTVAlpha: { oneLiner: STUB_ONE_LINER },
-  borrowerLTVBeta: { oneLiner: STUB_ONE_LINER },
-  iTRYYieldAnnual: { oneLiner: STUB_ONE_LINER },
+// All section overlays merge here. Later spreads win (none currently
+// conflict). The registry test asserts every keyof SidebarInputs has a
+// PARAM_HELP entry and every KPI/CHART key has its registry entry.
+const SECTION_PARAMS: Partial<Record<string, ParamHelp>> = {
+  ...LIQUIDITY_NEED_PARAMS,
+  ...FX_RISK_PARAMS,
+  ...STRATEGY_PARAMS,
+  ...LIQUIDATION_PARAMS,
+  ...VAULT_PARAMS,
+  // ── Utilization section ──────────────────────────────────────────────────
   witryYieldUSD_7d:  { oneLiner: 'Trailing-7-day USD APY of holding wiTRY. Used by /utilization as the conservative loop-viability threshold.' },
   witryYieldUSD_30d: { oneLiner: 'Trailing-30-day USD APY of holding wiTRY. Shown as the optimistic reference on /utilization.' },
-  usdtryBaseline: { oneLiner: STUB_ONE_LINER },
-  historicalPeriod: { oneLiner: STUB_ONE_LINER },
-  simulationMode: { oneLiner: STUB_ONE_LINER },
-  simulationHorizonDays: { oneLiner: STUB_ONE_LINER },
-  pathCount: { oneLiner: STUB_ONE_LINER },
-  tryShockPct: { oneLiner: STUB_ONE_LINER },
-  incentiveBudgetMonthly_USD: { oneLiner: STUB_ONE_LINER },
-  attractionRate: { oneLiner: STUB_ONE_LINER },
-  lockPeriodDays: { oneLiner: STUB_ONE_LINER },
-  poolDepth_USD: { oneLiner: STUB_ONE_LINER },
-  performanceFee: { oneLiner: STUB_ONE_LINER },
-  managementFee: { oneLiner: STUB_ONE_LINER },
-  safetyMargin: { oneLiner: STUB_ONE_LINER },
-  preLiquidationEnabled: { oneLiner: STUB_ONE_LINER },
-  blockBootstrap: { oneLiner: STUB_ONE_LINER },
-  seed: { oneLiner: STUB_ONE_LINER },
 };
 
-export const KPI_HELP: Record<KpiKey, KpiHelp> = {
-  ...(Object.fromEntries(KPI_KEYS.map((k) => [k, STUB_KPI])) as Record<KpiKey, KpiHelp>),
-
-  // ── Utilization section (6) ────────────────────────────────────────────────
+const SECTION_KPIS: Partial<Record<KpiKey, KpiHelp>> = {
+  ...LIQUIDITY_NEED_KPIS,
+  ...FX_RISK_KPIS,
+  ...STRATEGY_KPIS,
+  ...LIQUIDATION_KPIS,
+  ...VAULT_KPIS,
+  // ── Utilization section (10 outputs + 3 slider inputs) ───────────────────
 
   recommendedUTarget: {
     title: 'Recommended target utilization',
@@ -490,9 +509,12 @@ export const KPI_HELP: Record<KpiKey, KpiHelp> = {
   },
 };
 
-export const CHART_HELP: Record<ChartKey, ChartHelp> = {
-  ...(Object.fromEntries(CHART_KEYS.map((k) => [k, STUB_CHART])) as Record<ChartKey, ChartHelp>),
-
+const SECTION_CHARTS: Partial<Record<ChartKey, ChartHelp>> = {
+  ...LIQUIDITY_NEED_CHARTS,
+  ...FX_RISK_CHARTS,
+  ...STRATEGY_CHARTS,
+  ...LIQUIDATION_CHARTS,
+  ...VAULT_CHARTS,
   // ── Utilization charts (section 6) ────────────────────────────────────────
 
   looperViabilityCurve: {
@@ -581,4 +603,75 @@ export const CHART_HELP: Record<ChartKey, ChartHelp> = {
       profitability: 'Comparing the loop margin 7d column across Feasible rows shows the profitability cost of choosing a lower (more conservative) target — typically 0.3–0.5pp of loopMargin7d per 5pp step down in u_target.',
     },
   },
+};
+
+const sectionParam = (k: keyof SidebarInputs): ParamHelp =>
+  SECTION_PARAMS[k] ?? { oneLiner: STUB_ONE_LINER };
+
+// Hand-listing every SidebarInputs key both pins the contract and lets
+// TS catch typos against the type.
+export const PARAM_HELP: Record<keyof SidebarInputs, ParamHelp> = {
+  witryTVL_USD: sectionParam('witryTVL_USD'),
+  lltv: sectionParam('lltv'),
+  targetUtilization: sectionParam('targetUtilization'),
+  borrowerLTVAlpha: sectionParam('borrowerLTVAlpha'),
+  borrowerLTVBeta: sectionParam('borrowerLTVBeta'),
+  witryYieldAnnual: sectionParam('witryYieldAnnual'),
+  witryYieldUSD_7d: sectionParam('witryYieldUSD_7d'),
+  witryYieldUSD_30d: sectionParam('witryYieldUSD_30d'),
+  usdtryBaseline: sectionParam('usdtryBaseline'),
+  historicalPeriod: sectionParam('historicalPeriod'),
+  simulationMode: sectionParam('simulationMode'),
+  simulationHorizonDays: sectionParam('simulationHorizonDays'),
+  pathCount: sectionParam('pathCount'),
+  tryShockPct: sectionParam('tryShockPct'),
+  incentiveBudgetMonthly_USD: sectionParam('incentiveBudgetMonthly_USD'),
+  attractionRate: sectionParam('attractionRate'),
+  lockPeriodDays: sectionParam('lockPeriodDays'),
+  poolDepth_USD: sectionParam('poolDepth_USD'),
+  performanceFee: sectionParam('performanceFee'),
+  managementFee: sectionParam('managementFee'),
+  safetyMargin: sectionParam('safetyMargin'),
+  preLiquidationEnabled: sectionParam('preLiquidationEnabled'),
+  blockBootstrap: sectionParam('blockBootstrap'),
+  seed: sectionParam('seed'),
+};
+
+export const KPI_HELP: Record<KpiKey, KpiHelp> = Object.fromEntries(
+  KPI_KEYS.map((k) => [k, SECTION_KPIS[k] ?? STUB_KPI]),
+) as Record<KpiKey, KpiHelp>;
+
+export const CHART_HELP: Record<ChartKey, ChartHelp> = Object.fromEntries(
+  CHART_KEYS.map((k) => [k, SECTION_CHARTS[k] ?? STUB_CHART]),
+) as Record<ChartKey, ChartHelp>;
+
+/**
+ * Which /help/<section> page a sidebar param's "More info" link points at.
+ * Mirrors the section grouping in the Sidebar component.
+ */
+export const PARAM_SECTION: Record<keyof SidebarInputs, HelpSection> = {
+  witryTVL_USD: 'liquidity-need',
+  lltv: 'liquidity-need',
+  targetUtilization: 'liquidity-need',
+  borrowerLTVAlpha: 'liquidity-need',
+  borrowerLTVBeta: 'liquidity-need',
+  witryYieldAnnual: 'fx-risk',
+  witryYieldUSD_7d: 'utilization',
+  witryYieldUSD_30d: 'utilization',
+  usdtryBaseline: 'fx-risk',
+  historicalPeriod: 'fx-risk',
+  simulationMode: 'fx-risk',
+  simulationHorizonDays: 'fx-risk',
+  pathCount: 'fx-risk',
+  tryShockPct: 'fx-risk',
+  blockBootstrap: 'fx-risk',
+  seed: 'fx-risk',
+  incentiveBudgetMonthly_USD: 'strategy',
+  attractionRate: 'strategy',
+  lockPeriodDays: 'strategy',
+  performanceFee: 'strategy',
+  managementFee: 'strategy',
+  poolDepth_USD: 'liquidation',
+  safetyMargin: 'liquidation',
+  preLiquidationEnabled: 'liquidation',
 };

@@ -10,7 +10,7 @@ export interface SidebarInputs {
   targetUtilization: number;
   borrowerLTVAlpha: number;
   borrowerLTVBeta: number;
-  iTRYYieldAnnual: number;
+  witryYieldAnnual: number;
   witryYieldUSD_7d: number;
   witryYieldUSD_30d: number;
   usdtryBaseline: number;

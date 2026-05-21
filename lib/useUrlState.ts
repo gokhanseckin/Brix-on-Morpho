@@ -27,7 +27,7 @@ export function useUrlState() {
     targetUtilization: parseAsFloat.withDefault(0.7),
     borrowerLTVAlpha: parseAsFloat.withDefault(2),
     borrowerLTVBeta: parseAsFloat.withDefault(1.2),
-    iTRYYieldAnnual: parseAsFloat.withDefault(0.38),
+    witryYieldAnnual: parseAsFloat.withDefault(0.38),
     witryYieldUSD_7d:  parseAsFloat.withDefault(0.0631),
     witryYieldUSD_30d: parseAsFloat.withDefault(0.1931),
     usdtryBaseline: parseAsFloat.withDefault(38.5),
