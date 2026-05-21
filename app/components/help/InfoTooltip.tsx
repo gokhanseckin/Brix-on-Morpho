@@ -93,7 +93,7 @@ export function InfoTooltip({ text, moreInfo }: { text: string; moreInfo?: MoreI
           role="dialog"
           aria-modal="false"
           style={popoverStyle}
-          className="fixed z-[100] w-64 rounded-lg border border-brix-border bg-brix-card p-3 text-xs shadow-xl normal-case tracking-normal"
+          className="fixed z-[100] w-64 rounded-lg border border-brix-border bg-neutral-950 p-3 text-xs shadow-2xl normal-case tracking-normal"
         >
           <div className="flex items-start justify-between gap-2">
             <span className="leading-snug">{text}</span>
