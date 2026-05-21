@@ -14,10 +14,8 @@ const fmt6 = (n: number) => n.toFixed(6);
 export function PoolStatePanel() {
   const [state] = useUrlState();
   const spot = useMemo(
-    () => state.witryYieldAnnual && state.usdtryBaseline
-      ? (1 + state.witryYieldAnnual * 0) / state.usdtryBaseline
-      : 1 / state.usdtryBaseline,
-    [state.witryYieldAnnual, state.usdtryBaseline],
+    () => state.usdtryBaseline > 0 ? 1 / state.usdtryBaseline : 0,
+    [state.usdtryBaseline],
   );
   const preset = useMemo(
     () =>
