@@ -8,7 +8,8 @@ import { LiquidityStressSection } from './components/LiquidityStressSection';
 import { LoopEconomicsBreakdown } from './components/LoopEconomicsBreakdown';
 import { IRMHeatmap } from './components/IRMHeatmap';
 import { RecommendationTable } from './components/RecommendationTable';
-import { InfoTooltip } from '@/app/components/help/InfoTooltip';
+import { HelpPopover } from '@/app/components/help/HelpPopover';
+import type { KpiKey } from '@/lib/help/kpiKeys';
 
 export default function UtilizationPage() {
   const [stressPct, setStressPct] = useState(0.20);
@@ -31,7 +32,7 @@ export default function UtilizationPage() {
       <section className="grid grid-cols-1 md:grid-cols-3 gap-4 rounded-lg border p-4">
         <Slider
           label="Stress withdrawal"
-          tooltip="Share of vault supply you stress-test as withdrawn in one day. Affects: liquidityBufferUSD requirement, survivesStress flag, recommendedUTarget."
+          helpKey="stressPctOfSupplyInput"
           value={stressPct}
           min={0.05}
           max={0.5}
@@ -41,7 +42,7 @@ export default function UtilizationPage() {
         />
         <Slider
           label="Looper HF buffer"
-          tooltip="How conservative loopers are — debt ≤ max/HF_buffer. Lower = more leverage/loop demand but riskier. Affects: effectiveLeverage, looperNetAPY, loopMargin7d, recommendedUTarget."
+          helpKey="hfBufferInput"
           value={hfBuffer}
           min={1.1}
           max={2.5}
@@ -51,7 +52,7 @@ export default function UtilizationPage() {
         />
         <Slider
           label="r_target override"
-          tooltip="Per-page override of the AdaptiveCurveIRM r_target (interest pinned at u=0.9). Affects: borrowAPYAtTarget, looperNetAPY, irmHeatmap, recommendedUTarget."
+          helpKey="rTargetOverrideInput"
           value={rTarget}
           min={0.01}
           max={0.10}
@@ -73,7 +74,7 @@ export default function UtilizationPage() {
 
 function Slider(props: {
   label: string;
-  tooltip?: string;
+  helpKey?: KpiKey;
   value: number;
   min: number;
   max: number;
@@ -86,7 +87,7 @@ function Slider(props: {
       <span className="flex justify-between items-center">
         <span className="flex items-center">
           {props.label}
-          {props.tooltip && <InfoTooltip text={props.tooltip} />}
+          {props.helpKey && <HelpPopover kpiKey={props.helpKey} />}
         </span>
         <span className="font-mono">{props.format(props.value)}</span>
       </span>

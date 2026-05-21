@@ -2,35 +2,74 @@ import { KPI_HELP, CHART_HELP } from '@/lib/help/registry';
 import { KPI_KEYS, KPI_SECTION } from '@/lib/help/kpiKeys';
 import { CHART_KEYS, CHART_SECTION } from '@/lib/help/chartKeys';
 
+const INPUT_KEYS = new Set([
+  'stressPctOfSupplyInput',
+  'hfBufferInput',
+  'rTargetOverrideInput',
+] as const);
+
 export default function HelpUtilization() {
-  const kpis = KPI_KEYS.filter((k) => KPI_SECTION[k] === 'utilization');
+  const allKpis = KPI_KEYS.filter((k) => KPI_SECTION[k] === 'utilization');
+  const inputKpis = allKpis.filter((k) => (INPUT_KEYS as Set<string>).has(k));
+  const outputKpis = allKpis.filter((k) => !(INPUT_KEYS as Set<string>).has(k));
   const charts = CHART_KEYS.filter((c) => CHART_SECTION[c] === 'utilization');
+
   return (
     <div className="space-y-8">
       <h2 className="text-xl font-semibold">6. Utilization Calibration</h2>
-      {kpis.map((k) => (
-        <Entry
-          key={k}
-          id={k}
-          title={KPI_HELP[k].title}
-          oneLiner={KPI_HELP[k].oneLiner}
-          formula={KPI_HELP[k].formula.plain}
-          params={KPI_HELP[k].params}
-          definitions={KPI_HELP[k].definitions}
-          impact={KPI_HELP[k].impact}
-        />
-      ))}
-      {charts.map((c) => (
-        <ChartEntry
-          key={c}
-          id={c}
-          title={CHART_HELP[c].title}
-          oneLiner={CHART_HELP[c].oneLiner}
-          axes={CHART_HELP[c].axes}
-          definitions={CHART_HELP[c].definitions}
-          impact={CHART_HELP[c].impact}
-        />
-      ))}
+
+      <div className="space-y-6">
+        <h3 className="text-sm font-semibold text-neutral-500 uppercase tracking-wide border-b pb-1">
+          Inputs (page sliders)
+        </h3>
+        {inputKpis.map((k) => (
+          <Entry
+            key={k}
+            id={k}
+            title={KPI_HELP[k].title}
+            oneLiner={KPI_HELP[k].oneLiner}
+            formula={KPI_HELP[k].formula.plain}
+            params={KPI_HELP[k].params}
+            definitions={KPI_HELP[k].definitions}
+            impact={KPI_HELP[k].impact}
+          />
+        ))}
+      </div>
+
+      <div className="space-y-6">
+        <h3 className="text-sm font-semibold text-neutral-500 uppercase tracking-wide border-b pb-1">
+          Outputs (KPIs)
+        </h3>
+        {outputKpis.map((k) => (
+          <Entry
+            key={k}
+            id={k}
+            title={KPI_HELP[k].title}
+            oneLiner={KPI_HELP[k].oneLiner}
+            formula={KPI_HELP[k].formula.plain}
+            params={KPI_HELP[k].params}
+            definitions={KPI_HELP[k].definitions}
+            impact={KPI_HELP[k].impact}
+          />
+        ))}
+      </div>
+
+      <div className="space-y-6">
+        <h3 className="text-sm font-semibold text-neutral-500 uppercase tracking-wide border-b pb-1">
+          Charts
+        </h3>
+        {charts.map((c) => (
+          <ChartEntry
+            key={c}
+            id={c}
+            title={CHART_HELP[c].title}
+            oneLiner={CHART_HELP[c].oneLiner}
+            axes={CHART_HELP[c].axes}
+            definitions={CHART_HELP[c].definitions}
+            impact={CHART_HELP[c].impact}
+          />
+        ))}
+      </div>
     </div>
   );
 }

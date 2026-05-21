@@ -49,6 +49,10 @@ export const KPI_KEYS = [
   'survivesStress',
   'looperNetAPY',
   'effectiveLeverage',
+  // Utilization page sliders (inputs)
+  'stressPctOfSupplyInput',
+  'hfBufferInput',
+  'rTargetOverrideInput',
 ] as const;
 
 export type KpiKey = (typeof KPI_KEYS)[number];
@@ -93,4 +97,7 @@ export const KPI_SECTION: Record<KpiKey, HelpSection> = {
   survivesStress: 'utilization',
   looperNetAPY: 'utilization',
   effectiveLeverage: 'utilization',
+  stressPctOfSupplyInput: 'utilization',
+  hfBufferInput: 'utilization',
+  rTargetOverrideInput: 'utilization',
 };
