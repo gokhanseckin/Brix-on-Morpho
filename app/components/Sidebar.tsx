@@ -73,6 +73,9 @@ export function Sidebar() {
           step={0.01}
           format={(v) => `${(v * 100).toFixed(0)}%`}
         />
+        <a href="/utilization" className="text-xs text-blue-500 hover:underline -mt-1 block">
+          → calibrate in utilization tool
+        </a>
         <NumberField
           label="Borrower LTV α"
           helpKey="borrowerLTVAlpha"

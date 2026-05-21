@@ -50,6 +50,7 @@ export const KPI_KEYS = [
   'looperNetAPY',
   'effectiveLeverage',
   // Utilization page sliders (inputs)
+  'tvlUSDMInput',
   'stressPctOfSupplyInput',
   'hfBufferInput',
   'rTargetOverrideInput',
@@ -111,6 +112,7 @@ export const KPI_SECTION: Record<KpiKey, HelpSection> = {
   survivesStress: 'utilization',
   looperNetAPY: 'utilization',
   effectiveLeverage: 'utilization',
+  tvlUSDMInput: 'utilization',
   stressPctOfSupplyInput: 'utilization',
   hfBufferInput: 'utilization',
   rTargetOverrideInput: 'utilization',

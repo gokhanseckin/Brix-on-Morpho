@@ -3,6 +3,7 @@ import { KPI_KEYS, KPI_SECTION } from '@/lib/help/kpiKeys';
 import { CHART_KEYS, CHART_SECTION } from '@/lib/help/chartKeys';
 
 const INPUT_KEYS = new Set([
+  'tvlUSDMInput',
   'stressPctOfSupplyInput',
   'hfBufferInput',
   'rTargetOverrideInput',

@@ -417,6 +417,43 @@ const SECTION_KPIS: Partial<Record<KpiKey, KpiHelp>> = {
 
   // ── Utilization page slider inputs ────────────────────────────────────────
 
+  tvlUSDMInput: {
+    title: 'Vault TVL — total USDM supply (input)',
+    oneLiner: 'The total amount of USDM deposited in the lending vault. Think of it as the size of the pool. At $10M TVL and 80% utilization, $8M is lent out earning interest and $2M sits idle ready to cover withdrawals.',
+    formula: {
+      plain: [
+        'Adjustable input (number field). Default: $10,000,000. Minimum: $100,000.',
+        '',
+        'Downstream (all values scale proportionally with TVL):',
+        '  liquidityBufferUSD     = (1 − u_target) × TVL',
+        '  stressWithdrawalUSD    = stressPctOfSupply × TVL',
+        '  survivesStress         = (liquidityBufferUSD ≥ stressWithdrawalUSD)',
+        '',
+        '// Example: TVL = $10M, u_target = 0.80, stress = 20%',
+        '//   buffer = (1 − 0.80) × $10M = $2,000,000',
+        '//   stress = 0.20 × $10M        = $2,000,000  → survives ✓',
+        '',
+        '// Example: TVL = $5M, same settings',
+        '//   buffer = $1,000,000, stress = $1,000,000  → survives ✓',
+        '//   (ratio unchanged — survivesStress depends on fractions, not absolute $)',
+        '',
+        '// TVL matters for absolute dollar outputs (liquidityBufferUSD, stressWithdrawalUSD)',
+        '// but does NOT change the recommended u_target (which is a fraction).',
+      ].join('\n'),
+    },
+    params: [],
+    definitions: [
+      { term: 'TVL (Total Value Locked)', definition: 'The sum of all USDM deposited by lenders. If Alice deposits $6M and Bob deposits $4M, TVL = $10M. This is the denominator of utilization: u = total borrowed / TVL.' },
+      { term: 'utilization (u)', definition: 'The fraction of TVL that is currently lent out to borrowers. At u=0.80, 80% of TVL is earning interest; 20% is idle cash that can be withdrawn any time.' },
+      { term: 'idle USDM (liquidity buffer)', definition: 'The (1 − u) × TVL portion that nobody borrowed yet. It is the vault\'s "cash register" — the only capital that can honor a withdrawal without forcing a borrower to repay early.' },
+    ],
+    impact: {
+      health: 'A larger TVL means more absolute liquidity buffer even at the same utilization — e.g. $2M idle at $10M TVL vs $1M idle at $5M. The stress-test fraction is unchanged, but the actual dollar cushion is larger.',
+      sustainability: 'Changing TVL does not affect the recommended u_target or any percentage-based KPI. It only changes the dollar amounts shown for buffer and stress. If in doubt, match this to your projected launch TVL.',
+      profitability: 'TVL scales borrower demand and supplier income proportionally. The per-dollar APY (borrowAPYAtTarget, supplierAPYAtTarget) is independent of TVL — only the absolute dollar profits change.',
+    },
+  },
+
   stressPctOfSupplyInput: {
     title: 'Stress withdrawal % (slider)',
     oneLiner: 'What fraction of USDM supply you assume could be withdrawn in a single day. The vault must keep that much idle at all times. At 20% with $10M TVL, $2M must sit unborrowed.',
