@@ -17,6 +17,9 @@ export default function Page() {
           <p className="text-sm text-neutral-600 dark:text-neutral-400 mt-1">
             Pre-launch parameter calibration for a Morpho Blue market on MegaETH.
           </p>
+          <p className="text-sm mt-2">
+            <a href="/utilization" className="text-blue-600 underline">Target utilization calibration →</a>
+          </p>
         </header>
         <section id="section-liquidity-need-anchor">
           <h2 className="sr-only">1. USDM Liquidity Need</h2>

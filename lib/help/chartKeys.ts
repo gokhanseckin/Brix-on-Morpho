@@ -8,6 +8,12 @@ export const CHART_KEYS = [
   'netWitryUsdPaths',      // FXRisk
   'positionsUnderwater',   // FXRisk
   'badDebtHistogram',      // LiquidationDesign
+  // Utilization (section 6)
+  'looperViabilityCurve',
+  'liquidityStressTable',
+  'loopEconomicsWaterfall',
+  'irmHeatmap',
+  'recommendationTable',
 ] as const;
 
 export type ChartKey = (typeof CHART_KEYS)[number];
@@ -19,4 +25,9 @@ export const CHART_SECTION: Record<ChartKey, HelpSection> = {
   netWitryUsdPaths: 'fx-risk',
   positionsUnderwater: 'fx-risk',
   badDebtHistogram: 'liquidation',
+  looperViabilityCurve: 'utilization',
+  liquidityStressTable: 'utilization',
+  loopEconomicsWaterfall: 'utilization',
+  irmHeatmap: 'utilization',
+  recommendationTable: 'utilization',
 };

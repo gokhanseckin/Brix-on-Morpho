@@ -57,6 +57,15 @@ These were flagged in the original design spec and remain unresolved. Each ships
 4. **iTRYYieldAnnual default?** Confirm `iTRYYieldAnnual` default. 38% is a rough estimate of Turkish MMF yields; should be calibrated against the actual fund. *Default assumption: 38% annual.*
 5. **Leverage-loop simulation?** Should the simulator include leverage-loop simulation for borrowers, not just a viability check? *Default assumption: viability check only (full leverage-loop path simulation deferred — out of scope for v1).*
 
+### `/utilization` — Target utilization calibration
+
+A standalone page that recommends an ideal `targetUtilization` for the USDM market.
+It balances three constraints: looper net APY must beat holding wiTRY (gate at the
+conservative 7-day USD yield), the (1 − u) × TVL buffer must absorb a stress
+withdrawal (slider), and u_target must stay clear of the IRM kink at 0.9 by ≥ 0.07.
+Three page-local sliders (stress %, looper HF buffer, r_target override) make it
+interactive without touching the main sidebar.
+
 ## Performance
 
 Default Monte Carlo (1000 paths × 90 days) completes in ~1900 ms end-to-end on an Apple-silicon laptop, measured as time-to-first-KPI from navigation. This includes navigation, hydration, and worker boot; the worker run itself is a strict subset of that budget. Measured via `tests-e2e/perf.spec.ts`.

@@ -7,6 +7,7 @@ const SECTIONS: Array<{ slug: string; label: string; blurb: string }> = [
   { slug: 'strategy', label: '3. Strategy', blurb: 'APYs, incentives, days to target.' },
   { slug: 'liquidation', label: '4. Liquidation', blurb: 'Liquidator economics and bad debt.' },
   { slug: 'vault', label: '5. Vault', blurb: 'Recommended LLTV, risk tier, deploy JSON.' },
+  { slug: 'utilization', label: '6. Utilization', blurb: 'Target-utilization calibration: looper viability, stress, IRM kink.' },
 ];
 
 export default function HelpIndex() {

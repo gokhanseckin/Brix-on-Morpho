@@ -8,6 +8,7 @@ const SECTIONS: Array<{ slug: string; label: string }> = [
   { slug: 'strategy', label: '3. Strategy' },
   { slug: 'liquidation', label: '4. Liquidation' },
   { slug: 'vault', label: '5. Vault' },
+  { slug: 'utilization', label: '6. Utilization' },
 ];
 
 export default function HelpLayout({ children }: { children: ReactNode }) {

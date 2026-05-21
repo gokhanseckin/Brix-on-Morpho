@@ -11,6 +11,8 @@ export interface SidebarInputs {
   borrowerLTVAlpha: number;
   borrowerLTVBeta: number;
   witryYieldAnnual: number;
+  witryYieldUSD_7d: number;
+  witryYieldUSD_30d: number;
   usdtryBaseline: number;
   historicalPeriod: HistoricalPeriod;
   simulationMode: SimulationMode;

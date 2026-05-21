@@ -77,4 +77,5 @@ export type HelpSection =
   | 'fx-risk'
   | 'strategy'
   | 'liquidation'
-  | 'vault';
+  | 'vault'
+  | 'utilization';

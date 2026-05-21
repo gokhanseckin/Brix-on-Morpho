@@ -14,6 +14,8 @@ const EXPECTED_PARAM_KEYS = [
   'borrowerLTVAlpha',
   'borrowerLTVBeta',
   'witryYieldAnnual',
+  'witryYieldUSD_7d',
+  'witryYieldUSD_30d',
   'usdtryBaseline',
   'historicalPeriod',
   'simulationMode',
