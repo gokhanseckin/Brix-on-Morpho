@@ -151,7 +151,7 @@ export default function HelpSwapLiquidity() {
           <tbody>
             {[
               ['Sidebar settings', '$500k pool, 30/50/20 split, fee 0.30%, LLTV 86%'],
-              ['USD/TRY baseline', '≈ 38.5 → spot wTRY/USDM ≈ 0.026'],
+              ['USD/TRY baseline', '= 45 (default) → spot wTRY/USDM ≈ 0.0222'],
               ['LIF(0.86)', '≈ 1.044 → LIF buffer ≈ 4.4%'],
               ['Liquidation event', '$25,000 of seized wTRY notional'],
               ['Debt repaid (at trigger)', '$25,000 / 1.044 ≈ $23,946'],

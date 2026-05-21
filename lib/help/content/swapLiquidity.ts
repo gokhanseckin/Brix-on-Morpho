@@ -77,12 +77,12 @@ const spotWtryUsdm: KpiHelp = {
   oneLiner:
     'Current wTRY price in USDM. Computed as 1 ÷ USD/TRY baseline (sidebar field). Shared with the homepage via URL state — set it in either place and both pages use it.',
   formula: {
-    plain: 'spot = 1 / usdtryBaseline\n// default: usdtryBaseline = 38.5 → spot ≈ 0.026 USDM per wTRY',
+    plain: 'spot = 1 / usdtryBaseline\n// default: usdtryBaseline = 45 → spot ≈ 0.0222 USDM per wTRY',
     latex: 'p_{\\text{spot}} = 1 / R_{\\text{USDTRY}}',
   },
   params: [COMMON.spot!],
   definitions: [
-    { term: 'Price direction', definition: 'wTRY/USDM = USDM per 1 wTRY. With USDTRY ≈ 38.5, spot ≈ 0.026 USDM per wTRY — meaning ~38 wTRY to buy 1 USDM.' },
+    { term: 'Price direction', definition: 'wTRY/USDM = USDM per 1 wTRY. With USDTRY ≈ 45, spot ≈ 0.0222 USDM per wTRY — meaning 45 wTRY to buy 1 USDM.' },
     { term: 'Why not USDTRY directly', definition: 'Uniswap v3 quotes prices as token1/token0 with token0 = wTRY (lower address-sort). Inverting once at the page boundary keeps the rest of the math conventional.' },
     { term: 'Static baseline, not live FX', definition: 'This is the modelled baseline you control — NOT a live oracle feed. The §3 bad-debt distribution uses Monte-Carlo terminal spots (which DO vary across FX futures), but §1 and §2 use this static value as the design-point spot.' },
     { term: 'Shared state', definition: 'usdtryBaseline is the same URL key the homepage reads. Editing the sidebar field in either page updates both, as long as you navigate with the query string preserved (open in a new tab from the URL bar, or use the back/forward buttons).' },
