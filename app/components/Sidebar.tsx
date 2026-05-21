@@ -255,6 +255,9 @@ export function Sidebar() {
       >
         {copied ? 'Copied!' : 'Copy share link'}
       </button>
+      <a href="/swapliquidity" className="block mt-4 text-xs text-blue-600 hover:underline">
+        → Swap liquidity lab
+      </a>
     </div>
   );
 }

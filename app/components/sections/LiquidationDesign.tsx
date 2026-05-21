@@ -14,6 +14,8 @@ import {
 } from 'recharts';
 import { useMemo } from 'react';
 import { liquidatorProfit } from '@/lib/simulator';
+import { buildAsymmetricLadder, DEFAULT_BAND_SPLIT } from '@/lib/poolPreset';
+import { quoteLiquidatorSell } from '@/lib/univ3/quoteLiquidatorSell';
 import { GOV_LLTVS } from '@/types/simulator';
 import { Kpi, formatPct, formatUSD } from '../Kpi';
 import { HelpPopover } from '../help/HelpPopover';
@@ -84,6 +86,21 @@ export function LiquidationDesign() {
     return rows;
   }, [fx, inputs.lltv, inputs.poolDepth_USD]);
 
+  // Liquidator recovery from pool quote (replaces heuristic).
+  const liquidatorRecovery = useMemo(() => {
+    const spot = 1 / inputs.usdtryBaseline;
+    const preset = buildAsymmetricLadder(spot, inputs.poolDepth_USD, DEFAULT_BAND_SPLIT, 3000);
+    const probeUSD = fx?.badDebt?.expectedLiquidationVolumeP95_USD ?? 25_000;
+    const wTRYwei = BigInt(Math.floor((probeUSD / spot) * 1e6));
+    const q = quoteLiquidatorSell(preset, spot, wTRYwei);
+    const usdmOut = Number(q.amountOut) / 1e6;
+    return {
+      recoveryRatePct: usdmOut / probeUSD,
+      slippagePct: q.slippagePct,
+      probeUSD,
+    };
+  }, [inputs.usdtryBaseline, inputs.poolDepth_USD, fx]);
+
   return (
     <section id="section-liquidation-design" className="space-y-6">
       <div>
@@ -94,7 +111,7 @@ export function LiquidationDesign() {
         </p>
       </div>
 
-      <div className="grid grid-cols-3 gap-4">
+      <div className="grid grid-cols-4 gap-4">
         <Kpi
           label="P95 bad debt (USD)"
           value={fx?.badDebt ? formatUSD(fx.badDebt.badDebtP95_USD) : '—'}
@@ -111,6 +128,12 @@ export function LiquidationDesign() {
                 : 'good'
           }
           helpKey="badDebtP95Pct"
+        />
+        <Kpi
+          label="Liquidator recovery @ P95 vol"
+          value={formatPct(liquidatorRecovery.recoveryRatePct, 2)}
+          hint={`slippage ${formatPct(liquidatorRecovery.slippagePct, 3)}, probe ${formatUSD(liquidatorRecovery.probeUSD)}`}
+          tone={liquidatorRecovery.recoveryRatePct >= 0.99 ? 'good' : liquidatorRecovery.recoveryRatePct >= 0.97 ? 'warn' : 'bad'}
         />
         <Kpi
           label="Profitable debt range"
