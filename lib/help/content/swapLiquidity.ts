@@ -316,25 +316,26 @@ export const SWAP_LIQUIDITY_KPIS: Partial<Record<string, KpiHelp>> = {
 const liquidityByTick: ChartHelp = {
   title: 'Liquidity by tick',
   oneLiner:
-    'Net liquidity contributed at each initialized tick across all three LP bands. Positive bars = liquidity entering at that tick; negative = exiting.',
+    'A histogram of capital across price levels — each bar is a "wall of money" a liquidator\'s swap must consume before the price moves further.',
   axes: {
-    x: 'price (USDM per wTRY) at each initialized tick',
-    y: 'net liquidity at tick (raw L ÷ 1e12 for readability)',
+    x: 'price (USDM per wTRY) — each bar sits at the price where a band opens or closes',
+    y: 'net liquidity at that tick (raw L ÷ 1e12 for readability)',
   },
   bands: [
-    { name: 'Bars below current spot', meaning: 'These mark where the Core/Absorb/Tail bands open and close on the downside — the depth the AMM offers when wTRY price falls.' },
-    { name: 'Bar at the Core lower edge', meaning: 'Where the Core position closes and Absorb begins. A liquidator selling enough to push price below this tick "crosses" into Absorb-band liquidity.' },
-    { name: 'Negative bars', meaning: 'The upper edge of a band — liquidity is removed when price crosses these going up. Negative magnitude equals the positive opening of that same band.' },
+    { name: 'Tall bars', meaning: 'Lots of capital at this price. The swap absorbs a large sell without moving the price much — a good fill for the liquidator.' },
+    { name: 'Short or missing bars', meaning: 'Thin market at this price. Even a modest sell pushes the price down sharply — the liquidator takes a worse fill.' },
+    { name: 'Negative bars', meaning: 'The upper edge of a band — liquidity is removed as price rises past this tick. Equal in size to the positive bar that opened the same band.' },
   ],
   definitions: [
-    { term: 'liquidityNet vs liquidityGross', definition: 'liquidityNet is the SIGNED change at a tick (positive on band open, negative on close). It is what the walker uses to track active L. Gross is the sum of |net|.' },
-    { term: 'How a swap consumes it', definition: 'As a sell walks the price down, the swap walker subtracts liquidityNet at each crossed tick from the active L. When L = 0, no further depth exists at that price.' },
-    { term: 'Why bars at exactly two prices per band', definition: 'Each LP position is bounded by two ticks (lower, upper). With 3 bands, the chart has up to 6 bars — same number you see in the band-allocation table.' },
+    { term: 'What a tick is', definition: 'Uniswap v3 divides the price axis into thousands of discrete slots called ticks. Each tick maps to a specific price. Liquidity providers deposit capital between two ticks, not across the whole range.' },
+    { term: 'Why bars appear in pairs', definition: 'Each LP band opens at a lower tick (positive bar) and closes at an upper tick (negative bar). With 3 bands — Core, Absorb, Tail — you see up to 6 bars total, matching the band-allocation table below.' },
+    { term: 'How a swap consumes bars', definition: 'When a liquidator sells wTRY, the swap walks ticks left (price falls). Each positive bar adds depth; each crossed negative bar removes it. When depth hits zero, no more bids exist at that price.' },
+    { term: 'Red dotted line', definition: 'Current spot price. Bars to the left are below spot (the downside crash protection); bars to the right are above spot (buy-side depth).' },
   ],
   impact: {
-    health: 'Big positive bars below spot = deep crash protection.',
-    sustainability: 'If all positive mass is at spot, the pool is symmetric and wastes capital on the upside.',
-    profitability: 'Drives the liquidator\'s realized fill price across the price range.',
+    health: 'Tall bars just below the red line = strong crash protection. The liquidator can sell seized collateral without cratering the price.',
+    sustainability: 'Capital concentrated only at spot wastes the upside budget. The asymmetric ladder intentionally stacks depth below spot.',
+    profitability: 'The total area under bars between spot and the liquidator\'s exit price determines realized slippage — more area means less slippage and higher recovery.',
   },
 };
 
