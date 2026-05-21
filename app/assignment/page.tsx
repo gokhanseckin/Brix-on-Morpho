@@ -34,6 +34,20 @@ function Accent({ children }: { children: React.ReactNode }) {
   return <span style={{ color: ACCENT }}>{children}</span>;
 }
 
+/* Slide-link: jumps to slide N via URL hash. Deck listens for
+ * hashchange and updates the active slide. */
+function SL({ n, children }: { n: number; children?: React.ReactNode }) {
+  return (
+    <a
+      href={`#${n}`}
+      className="underline decoration-dotted underline-offset-2 transition hover:opacity-80"
+      style={{ color: ACCENT }}
+    >
+      {children ?? `slide ${n}`}
+    </a>
+  );
+}
+
 function H1({ children }: { children: React.ReactNode }) {
   return (
     <h1 className="text-5xl font-semibold leading-[1.05] tracking-tight md:text-6xl">
@@ -147,7 +161,7 @@ const slides: Slide[] = [
         </div>
         <Footnote>
           Solid lines = asset flow. Dashed lines = incentive flow. Curator slot
-          shown as TBD — see slide 6.
+          shown as TBD — see <SL n={6} />.
         </Footnote>
       </div>
     ),
@@ -220,14 +234,14 @@ const slides: Slide[] = [
         <Kicker>04 · Operations</Kicker>
         <H2>Watch six numbers. <Accent>Act on three.</Accent></H2>
         <div className="mt-8 grid grid-cols-3 gap-4 text-[17px]">
-          {[
+          {([
             { k: 'Utilization', v: 'Borrowed ÷ supplied. Stay 70–90%. Above 95% = trouble.' },
             { k: 'Idle USDM', v: 'Unborrowed supply. Lenders’ cushion for withdrawals.' },
             { k: 'Time stuck at 100% util', v: 'No new borrows, no withdrawals. If > 1h: lift supply cap, or push target util down so the rate curve bites sooner.' },
-            { k: 'Supply / borrow caps', v: 'Hard ceilings. Sized to live Kumbaya depth — slide 9.' },
+            { k: 'Supply / borrow caps', v: <>Hard ceilings. Sized to live Kumbaya depth — <SL n={9} />.</> },
             { k: 'Curator allocation share', v: 'How much of the vault’s TVL is allocated to our market.' },
-            { k: 'Bad-debt P95', v: '95th-percentile loss from the FX simulator. Slide 13.' },
-          ].map(({ k, v }) => (
+            { k: 'Bad-debt P95', v: <>95th-percentile loss from the FX simulator. <SL n={13} />.</> },
+          ] as { k: string; v: React.ReactNode }[]).map(({ k, v }) => (
             <Card key={k}>
               <div className="text-[13px] uppercase tracking-[0.18em] text-neutral-500">
                 {k}
@@ -302,7 +316,7 @@ const slides: Slide[] = [
             </div>
             <div className="mt-2 text-[20px] leading-[1.5] text-neutral-200">
               Curators <Accent>are</Accent> distribution. A signed curator
-              brings their LPs with them. Slide 6.
+              brings their LPs with them. <SL n={6}>Slide 6</SL>.
             </div>
           </Card>
         </div>
@@ -613,7 +627,7 @@ const slides: Slide[] = [
         <Footnote>
           Slippage figures assume v3 concentrated liquidity around TRY/USD
           spot. MegaETH chain-LP seed via MegaMafia can subsidize part of this
-          pool — see slide 5.
+          pool — see <SL n={5} />.
         </Footnote>
       </div>
     ),
@@ -688,15 +702,15 @@ const slides: Slide[] = [
                 </tr>
               </thead>
               <tbody className="divide-y divide-neutral-800">
-                {[
+                {([
                   ['LLTV', '86%', 'Morpho governance tier. Costs us pool depth.'],
                   ['LIF', '~5%', 'Derived from LLTV. The full liquidator budget.'],
                   ['Pre-liquidations', 'On · opt-in', 'Gated by Brix points. Dutch-auction LIF chops large positions.'],
-                  ['Market borrow cap', '1× live Kumbaya depth', 'Morpho-native hard ceiling on total debt. Slide 9.'],
+                  ['Market borrow cap', '1× live Kumbaya depth', <>Morpho-native hard ceiling on total debt. <SL n={9}>Slide 9</SL>.</>],
                   ['Per-wallet target', '≤ pool ÷ 5', 'Not enforceable on Morpho Blue. Hypernative alert; respond by lowering market cap.'],
                   ['Vault factory', 'V1.1 (no bad-debt realization)', 'wiTRY share price can\'t decrease → ERC-4626 risk neutralized.'],
-                ].map(([p, v, w]) => (
-                  <tr key={p as string} className="hover:bg-neutral-900/40">
+                ] as [string, string, React.ReactNode][]).map(([p, v, w]) => (
+                  <tr key={p} className="hover:bg-neutral-900/40">
                     <td className="px-4 py-3 font-medium text-neutral-200">{p}</td>
                     <td className="px-4 py-3 font-mono text-neutral-100" style={{ color: ACCENT }}>
                       {v}
@@ -713,7 +727,7 @@ const slides: Slide[] = [
                 Three levers
               </div>
               <ol className="mt-3 ml-4 list-decimal space-y-2 text-[17px] leading-[1.55] text-neutral-300">
-                <li>Pool depth (slide 9 — biggest lever).</li>
+                <li>Pool depth (<SL n={9} /> — biggest lever).</li>
                 <li>LIF tier (fixed by LLTV choice).</li>
                 <li>Pre-liq cushion (chops the trade).</li>
               </ol>
@@ -816,7 +830,7 @@ const slides: Slide[] = [
               <li>Scope the Merkl campaign · validate feather.zone.</li>
               <li>Email Wintermute OTC (<span className="font-mono text-[15px]">trade@wintermute.com</span>).</li>
               <li>Open MegaMafia conversation for chain LP + MEGA rewards.</li>
-              <li>Pool seed conversation with Kumbaya team (target slide 10).</li>
+              <li>Pool seed conversation with Kumbaya team (target <SL n={10} />).</li>
               <li>Deploy <span className="font-mono text-[15px]">morpho-org/pre-liquidation</span> contract.</li>
             </ol>
           </Card>
@@ -959,7 +973,7 @@ function EconomySvg() {
     morpho:   { x: 700,  y: 310, label: 'Morpho market',     sub: 'wiTRY ↔ USDM' },
     megaeth:  { x: 700,  y: 540, label: 'MegaETH / MegaMafia', sub: 'chain LP + MEGA' },
     // right column: liquidation + curation
-    curator:  { x: 1240, y: 100, label: 'Curator',           sub: 'TBD — slide 6', dashed: true },
+    curator:  { x: 1240, y: 100, label: 'Curator',           sub: 'TBD — see footnote', dashed: true },
     kumbaya:  { x: 1240, y: 220, label: 'Kumbaya AMM',       sub: 'wiTRY/USDM v3' },
     liq:      { x: 1240, y: 400, label: 'Liquidators',       sub: 'Wintermute · internal · MMs' },
   } as const;
@@ -1149,13 +1163,18 @@ export default function AssignmentDeck() {
     [total],
   );
 
-  // initial hash sync
+  // hash sync — initial + on hashchange (so SL anchor links work)
   useEffect(() => {
     if (typeof window === 'undefined') return;
-    const h = parseInt(window.location.hash.replace('#', ''), 10);
-    if (!Number.isNaN(h) && h >= 1 && h <= total) {
-      setIndex(h - 1);
-    }
+    const sync = () => {
+      const h = parseInt(window.location.hash.replace('#', ''), 10);
+      if (!Number.isNaN(h) && h >= 1 && h <= total) {
+        setIndex(h - 1);
+      }
+    };
+    sync();
+    window.addEventListener('hashchange', sync);
+    return () => window.removeEventListener('hashchange', sync);
   }, [total]);
 
   // keyboard nav
