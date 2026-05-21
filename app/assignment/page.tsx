@@ -79,7 +79,7 @@ function NumberBlock({
   value,
   hint,
 }: {
-  label: string;
+  label: React.ReactNode;
   value: React.ReactNode;
   hint?: React.ReactNode;
 }) {
@@ -159,19 +159,25 @@ const slides: Slide[] = [
     title: 'USDM liquidity requirement',
     render: () => (
       <div className="flex h-full flex-col">
-        <Kicker>03 · How much USDM do we need?</Kicker>
+        <Kicker>03 · USDM liquidity requirement</Kicker>
         <H2>
           required supply <Accent>≈</Accent> borrow <Accent>÷</Accent>{' '}
           utilization
         </H2>
-        <Body>
-          Lenders supply USDM. Borrowers take USDM against wiTRY collateral.
-          We size the supply to the borrow demand, with a buffer so we never
-          sit at 100% utilization.
-        </Body>
+        <div className="mt-6">
+          <Body>
+            Lenders supply USDM. Borrowers take USDM against wiTRY collateral.
+            We size the supply to the borrow demand, with a buffer so we never
+            sit at 100% utilization.
+          </Body>
+        </div>
         <div className="mt-8 grid grid-cols-2 gap-6">
           <NumberBlock
-            label="Baseline A · $1M borrow"
+            label={
+              <>
+                Baseline A · <Accent>$1M borrow</Accent>
+              </>
+            }
             value="$1.11–1.25M"
             hint={
               <>
@@ -181,7 +187,11 @@ const slides: Slide[] = [
             }
           />
           <NumberBlock
-            label="Baseline B · $5M borrow"
+            label={
+              <>
+                Baseline B · <Accent>$5M borrow</Accent>
+              </>
+            }
             value="$5.56–6.25M"
             hint={
               <>
@@ -191,10 +201,12 @@ const slides: Slide[] = [
             }
           />
         </div>
-        <Footnote>
-          Buffer rule: curators want headroom. A market pinned at 100%
-          utilization can&apos;t service withdrawals and looks dead.
-        </Footnote>
+        <div className="mt-8 text-center">
+          <Footnote>
+            Buffer rule: curators want headroom. A market pinned at 100%
+            utilization can&apos;t service withdrawals and looks dead.
+          </Footnote>
+        </div>
       </div>
     ),
   },
@@ -209,12 +221,12 @@ const slides: Slide[] = [
         <H2>Watch six numbers. Act on three.</H2>
         <div className="mt-8 grid grid-cols-3 gap-4 text-[17px]">
           {[
-            { k: 'Utilization', v: 'Stay 70–90%. Above 95% = trouble.' },
-            { k: 'Idle USDM', v: 'Lender cushion for withdrawals.' },
-            { k: 'Time at 100% util', v: 'If > 1h, raise borrow rate or supply cap.' },
-            { k: 'Supply / borrow caps', v: 'Sized to Kumbaya pool — slide 9.' },
-            { k: 'Curator allocation share', v: 'How much of vault TVL is ours.' },
-            { k: 'Bad-debt P95', v: 'From our FX model. Slide 13.' },
+            { k: 'Utilization', v: 'Borrowed ÷ supplied. Stay 70–90%. Above 95% = trouble.' },
+            { k: 'Idle USDM', v: 'Unborrowed supply. Lenders’ cushion for withdrawals.' },
+            { k: 'Time stuck at 100% util', v: 'No new borrows, no withdrawals. If > 1h: lift supply cap, or push target util down so the rate curve bites sooner.' },
+            { k: 'Supply / borrow caps', v: 'Hard ceilings. Sized to live Kumbaya depth — slide 9.' },
+            { k: 'Curator allocation share', v: 'How much of the vault’s TVL is allocated to our market.' },
+            { k: 'Bad-debt P95', v: '95th-percentile loss from the FX simulator. Slide 13.' },
           ].map(({ k, v }) => (
             <Card key={k}>
               <div className="text-[13px] uppercase tracking-[0.18em] text-neutral-500">
@@ -224,15 +236,15 @@ const slides: Slide[] = [
             </Card>
           ))}
         </div>
-        <div className="mt-8">
-          <Body>
+        <div className="mt-8 text-center">
+          <Footnote>
             Tools: the Morpho frontend for the live numbers, plus an internal
             dashboard powered by{' '}
             <a href="/" className="underline" style={{ color: ACCENT }}>
               this simulator
             </a>{' '}
             for forward-looking risk.
-          </Body>
+          </Footnote>
         </div>
       </div>
     ),
@@ -254,23 +266,23 @@ const slides: Slide[] = [
             n="1"
             name="Merkl program"
             who="Borrower-side"
-            paidBy="Brix (3% fee)"
-            detail="Merkl is the only first-class rewards rail on Morpho since MIP-111 (Jul 2025). 8-hour distribution cadence. Managed by feather.zone (TBV) so we don't run the campaign ops in-house."
+            paidBy="Brix · rewards + 3% Merkl fee"
+            detail="Merkl is the only first-class rewards rail on Morpho since MIP-111 (Jul 2025). 8-hour distribution cadence. Rewards can be iTRY, Brix points, or MegaETH Terminal points. Merkl takes a 3% maintenance fee on top of distributed rewards — cheap when rewards are Brix points (free to mint), real cost when they're iTRY."
           />
           <IncentiveLayer
             n="2"
             name="MegaETH rewards"
             who="Supply + borrow side"
             paidBy="MegaETH ecosystem"
-            detail="MEGA token, MegaMafia points, KPI-tranche eligibility. Aave got from $0 → $1B on MegaETH on this rail. Free supply-side bootstrap we don't pay for."
+            detail="MEGA token, MegaETH Terminal points, KPI-tranche eligibility. Expected supply-side bootstrap, pending allocation — not guaranteed."
             highlight
           />
           <IncentiveLayer
             n="3"
-            name="Brix-native kicker"
-            who="Borrowers only, if needed"
+            name="Brix points"
+            who="Borrowers (and lenders only if needed)"
             paidBy="Brix"
-            detail="Short-window borrower incentive. Only deploy if layers 1+2 underperform. Default: off."
+            detail="Deploy on-chain Brix points on MegaETH to reward borrowers. Extend to USDM lenders only if layers 1+2 don't pull enough supply."
           />
         </div>
         <div className="mt-6 grid grid-cols-2 gap-5">
@@ -279,9 +291,10 @@ const slides: Slide[] = [
               Punchline
             </div>
             <div className="mt-2 text-[20px] leading-[1.5] text-neutral-200">
-              Incentivize <Accent>borrowers</Accent>, not lenders. Lenders
-              already earn yield from borrow APY — subsidizing them
-              double-pays.
+              We don&apos;t pay to subsidize lenders —{' '}
+              <Accent>MegaETH Terminal points</Accent> can cover that side.
+              Brix capital goes to <Accent>borrowers</Accent>, where it
+              unlocks the flywheel.
             </div>
           </Card>
           <Card>
@@ -305,10 +318,7 @@ const slides: Slide[] = [
     render: () => (
       <div className="flex h-full flex-col">
         <Kicker>06 · Who runs the vault</Kicker>
-        <H2>
-          Five candidates.{' '}
-          <Accent>No fallback.</Accent>
-        </H2>
+        <H2>Five candidates.</H2>
         <div className="mt-6 overflow-hidden rounded-lg border border-neutral-800">
           <table className="w-full text-left text-[16px]">
             <thead className="bg-neutral-900/70 text-[12px] uppercase tracking-[0.18em] text-neutral-500">
@@ -399,12 +409,12 @@ const slides: Slide[] = [
     render: () => (
       <div className="flex h-full flex-col">
         <Kicker>08 · How a liquidation happens</Kicker>
-        <H2>Four steps. One transaction. No CEX.</H2>
+        <H2>Four steps. One transaction.</H2>
         <div className="mt-8 grid grid-cols-4 gap-4">
           {[
-            { n: '1', t: 'Seize', d: 'Liquidator seizes wiTRY collateral from underwater position.' },
-            { n: '2', t: 'Swap', d: 'Atomic swap wiTRY → USDM on Kumbaya (Uniswap v3 fork on MegaETH).' },
-            { n: '3', t: 'Repay', d: 'Repay the borrower\'s USDM debt to Morpho.' },
+            { n: '1', t: 'Call', d: 'Liquidator calls liquidate() on the underwater position. Morpho opens an onMorphoLiquidate callback.' },
+            { n: '2', t: 'Swap', d: 'Inside the callback, Morpho releases wiTRY to the liquidator, who swaps it to USDM on Kumbaya.' },
+            { n: '3', t: 'Settle', d: 'Callback closes. Morpho pulls the USDM debt from the liquidator. Atomic, zero working capital.' },
             { n: '4', t: 'Pocket', d: 'Keep the LIF bonus (~5% at 86% LLTV).' },
           ].map(({ n, t, d }) => (
             <Card key={n}>
@@ -420,26 +430,37 @@ const slides: Slide[] = [
             </Card>
           ))}
         </div>
-        <div className="mt-8 grid grid-cols-2 gap-5">
+        <div className="mt-6 grid grid-cols-3 gap-4">
           <Card>
             <div className="text-[13px] uppercase tracking-[0.18em] text-neutral-500">
               Atomic-only
             </div>
-            <div className="mt-2 text-[18px] leading-[1.5] text-neutral-300">
+            <div className="mt-2 text-[16px] leading-[1.5] text-neutral-300">
               Liquidators can&apos;t hold TRY exposure between blocks. The
               wiTRY/USDM swap and the debt repayment must clear in one
-              transaction. No CEX, no redemption rail. Pool depth is the
-              binding constraint.
+              transaction. If Kumbaya is too thin, the liquidator repays a
+              smaller chunk.
             </div>
           </Card>
           <Card>
             <div className="text-[13px] uppercase tracking-[0.18em] text-neutral-500">
               MegaETH reality
             </div>
-            <div className="mt-2 text-[18px] leading-[1.5] text-neutral-300">
+            <div className="mt-2 text-[16px] leading-[1.5] text-neutral-300">
               Single sequencer. No public mempool. Proximity-seat auctions.
-              Classic Flashbots searcher competition doesn&apos;t exist here yet —
-              we sign liquidators bilaterally.
+              Classic Flashbots searcher competition doesn&apos;t exist here
+              yet — we keep one liquidator on retainer; anyone else can also
+              liquidate.
+            </div>
+          </Card>
+          <Card>
+            <div className="text-[13px] uppercase tracking-[0.18em] text-neutral-500">
+              Opt-in early exit
+            </div>
+            <div className="mt-2 text-[16px] leading-[1.5] text-neutral-300">
+              Borrowers can opt in to a softer rule: at a lower LTV set by
+              Brix, a small slice of their position is sold off at a smaller
+              penalty. Stops the 86% blowup before it happens.
             </div>
           </Card>
         </div>
@@ -455,8 +476,7 @@ const slides: Slide[] = [
       <div className="flex h-full flex-col">
         <Kicker>09 · The constraint that runs the market</Kicker>
         <H2>
-          Max single liquidation <Accent>≤</Accent> pool depth <Accent>÷</Accent>{' '}
-          5
+          Borrow cap <Accent>≤</Accent> pool depth <Accent>÷</Accent> 5
         </H2>
         <div className="mt-6 grid grid-cols-[1.1fr_1fr] gap-6">
           <Card>
@@ -477,19 +497,27 @@ const slides: Slide[] = [
                 stress.
               </p>
               <p>
-                Cap the largest single liquidation at 1/5 of pool depth:
+                We can&apos;t cap a swap on Kumbaya — the AMM accepts any
+                size. The control we <em>do</em> have is on the Morpho side:
+                size the borrow cap so a worst-case 100% liquidation lands
+                near 20% of pool depth. Beyond that, the liquidator simply
+                doesn&apos;t sign the tx.
               </p>
               <ul className="ml-4 list-disc space-y-2 text-neutral-400">
                 <li>
-                  Calm: 1% slippage → liquidator keeps ~4% → fast execution.
+                  Calm: ~1% slippage → liquidator keeps ~4% → fast execution.
                 </li>
                 <li>
                   Stress / TRY gap: 3–4% slippage → still positive → liquidator
                   still acts.
                 </li>
                 <li>
-                  Pre-liq chops the actual liquidation into smaller chunks →
-                  real slippage usually well under 1%.
+                  Pre-liq fires earlier and in smaller chunks → typical
+                  slippage well under 1%.
+                </li>
+                <li>
+                  Pool drains faster than caps adjust → liquidator walks →
+                  bad debt unless pre-liq already cleared the position.
                 </li>
               </ul>
             </div>
@@ -507,12 +535,34 @@ const slides: Slide[] = [
             />
             <Card>
               <div className="text-[13px] uppercase tracking-[0.18em] text-neutral-500">
-                Mechanism
+                How we enforce it
               </div>
-              <div className="mt-2 text-[16px] leading-[1.55] text-neutral-300">
-                Supply cap and per-position borrow cap are functions of{' '}
-                <Accent>current</Accent> Kumbaya pool depth, reviewed monthly.
-                Pool deepens → caps go up. Pool drains → caps go down.
+              <ol className="mt-2 space-y-1.5 text-[14px] leading-[1.5] text-neutral-300">
+                <li>
+                  <span className="font-mono text-neutral-500">1.</span>{' '}
+                  Market borrow cap ={' '}
+                  <Accent>1× live Kumbaya depth</Accent>. Morpho-native hard
+                  ceiling on total debt.
+                </li>
+                <li>
+                  <span className="font-mono text-neutral-500">2.</span>{' '}
+                  Hypernative alert when any wallet&apos;s debt &gt; pool ÷ 5.
+                  Operational alarm, not prevention.
+                </li>
+                <li>
+                  <span className="font-mono text-neutral-500">3.</span>{' '}
+                  Pre-liq opt-in gated by Brix points. Soft,
+                  incentive-aligned.
+                </li>
+                <li>
+                  <span className="font-mono text-neutral-500">4.</span>{' '}
+                  Dutch-auction LIF inside pre-liq. Any size eventually
+                  becomes profitable to liquidate.
+                </li>
+              </ol>
+              <div className="mt-3 text-[12px] leading-[1.4] text-neutral-500">
+                Morpho Blue has no native per-wallet cap. Sybil concentration
+                is bounded, not solved.
               </div>
             </Card>
           </div>
@@ -528,15 +578,17 @@ const slides: Slide[] = [
     render: () => (
       <div className="flex h-full flex-col">
         <Kicker>10 · What to seed in Kumbaya</Kicker>
-        <H2>
-          Recommended pool: <Accent>$300–500k</Accent> @ $1M ·{' '}
-          <Accent>$1.5–2.5M</Accent> @ $5M
-        </H2>
-        <Body>
-          We size the Kumbaya wiTRY/USDM pool so the <em>typical</em>{' '}
-          liquidation stays under 1% slippage and a <em>tail</em> liquidation
-          stays inside LIF.
-        </Body>
+        <H2>Recommended AMM liquidity</H2>
+        <div className="mt-6">
+          <Body>
+            Seed the Kumbaya wiTRY/USDM pool to{' '}
+            <Accent>$300–500k</Accent> if we launch the{' '}
+            <Accent>$1M</Accent> borrow market, or to{' '}
+            <Accent>$1.5–2.5M</Accent> for the <Accent>$5M</Accent> market.
+            Sized so the typical liquidation clears under 1% slippage and a
+            tail liquidation still fits inside the ~5% LIF budget.
+          </Body>
+        </div>
         <div className="mt-6 grid grid-cols-2 gap-5">
           <SlippageTable
             market="$1M borrow market"
@@ -609,8 +661,7 @@ const slides: Slide[] = [
           </table>
         </div>
         <Footnote>
-          No CEX path. No redemption rail. Coverage = atomic swap depth ×
-          pre-signed coverage.
+          Coverage = atomic swap depth × pre-signed coverage.
         </Footnote>
       </div>
     ),
@@ -641,9 +692,9 @@ const slides: Slide[] = [
                 {[
                   ['LLTV', '86%', 'Morpho governance tier. Costs us pool depth.'],
                   ['LIF', '~5%', 'Derived from LLTV. The full liquidator budget.'],
-                  ['Pre-liquidations', 'On', 'Chops liq into pool-sized chunks. Mandatory at 86% LLTV.'],
-                  ['Supply cap', '5× live Kumbaya depth', 'Slide 9. Tracks the pool.'],
-                  ['Per-wallet borrow cap', 'pool ÷ 5', 'No single position can blow the pool.'],
+                  ['Pre-liquidations', 'On · opt-in', 'Gated by Brix points. Dutch-auction LIF chops large positions.'],
+                  ['Market borrow cap', '1× live Kumbaya depth', 'Morpho-native hard ceiling on total debt. Slide 9.'],
+                  ['Per-wallet target', '≤ pool ÷ 5', 'Not enforceable on Morpho Blue. Hypernative alert; respond by lowering market cap.'],
                   ['Vault factory', 'V1.1 (no bad-debt realization)', 'wiTRY share price can\'t decrease → ERC-4626 risk neutralized.'],
                 ].map(([p, v, w]) => (
                   <tr key={p as string} className="hover:bg-neutral-900/40">
@@ -895,28 +946,35 @@ function SlippageTable({
 }
 
 function EconomySvg() {
-  // Hand-drawn flow. 1200x520 viewBox.
+  // Cleaner grid. 1400×640 viewBox. No diagonal crossings between
+  // unrelated flows. Liquidator cycle expressed as bidirectional arrows.
+  const NODE_W = 200;
+  const NODE_H = 64;
   const nodes = {
-    witryLP:   { x: 110, y: 100, label: 'wiTRY LPs',        sub: 'yield source' },
-    borrower:  { x: 110, y: 280, label: 'Borrowers',        sub: 'post wiTRY' },
-    lender:    { x: 110, y: 460, label: 'USDM lenders',     sub: 'supply USDM' },
-    morpho:    { x: 540, y: 280, label: 'Morpho market',    sub: 'wiTRY ↔ USDM' },
-    curator:   { x: 540, y: 80,  label: 'Curator',          sub: 'TBD — slide 6', dashed: true },
-    megaeth:   { x: 540, y: 480, label: 'MegaETH / MegaMafia', sub: 'chain LP + MEGA' },
-    kumbaya:   { x: 940, y: 200, label: 'Kumbaya AMM',      sub: 'wiTRY/USDM v3' },
-    liq:       { x: 940, y: 380, label: 'Liquidators',      sub: 'Wintermute · internal · MMs' },
-    merkl:     { x: 1080, y: 60, label: 'Merkl',            sub: 'rewards rail' },
-  };
+    // left column: actor side
+    witryLP:  { x: 140,  y: 100, label: 'wiTRY LPs',         sub: 'yield source' },
+    borrower: { x: 140,  y: 310, label: 'Borrowers',         sub: 'post wiTRY' },
+    lender:   { x: 140,  y: 540, label: 'USDM lenders',      sub: 'supply USDM' },
+    // center column: protocol + bootstrap
+    merkl:    { x: 700,  y: 100, label: 'Merkl',             sub: 'rewards rail' },
+    morpho:   { x: 700,  y: 310, label: 'Morpho market',     sub: 'wiTRY ↔ USDM' },
+    megaeth:  { x: 700,  y: 540, label: 'MegaETH / MegaMafia', sub: 'chain LP + MEGA' },
+    // right column: liquidation + curation
+    curator:  { x: 1240, y: 100, label: 'Curator',           sub: 'TBD — slide 6', dashed: true },
+    kumbaya:  { x: 1240, y: 220, label: 'Kumbaya AMM',       sub: 'wiTRY/USDM v3' },
+    liq:      { x: 1240, y: 400, label: 'Liquidators',       sub: 'Wintermute · internal · MMs' },
+  } as const;
+
   function Node({
     cx, cy, label, sub, dashed = false,
   }: { cx: number; cy: number; label: string; sub: string; dashed?: boolean }) {
     return (
       <g>
         <rect
-          x={cx - 100}
-          y={cy - 32}
-          width={200}
-          height={64}
+          x={cx - NODE_W / 2}
+          y={cy - NODE_H / 2}
+          width={NODE_W}
+          height={NODE_H}
           rx={10}
           fill="#0e0e10"
           stroke={dashed ? '#52525b' : '#2a2a30'}
@@ -932,20 +990,53 @@ function EconomySvg() {
       </g>
     );
   }
+
+  // Compute the point on a node's bounding-box border closest to the
+  // direction of `target`. Prevents the line from cutting into the box.
+  function anchor(n: { x: number; y: number }, target: { x: number; y: number }) {
+    const dx = target.x - n.x;
+    const dy = target.y - n.y;
+    const halfW = NODE_W / 2;
+    const halfH = NODE_H / 2;
+    if (dx === 0 && dy === 0) return { x: n.x, y: n.y };
+    const tx = dx === 0 ? Infinity : halfW / Math.abs(dx);
+    const ty = dy === 0 ? Infinity : halfH / Math.abs(dy);
+    const t = Math.min(tx, ty);
+    return { x: n.x + dx * t, y: n.y + dy * t };
+  }
+
   function Arrow({
-    from, to, dashed = false, color = '#3f3f46', label,
-  }: { from: keyof typeof nodes; to: keyof typeof nodes; dashed?: boolean; color?: string; label?: string }) {
+    from, to, dashed = false, color = '#3f3f46', label, labelOffset = -8, bidir = false, perp = 0, labelT = 0.5,
+  }: {
+    from: keyof typeof nodes;
+    to: keyof typeof nodes;
+    dashed?: boolean;
+    color?: string;
+    label?: string | string[];
+    labelOffset?: number;
+    bidir?: boolean;
+    perp?: number; // perpendicular shift to avoid overlap with reverse arrow
+    labelT?: number; // 0 = at start node, 1 = at end node, 0.5 = midpoint
+  }) {
     const a = nodes[from];
     const b = nodes[to];
-    // shrink endpoints toward node edges
-    const dx = b.x - a.x;
-    const dy = b.y - a.y;
-    const len = Math.hypot(dx, dy);
-    const ux = dx / len;
-    const uy = dy / len;
-    const start = { x: a.x + ux * 100, y: a.y + uy * 32 };
-    const end = { x: b.x - ux * 100, y: b.y - uy * 32 };
-    const mid = { x: (start.x + end.x) / 2, y: (start.y + end.y) / 2 };
+    let start = anchor(a, b);
+    let end = anchor(b, a);
+    if (perp) {
+      const dx = end.x - start.x;
+      const dy = end.y - start.y;
+      const len = Math.hypot(dx, dy) || 1;
+      const nx = -dy / len;
+      const ny = dx / len;
+      start = { x: start.x + nx * perp, y: start.y + ny * perp };
+      end = { x: end.x + nx * perp, y: end.y + ny * perp };
+    }
+    const mid = {
+      x: start.x + (end.x - start.x) * labelT,
+      y: start.y + (end.y - start.y) * labelT,
+    };
+    const markerStart = bidir ? `url(#arrowhead-${dashed ? 'd' : 's'})` : undefined;
+    const markerEnd = `url(#arrowhead-${dashed ? 'd' : 's'})`;
     return (
       <g>
         <line
@@ -956,73 +1047,87 @@ function EconomySvg() {
           stroke={color}
           strokeWidth={1.6}
           strokeDasharray={dashed ? '5 5' : undefined}
-          markerEnd="url(#arrowhead)"
+          markerEnd={markerEnd}
+          markerStart={markerStart}
         />
-        {label && (
-          <text
-            x={mid.x}
-            y={mid.y - 6}
-            textAnchor="middle"
-            fill="#71717a"
-            fontSize="11"
-          >
-            {label}
-          </text>
-        )}
+        {label && (() => {
+          const lines = Array.isArray(label) ? label : [label];
+          const lineH = 14;
+          // center the block vertically around mid.y + labelOffset
+          const blockH = (lines.length - 1) * lineH;
+          const y0 = mid.y + labelOffset - blockH / 2;
+          return (
+            <text
+              x={mid.x}
+              y={y0}
+              textAnchor="middle"
+              fill={dashed ? color : '#a1a1aa'}
+              fontSize="12"
+              style={{ paintOrder: 'stroke', stroke: '#0a0a0a', strokeWidth: 4 }}
+            >
+              {lines.map((ln, i) => (
+                <tspan key={i} x={mid.x} dy={i === 0 ? 0 : lineH} fill={i === 0 ? undefined : '#71717a'} fontSize={i === 0 ? 12 : 11}>
+                  {ln}
+                </tspan>
+              ))}
+            </text>
+          );
+        })()}
       </g>
     );
   }
+
   return (
     <svg
-      viewBox="0 0 1200 540"
+      viewBox="0 0 1400 640"
       className="h-full w-full"
       preserveAspectRatio="xMidYMid meet"
     >
       <defs>
-        <marker
-          id="arrowhead"
-          viewBox="0 0 10 10"
-          refX="9"
-          refY="5"
-          markerUnits="strokeWidth"
-          markerWidth="6"
-          markerHeight="6"
-          orient="auto"
-        >
+        <marker id="arrowhead-s" viewBox="0 0 10 10" refX="9" refY="5" markerUnits="strokeWidth" markerWidth="6" markerHeight="6" orient="auto">
           <path d="M0,0 L10,5 L0,10 z" fill="#52525b" />
+        </marker>
+        <marker id="arrowhead-d" viewBox="0 0 10 10" refX="9" refY="5" markerUnits="strokeWidth" markerWidth="6" markerHeight="6" orient="auto">
+          <path d="M0,0 L10,5 L0,10 z" fill={ACCENT} />
         </marker>
       </defs>
 
-      {/* asset arrows (solid) */}
+      {/* ---- asset flows (solid) ---- */}
+      {/* left column verticals */}
       <Arrow from="witryLP" to="borrower" label="wiTRY yield" />
       <Arrow from="borrower" to="morpho" label="post wiTRY" />
       <Arrow from="lender" to="morpho" label="supply USDM" />
-      <Arrow from="morpho" to="kumbaya" label="liq swap" />
-      <Arrow from="kumbaya" to="liq" />
-      <Arrow from="liq" to="morpho" label="repay USDM" />
 
-      {/* MegaETH dual role */}
+      {/* MegaETH bootstrap (center vertical + diagonal to kumbaya) */}
       <Arrow from="megaeth" to="morpho" label="seed USDM" />
-      <Arrow from="megaeth" to="kumbaya" label="seed pool" />
+      {/* "seed pool" crosses the morpho→liq line — bias label toward megaeth */}
+      <Arrow from="megaeth" to="kumbaya" label="seed pool" labelT={0.18} labelOffset={-10} />
 
-      {/* incentive flows (dashed, accent) */}
+      {/* liquidation cycle: bidirectional pairs, no crossings */}
+      {/* bias label toward morpho so it doesn't sit on the crossing point */}
+      <Arrow from="morpho" to="liq" label={['seize wiTRY ⇄ repay USDM', '(atomic liquidation)']} bidir labelT={0.32} />
+      <Arrow from="liq" to="kumbaya" label="wiTRY ⇄ USDM swap" bidir />
+
+      {/* ---- incentive + curation (dashed) ---- */}
       <Arrow from="merkl" to="borrower" dashed color={ACCENT} label="rewards" />
       <Arrow from="megaeth" to="lender" dashed color={ACCENT} label="MEGA + points" />
-      <Arrow from="megaeth" to="borrower" dashed color={ACCENT} />
-
-      {/* curator overseeing morpho */}
       <Arrow from="curator" to="morpho" dashed color="#71717a" label="curates" />
 
-      {/* nodes */}
-      <Node cx={nodes.witryLP.x} cy={nodes.witryLP.y} label={nodes.witryLP.label} sub={nodes.witryLP.sub} />
-      <Node cx={nodes.borrower.x} cy={nodes.borrower.y} label={nodes.borrower.label} sub={nodes.borrower.sub} />
-      <Node cx={nodes.lender.x} cy={nodes.lender.y} label={nodes.lender.label} sub={nodes.lender.sub} />
-      <Node cx={nodes.morpho.x} cy={nodes.morpho.y} label={nodes.morpho.label} sub={nodes.morpho.sub} />
-      <Node cx={nodes.curator.x} cy={nodes.curator.y} label={nodes.curator.label} sub={nodes.curator.sub} dashed />
-      <Node cx={nodes.megaeth.x} cy={nodes.megaeth.y} label={nodes.megaeth.label} sub={nodes.megaeth.sub} />
-      <Node cx={nodes.kumbaya.x} cy={nodes.kumbaya.y} label={nodes.kumbaya.label} sub={nodes.kumbaya.sub} />
-      <Node cx={nodes.liq.x} cy={nodes.liq.y} label={nodes.liq.label} sub={nodes.liq.sub} />
-      <Node cx={nodes.merkl.x} cy={nodes.merkl.y} label={nodes.merkl.label} sub={nodes.merkl.sub} />
+      {/* ---- nodes (drawn last so they sit above lines) ---- */}
+      {(Object.keys(nodes) as Array<keyof typeof nodes>).map((k) => {
+        const n = nodes[k];
+        const dashed = ('dashed' in n ? (n as { dashed?: boolean }).dashed : false) ?? false;
+        return (
+          <Node
+            key={k}
+            cx={n.x}
+            cy={n.y}
+            label={n.label}
+            sub={n.sub}
+            dashed={dashed}
+          />
+        );
+      })}
     </svg>
   );
 }
