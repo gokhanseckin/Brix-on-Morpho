@@ -23,7 +23,7 @@ const parseAsLLTV = createParser({
 export function useUrlState() {
   return useQueryStates({
     witryTVL_USD: parseAsFloat.withDefault(5_000_000),
-    lltv: parseAsLLTV.withDefault(0.77),
+    lltv: parseAsLLTV.withDefault(0.86),
     targetUtilization: parseAsFloat.withDefault(0.7),
     borrowerLTVAlpha: parseAsFloat.withDefault(2),
     borrowerLTVBeta: parseAsFloat.withDefault(1.2),

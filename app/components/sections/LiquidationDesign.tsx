@@ -16,6 +16,7 @@ import { useMemo } from 'react';
 import { liquidatorProfit } from '@/lib/simulator';
 import { buildAsymmetricLadder, DEFAULT_BAND_SPLIT } from '@/lib/poolPreset';
 import { quoteLiquidatorSell } from '@/lib/univ3/quoteLiquidatorSell';
+import { badDebtFromAMMSale } from '@/lib/badDebtMath';
 import { GOV_LLTVS } from '@/types/simulator';
 import { Kpi, formatPct, formatUSD } from '../Kpi';
 import { HelpPopover } from '../help/HelpPopover';
@@ -86,20 +87,25 @@ export function LiquidationDesign() {
     return rows;
   }, [fx, inputs.lltv, inputs.poolDepth_USD]);
 
-  // Liquidator recovery from pool quote (replaces heuristic).
+  // Real bad-debt from AMM sale: at trigger, collateral = debt × LIF(lltv).
+  // Bad debt fires only when AMM slippage+fee exceeds the LIF buffer.
   const liquidatorRecovery = useMemo(() => {
     const spot = 1 / inputs.usdtryBaseline;
     const preset = buildAsymmetricLadder(spot, inputs.poolDepth_USD, DEFAULT_BAND_SPLIT, 3000);
-    const probeUSD = fx?.badDebt?.expectedLiquidationVolumeP95_USD ?? 25_000;
-    const wTRYwei = BigInt(Math.floor((probeUSD / spot) * 1e6));
+    const collateralUSD = fx?.badDebt?.expectedLiquidationVolumeP95_USD ?? 25_000;
+    const wTRYwei = BigInt(Math.floor((collateralUSD / spot) * 1e6));
     const q = quoteLiquidatorSell(preset, spot, wTRYwei);
-    const usdmOut = Number(q.amountOut) / 1e6;
+    const ammSale = Number(q.amountOut) / 1e6;
+    const bd = badDebtFromAMMSale({ collateral_USD: collateralUSD, lltv: inputs.lltv, ammSale_USDM: ammSale });
     return {
-      recoveryRatePct: usdmOut / probeUSD,
+      badDebtPct: bd.badDebtPct,
+      recoveryPct: bd.recoveryPct,
       slippagePct: q.slippagePct,
-      probeUSD,
+      collateralUSD,
+      debtUSD: bd.debt_USD,
+      badDebtUSD: bd.badDebt_USD,
     };
-  }, [inputs.usdtryBaseline, inputs.poolDepth_USD, fx]);
+  }, [inputs.usdtryBaseline, inputs.poolDepth_USD, inputs.lltv, fx]);
 
   return (
     <section id="section-liquidation-design" className="space-y-6">
@@ -130,10 +136,10 @@ export function LiquidationDesign() {
           helpKey="badDebtP95Pct"
         />
         <Kpi
-          label="Liquidator recovery @ P95 vol"
-          value={formatPct(liquidatorRecovery.recoveryRatePct, 2)}
-          hint={`slippage ${formatPct(liquidatorRecovery.slippagePct, 3)}, probe ${formatUSD(liquidatorRecovery.probeUSD)}`}
-          tone={liquidatorRecovery.recoveryRatePct >= 0.99 ? 'good' : liquidatorRecovery.recoveryRatePct >= 0.97 ? 'warn' : 'bad'}
+          label="AMM bad debt @ P95 vol"
+          value={formatPct(liquidatorRecovery.badDebtPct, 2)}
+          hint={`debt ${formatUSD(liquidatorRecovery.debtUSD)}, AMM loss ${formatPct(liquidatorRecovery.slippagePct, 3)}, recovery ${formatPct(liquidatorRecovery.recoveryPct, 2)}`}
+          tone={liquidatorRecovery.badDebtPct === 0 ? 'good' : liquidatorRecovery.badDebtPct < 0.01 ? 'warn' : 'bad'}
         />
         <Kpi
           label="Profitable debt range"

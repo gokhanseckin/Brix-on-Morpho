@@ -60,7 +60,7 @@ export function Sidebar() {
           onChange={(v) => setS({ lltv: parseFloat(v) as LLTV })}
           options={GOV_LLTVS.map((lv) => ({
             value: String(lv),
-            label: `${(lv * 100).toFixed(1)}%`,
+            label: lv === 0.86 ? `${(lv * 100).toFixed(1)}% (recommended)` : `${(lv * 100).toFixed(1)}%`,
           }))}
         />
         <RangeField
