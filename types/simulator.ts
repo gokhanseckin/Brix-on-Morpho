@@ -89,3 +89,9 @@ export interface SimulatorOutputs {
   liquidation: LiquidationOutput;
   vault: VaultRecommendation;
 }
+
+export interface LiquidatorRecovery {
+  recoveryRatePct: number;     // 1.0 = full recovery, 0.9 = 10% bad debt
+  slippagePct: number;
+  feePaid_USD: number;
+}

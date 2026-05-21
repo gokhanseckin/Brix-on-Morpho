@@ -46,5 +46,10 @@ export function useUrlState() {
     preLiquidationEnabled: parseAsBoolean.withDefault(true),
     blockBootstrap: parseAsBoolean.withDefault(false),
     seed: parseAsInteger.withDefault(42),
+    // /swapliquidity page state
+    poolFeeTier: parseAsInteger.withDefault(3000),
+    poolTVL_USD: parseAsFloat.withDefault(500_000),
+    bandSplitCore: parseAsFloat.withDefault(0.3),
+    bandSplitAbsorb: parseAsFloat.withDefault(0.5),
   });
 }
