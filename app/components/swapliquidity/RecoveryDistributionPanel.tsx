@@ -4,6 +4,8 @@ import { useUrlState } from '@/lib/useUrlState';
 import { useSimulator } from '@/lib/useSimulator';
 import { buildAsymmetricLadder } from '@/lib/poolPreset';
 import { quoteLiquidatorSell } from '@/lib/univ3/quoteLiquidatorSell';
+import { badDebtFromAMMSale } from '@/lib/badDebtMath';
+import { LIF } from '@/lib/morphoMath';
 import {
   BarChart,
   Bar,
@@ -14,13 +16,22 @@ import {
   CartesianGrid,
 } from 'recharts';
 
-const PROBE_SELL_USD = 25_000;
+const PROBE_COLLATERAL_USD = 25_000;
 const MAX_PATHS = 200;
 const HIST_BINS = 20;
+
+interface PathResult {
+  badDebtPct: number;
+  recoveryPct: number;
+}
 
 export function RecoveryDistributionPanel() {
   const [state] = useUrlState();
   const { fx } = useSimulator();
+  const lltv = state.lltv;
+  const lif = LIF(lltv);
+  const debtUSD = PROBE_COLLATERAL_USD / lif;
+  const bufferPct = 1 - 1 / lif;
 
   // Sample terminal USD/TRY across MC paths and convert to USD-per-wTRY spot.
   const terminalSpots = useMemo<number[]>(() => {
@@ -37,7 +48,7 @@ export function RecoveryDistributionPanel() {
     return out;
   }, [fx]);
 
-  const recoveries = useMemo<number[]>(() => {
+  const results = useMemo<PathResult[]>(() => {
     if (terminalSpots.length === 0) return [];
     const split = {
       core: state.bandSplitCore,
@@ -45,62 +56,85 @@ export function RecoveryDistributionPanel() {
       tail: Math.max(0, 1 - state.bandSplitCore - state.bandSplitAbsorb),
     };
     const fee = state.poolFeeTier === 10000 ? 10000 : 3000;
-    const out: number[] = [];
+    const out: PathResult[] = [];
     for (const spot of terminalSpots) {
       try {
         const preset = buildAsymmetricLadder(spot, state.poolTVL_USD, split, fee);
-        const wTRYwei = BigInt(Math.floor((PROBE_SELL_USD / spot) * 1e6));
+        const wTRYwei = BigInt(Math.floor((PROBE_COLLATERAL_USD / spot) * 1e6));
         const q = quoteLiquidatorSell(preset, spot, wTRYwei);
-        const usdmOut = Number(q.amountOut) / 1e6;
-        out.push(usdmOut / PROBE_SELL_USD);
+        const ammSale = Number(q.amountOut) / 1e6;
+        const bd = badDebtFromAMMSale({
+          collateral_USD: PROBE_COLLATERAL_USD,
+          lltv,
+          ammSale_USDM: ammSale,
+        });
+        out.push({ badDebtPct: bd.badDebtPct, recoveryPct: bd.recoveryPct });
       } catch {
         // skip pathological spots (e.g. tick overflow at extreme FX)
       }
     }
     return out;
-  }, [terminalSpots, state.poolTVL_USD, state.bandSplitCore, state.bandSplitAbsorb, state.poolFeeTier]);
+  }, [terminalSpots, state.poolTVL_USD, state.bandSplitCore, state.bandSplitAbsorb, state.poolFeeTier, lltv]);
 
-  const { histogram, p5, p50 } = useMemo<{
+  const { histogram, p95BadDebt, medianBadDebt, zeroBadDebtPct } = useMemo<{
     histogram: Array<{ bin: number; count: number }>;
-    p5: number | null;
-    p50: number | null;
+    p95BadDebt: number | null;
+    medianBadDebt: number | null;
+    zeroBadDebtPct: number;
   }>(() => {
-    if (recoveries.length === 0) return { histogram: [], p5: null, p50: null };
-    const sorted = [...recoveries].sort((a, b) => a - b);
-    const idx5 = Math.max(0, Math.floor(sorted.length * 0.05));
+    if (results.length === 0) {
+      return { histogram: [], p95BadDebt: null, medianBadDebt: null, zeroBadDebtPct: 0 };
+    }
+    const badDebts = results.map((r) => r.badDebtPct);
+    const sorted = [...badDebts].sort((a, b) => a - b);
+    const idx95 = Math.min(sorted.length - 1, Math.floor(sorted.length * 0.95));
     const idx50 = Math.floor(sorted.length * 0.5);
-    const min = sorted[0]!;
+    const zeroCount = badDebts.filter((b) => b === 0).length;
     const max = sorted[sorted.length - 1]!;
-    const width = Math.max(1e-6, (max - min) / HIST_BINS);
+    // Histogram from 0 to max (or small range if all zero)
+    const upper = Math.max(0.001, max);
+    const width = upper / HIST_BINS;
     const bins = Array.from({ length: HIST_BINS }, (_, i) => ({
-      bin: min + (i + 0.5) * width,
+      bin: (i + 0.5) * width,
       count: 0,
     }));
-    for (const r of recoveries) {
-      const b = Math.min(HIST_BINS - 1, Math.floor((r - min) / width));
-      bins[b]!.count += 1;
+    for (const b of badDebts) {
+      const idx = Math.min(HIST_BINS - 1, Math.floor(b / width));
+      bins[idx]!.count += 1;
     }
-    return { histogram: bins, p5: sorted[idx5] ?? null, p50: sorted[idx50] ?? null };
-  }, [recoveries]);
+    return {
+      histogram: bins,
+      p95BadDebt: sorted[idx95] ?? null,
+      medianBadDebt: sorted[idx50] ?? null,
+      zeroBadDebtPct: zeroCount / badDebts.length,
+    };
+  }, [results]);
+
+  const fmtPct = (n: number, d = 2) => `${(n * 100).toFixed(d)}%`;
 
   return (
     <section id="section-recovery" className="space-y-3">
-      <h2 className="text-lg font-semibold">3. Recovery distribution</h2>
+      <h2 className="text-lg font-semibold">3. Bad-debt distribution</h2>
       <div className="text-sm text-neutral-500">
-        Probe sell ${PROBE_SELL_USD.toLocaleString()} of wTRY at the terminal spot of each
-        Monte-Carlo path (sampled, n={recoveries.length}). Recovery = USDM out / USD notional in.
+        For each Monte-Carlo path (sampled, n={results.length}), liquidate ${PROBE_COLLATERAL_USD.toLocaleString()} of
+        wTRY collateral at the path&apos;s terminal spot. At LLTV {fmtPct(lltv, 1)} the debt is{' '}
+        ${debtUSD.toFixed(0)}; LIF buffer is {fmtPct(bufferPct, 2)}. Bad debt = max(0, debt − AMM proceeds).
       </div>
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-3 gap-3">
         <div className="p-3 border rounded text-sm">
-          <div className="text-neutral-500">Median recovery</div>
+          <div className="text-neutral-500">Paths with zero bad debt</div>
+          <div className="font-semibold text-lg">{fmtPct(zeroBadDebtPct)}</div>
+        </div>
+        <div className="p-3 border rounded text-sm">
+          <div className="text-neutral-500">Median bad-debt rate</div>
           <div className="font-semibold text-lg">
-            {p50 !== null ? `${(p50 * 100).toFixed(2)}%` : '—'}
+            {medianBadDebt !== null ? fmtPct(medianBadDebt) : '—'}
           </div>
         </div>
         <div className="p-3 border rounded text-sm">
-          <div className="text-neutral-500">5th-percentile recovery</div>
+          <div className="text-neutral-500">95th-percentile bad-debt rate</div>
           <div className="font-semibold text-lg">
-            {p5 !== null ? `${(p5 * 100).toFixed(2)}%` : '—'}
+            {p95BadDebt !== null ? fmtPct(p95BadDebt) : '—'}
           </div>
         </div>
       </div>
@@ -114,10 +148,10 @@ export function RecoveryDistributionPanel() {
             />
             <YAxis />
             <Tooltip
-              labelFormatter={(v) => `Recovery ${(Number(v) * 100).toFixed(2)}%`}
+              labelFormatter={(v) => `Bad debt ${(Number(v) * 100).toFixed(2)}%`}
               formatter={(v) => [`${v} paths`, 'count']}
             />
-            <Bar dataKey="count" fill="#10b981" />
+            <Bar dataKey="count" fill="#ef4444" />
           </BarChart>
         </ResponsiveContainer>
       </div>
