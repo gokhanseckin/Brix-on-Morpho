@@ -26,6 +26,23 @@ export function SwapliquiditySidebar() {
 
       <label className="block">
         <span className="text-xs text-neutral-600 dark:text-neutral-400">
+          USD/TRY baseline{paramTooltip('usdtryBaseline')}
+        </span>
+        <input
+          type="number"
+          step="0.5"
+          min={1}
+          className="mt-1 w-full rounded border px-2 py-1 bg-white dark:bg-neutral-900"
+          value={state.usdtryBaseline}
+          onChange={(e) => setState({ usdtryBaseline: parseFloat(e.target.value) || 0 })}
+        />
+        <span className="block text-[10px] text-neutral-500 mt-1">
+          Spot wTRY/USDM = 1 / this. Shared with homepage via URL.
+        </span>
+      </label>
+
+      <label className="block">
+        <span className="text-xs text-neutral-600 dark:text-neutral-400">
           LLTV{paramTooltip('lltv')}
         </span>
         <select
