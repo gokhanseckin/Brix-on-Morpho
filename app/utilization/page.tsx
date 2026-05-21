@@ -1,5 +1,5 @@
 'use client';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useUtilizationAnalysis } from '@/lib/useUtilizationAnalysis';
 import { RecommendationCard } from './components/RecommendationCard';
@@ -96,6 +96,12 @@ function NumberInput(props: {
   format: (v: number) => string;
   onChange: (v: number) => void;
 }) {
+  const [raw, setRaw] = useState(String(props.value));
+
+  useEffect(() => {
+    setRaw(String(props.value));
+  }, [props.value]);
+
   return (
     <div className="flex flex-col gap-1 text-sm">
       <span className="flex items-center gap-1">
@@ -108,13 +114,20 @@ function NumberInput(props: {
       </p>
       <input
         type="number"
-        min={props.min}
-        max={props.max}
         step={props.step}
-        value={props.value}
+        value={raw}
         onChange={e => {
+          setRaw(e.target.value);
           const parsed = parseFloat(e.target.value);
-          if (Number.isFinite(parsed) && parsed >= props.min) props.onChange(parsed);
+          if (Number.isFinite(parsed)) props.onChange(parsed);
+        }}
+        onBlur={() => {
+          const parsed = parseFloat(raw);
+          const clamped = Number.isFinite(parsed)
+            ? Math.max(props.min, Math.min(props.max, parsed))
+            : props.value;
+          props.onChange(clamped);
+          setRaw(String(clamped));
         }}
         className="rounded border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-800 px-3 py-2 text-sm w-full max-w-xs"
       />
