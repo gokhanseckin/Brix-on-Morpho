@@ -78,4 +78,5 @@ export type HelpSection =
   | 'strategy'
   | 'liquidation'
   | 'vault'
-  | 'utilization';
+  | 'utilization'
+  | 'swap-liquidity';

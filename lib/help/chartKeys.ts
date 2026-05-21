@@ -14,6 +14,11 @@ export const CHART_KEYS = [
   'loopEconomicsWaterfall',
   'irmHeatmap',
   'recommendationTable',
+  // SwapLiquidity (section 7)
+  'liquidityByTick',
+  'bandAllocationTable',
+  'swapBadDebtHistogram',
+  'presetExportSchema',
 ] as const;
 
 export type ChartKey = (typeof CHART_KEYS)[number];
@@ -30,4 +35,8 @@ export const CHART_SECTION: Record<ChartKey, HelpSection> = {
   loopEconomicsWaterfall: 'utilization',
   irmHeatmap: 'utilization',
   recommendationTable: 'utilization',
+  liquidityByTick: 'swap-liquidity',
+  bandAllocationTable: 'swap-liquidity',
+  swapBadDebtHistogram: 'swap-liquidity',
+  presetExportSchema: 'swap-liquidity',
 };

@@ -32,6 +32,10 @@ const EXPECTED_PARAM_KEYS = [
   'preLiquidationEnabled',
   'blockBootstrap',
   'seed',
+  'poolFeeTier',
+  'poolTVL_USD',
+  'bandSplitCore',
+  'bandSplitAbsorb',
 ] as const;
 
 describe('help registry', () => {

@@ -29,6 +29,11 @@ export interface SidebarInputs {
   preLiquidationEnabled: boolean;
   blockBootstrap: boolean;
   seed: number;
+  // /swapliquidity page state (mirrored in URL via useUrlState).
+  poolFeeTier: number;          // basis points: 3000 = 0.30%, 10000 = 1.00%
+  poolTVL_USD: number;
+  bandSplitCore: number;        // fraction 0..1
+  bandSplitAbsorb: number;      // fraction 0..1
 }
 
 export interface LiquidityNeedOutput {
