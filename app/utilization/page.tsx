@@ -12,7 +12,7 @@ import { HelpPopover } from '@/app/components/help/HelpPopover';
 import type { KpiKey } from '@/lib/help/kpiKeys';
 
 export default function UtilizationPage() {
-  const [tvlUSDM, setTvlUSDM] = useState(10_000_000);
+  const [tvlUSDM, setTvlUSDM] = useState(5_000_000);
   const [stressPct, setStressPct] = useState(0.20);
   const [hfBuffer, setHfBuffer] = useState(1.5);
   const [rTarget, setRTarget] = useState(0.04);
