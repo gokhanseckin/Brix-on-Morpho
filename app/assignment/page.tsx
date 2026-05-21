@@ -258,8 +258,7 @@ const slides: Slide[] = [
       <div className="flex h-full flex-col">
         <Kicker>05 · Bootstrapping</Kicker>
         <H2>
-          Three layers of incentives.{' '}
-          <Accent>One layer we pay for.</Accent>
+          Three layers of <Accent>incentives</Accent>.
         </H2>
         <div className="mt-8 grid grid-cols-3 gap-5">
           <IncentiveLayer
