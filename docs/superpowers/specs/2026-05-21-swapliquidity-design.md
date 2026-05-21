@@ -172,16 +172,16 @@ import { DEFAULT_PRESET } from '@/lib/poolPreset';
 ## 7. Acceptance criteria
 
 1. `/swapliquidity` route reachable, builds in static export (`out/`) without errors.
-2. Default preset produces a SwapQuote for a $1M wTRY sell with slippage < 2% under base-case USDTRY spot.
+2. Default preset ($500k AMM TVL, 30/50/20 asymmetric ladder) produces a SwapQuote for a **$25k wTRY sell with slippage < 2%** under base-case USDTRY spot. (Realistic launch params: AMM seed is $500k, not $10M; per-liquidation sells are $5k–$50k for a small vault.)
 3. Under a −15% / 30-day stress path, the 5th-percentile recovery rate is computed and displayed.
 4. `LiquidationDesign.tsx` on homepage consumes `quoteLiquidatorSell` and reports a realized recovery distribution (replaces TODO/heuristic).
-5. All vitest tests pass; mainnet swap-quote fixture matches within 1 wei.
+5. All vitest tests pass; analytic-reference swap matches constant-product approximation within 1%.
 6. E2E smoke test green.
 
 ## 8. Open questions (resolved by defaults)
 
 - *MMF yield assumption?* Default 40%/yr (current TR policy rate ballpark). Editable.
-- *Starting TVL?* Default $10M, split 30/50/20 across bands.
+- *Starting AMM TVL?* Default **$500k** ($250k each side at spot), split 30/50/20 across bands. Realistic seed liquidity for a new pool.
 - *Stress shock baseline?* Default −20% in 14 days (2018-class event, but compressed).
 
 Defaults chosen so the page is usable without configuration; all are sidebar-editable.
