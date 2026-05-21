@@ -510,11 +510,10 @@ const slides: Slide[] = [
                 stress.
               </p>
               <p>
-                We can&apos;t cap a swap on Kumbaya — the AMM accepts any
-                size. The control we <em>do</em> have is on the Morpho side:
-                size the borrow cap so a worst-case 100% liquidation lands
-                near 20% of pool depth. Beyond that, the liquidator simply
-                doesn&apos;t sign the tx.
+                The control we have is on the Morpho side: size the borrow
+                cap so a worst-case 100% liquidation lands near 20% of pool
+                depth. Beyond that, the liquidator simply doesn&apos;t sign
+                the tx.
               </p>
               <ul className="ml-4 list-disc space-y-2 text-neutral-400">
                 <li>
