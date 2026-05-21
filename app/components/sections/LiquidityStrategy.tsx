@@ -82,7 +82,8 @@ export function LiquidityStrategy() {
   return (
     <section id="section-liquidity-strategy" className="space-y-6">
       <div>
-        <h2 className="text-xl font-semibold">3. Liquidity Strategy</h2>
+        <div className="brix-kicker mb-2">03 · Strategy</div>
+        <h2 className="text-2xl md:text-3xl font-semibold tracking-tight">Liquidity Strategy</h2>
         <p className="text-sm text-neutral-500 mt-1">
           Supplier yield, borrower leverage-loop viability, and a Merkl incentive plan to reach
           target USDM.
@@ -108,7 +109,7 @@ export function LiquidityStrategy() {
 
       <div>
         <h3 className="text-sm font-semibold mb-2">Supply APY composition</h3>
-        <div className="border border-neutral-200 dark:border-neutral-800 rounded p-2 bg-white dark:bg-neutral-950">
+        <div className="border border-brix-border rounded p-2 bg-brix-card">
           <ResponsiveContainer width="100%" height={120}>
             <BarChart layout="vertical" data={supplyComponents} margin={{ left: 100 }}>
               <XAxis type="number" tickFormatter={(v: number) => `${(v * 100).toFixed(1)}%`} />
@@ -147,7 +148,7 @@ export function LiquidityStrategy() {
 
         <div>
           <h3 className="text-sm font-semibold mb-2">Competitive benchmark</h3>
-          <div className="border border-neutral-200 dark:border-neutral-800 rounded p-2 bg-white dark:bg-neutral-950">
+          <div className="border border-brix-border rounded p-2 bg-brix-card">
             <ResponsiveContainer width="100%" height={180}>
               <BarChart data={apyComparison}>
                 <CartesianGrid strokeDasharray="3 3" opacity={0.3} />
@@ -165,7 +166,7 @@ export function LiquidityStrategy() {
         <h3 className="text-sm font-semibold mb-2">
           TVL ramp at {inputs.attractionRate.toFixed(1)}× attraction (linear projection)
         </h3>
-        <div className="border border-neutral-200 dark:border-neutral-800 rounded p-2 bg-white dark:bg-neutral-950">
+        <div className="border border-brix-border rounded p-2 bg-brix-card">
           <ResponsiveContainer width="100%" height={220}>
             <LineChart data={rampData} margin={{ top: 8, right: 20, bottom: 8, left: 8 }}>
               <CartesianGrid strokeDasharray="3 3" opacity={0.3} />
@@ -187,7 +188,7 @@ export function LiquidityStrategy() {
         <h3 className="text-sm font-semibold mb-2">Lock &amp; Earn — required premium by lock</h3>
         <table className="text-sm border-collapse w-full max-w-md">
           <thead>
-            <tr className="border-b border-neutral-300 dark:border-neutral-700">
+            <tr className="border-b border-brix-border">
               <th className="text-left py-1">Lock days</th>
               <th className="text-right py-1">Premium APY</th>
             </tr>
@@ -198,7 +199,7 @@ export function LiquidityStrategy() {
                 key={r.days}
                 className={
                   r.days === inputs.lockPeriodDays
-                    ? 'bg-blue-50 dark:bg-blue-950/40 font-medium'
+                    ? 'bg-brix-accent/10 font-medium'
                     : 'border-b border-neutral-100 dark:border-neutral-900'
                 }
               >
@@ -214,8 +215,8 @@ export function LiquidityStrategy() {
         </div>
       </div>
 
-      <div className="p-4 rounded border border-blue-500/50 bg-blue-50 dark:bg-blue-950/30">
-        <div className="text-xs uppercase tracking-wide text-blue-600 dark:text-blue-400 mb-1">
+      <div className="p-4 rounded border border-brix-accent/40 bg-brix-accent/10">
+        <div className="text-xs uppercase tracking-wide text-brix-accent mb-1">
           Merkl recommendation
         </div>
         <div className="text-sm">{merklText}</div>

@@ -11,9 +11,9 @@ export function LooperViabilityCurve({ analysis }: { analysis: UtilizationAnalys
   const wY30 = analysis.inputs.witryYield30d * 100;
 
   return (
-    <section className="rounded-lg border bg-white p-4">
+    <section className="rounded-lg border border-brix-border bg-brix-card p-4">
       <h2 className="font-semibold inline-flex items-center gap-1">Looper Viability Curve<HelpPopover chartKey="looperViabilityCurve" /></h2>
-      <p className="text-sm text-gray-600">Borrow APY across u_target with wiTRY 7d / 30d reference yields.</p>
+      <p className="text-sm text-neutral-400">Borrow APY across u_target with wiTRY 7d / 30d reference yields.</p>
       <div className="h-64 mt-3">
         <ResponsiveContainer>
           <LineChart data={data}>

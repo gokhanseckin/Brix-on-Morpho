@@ -113,7 +113,7 @@ export default function HelpSwapLiquidity() {
             <code>collateral_USD = debt × LIF(lltv)</code> in seized wTRY. LIF
             (Liquidation Incentive Factor) is a small bonus, e.g. LIF(0.86) ≈ 1.044
             → 4.4% bonus. See{' '}
-            <a className="text-blue-600 hover:underline" href="/help/liquidation">
+            <a className="text-brix-accent hover:underline" href="/help/liquidation">
               /help/liquidation
             </a>{' '}
             for the formula.
@@ -142,7 +142,7 @@ export default function HelpSwapLiquidity() {
       <Section title="Worked example: a default-config liquidation">
         <p className="text-sm max-w-prose">
           Concrete numbers using the page&apos;s default settings. Open{' '}
-          <a className="text-blue-600 hover:underline" href="/swapliquidity">
+          <a className="text-brix-accent hover:underline" href="/swapliquidity">
             /swapliquidity
           </a>{' '}
           in another tab and follow along.

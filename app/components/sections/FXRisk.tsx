@@ -96,7 +96,8 @@ export function FXRisk() {
   return (
     <section id="section-fx-risk" className="space-y-6">
       <div>
-        <h2 className="text-xl font-semibold">2. FX Risk</h2>
+        <div className="brix-kicker mb-2">02 · FX Risk</div>
+        <h2 className="text-2xl md:text-3xl font-semibold tracking-tight">FX Risk</h2>
         <p className="text-sm text-neutral-500 mt-1">
           USD/TRY Monte Carlo paths, the net wiTRY USD value (after staking yield offset), and the
           fraction of positions that go underwater across the chosen horizon.
@@ -142,7 +143,7 @@ export function FXRisk() {
           <h3 className="text-sm font-semibold">USD/TRY paths (P5 / P50 / P95)</h3>
           <HelpPopover chartKey="fxBands" />
         </div>
-        <div className="border border-neutral-200 dark:border-neutral-800 rounded p-2 bg-white dark:bg-neutral-950">
+        <div className="border border-brix-border rounded p-2 bg-brix-card">
           <ResponsiveContainer width="100%" height={260}>
             <LineChart data={pathData} margin={{ top: 8, right: 20, bottom: 8, left: 8 }}>
               <CartesianGrid strokeDasharray="3 3" opacity={0.3} />
@@ -166,7 +167,7 @@ export function FXRisk() {
             </h3>
             <HelpPopover chartKey="netWitryUsdPaths" />
           </div>
-          <div className="border border-neutral-200 dark:border-neutral-800 rounded p-2 bg-white dark:bg-neutral-950">
+          <div className="border border-brix-border rounded p-2 bg-brix-card">
             <ResponsiveContainer width="100%" height={260}>
               <LineChart data={netWitryData} margin={{ top: 8, right: 20, bottom: 8, left: 8 }}>
                 <CartesianGrid strokeDasharray="3 3" opacity={0.3} />
@@ -186,7 +187,7 @@ export function FXRisk() {
       <div className="grid grid-cols-2 gap-4">
         <div>
           <h3 className="text-sm font-semibold mb-2">3-day max drawdown distribution</h3>
-          <div className="border border-neutral-200 dark:border-neutral-800 rounded p-2 bg-white dark:bg-neutral-950">
+          <div className="border border-brix-border rounded p-2 bg-brix-card">
             <ResponsiveContainer width="100%" height={240}>
               <BarChart data={drawdownBins} margin={{ top: 8, right: 16, bottom: 8, left: 8 }}>
                 <CartesianGrid strokeDasharray="3 3" opacity={0.3} />
@@ -204,7 +205,7 @@ export function FXRisk() {
             <h3 className="text-sm font-semibold">% positions underwater by day (P50 path)</h3>
             <HelpPopover chartKey="positionsUnderwater" />
           </div>
-          <div className="border border-neutral-200 dark:border-neutral-800 rounded p-2 bg-white dark:bg-neutral-950">
+          <div className="border border-brix-border rounded p-2 bg-brix-card">
             <ResponsiveContainer width="100%" height={240}>
               <LineChart data={underwaterByDay} margin={{ top: 8, right: 16, bottom: 8, left: 8 }}>
                 <CartesianGrid strokeDasharray="3 3" opacity={0.3} />

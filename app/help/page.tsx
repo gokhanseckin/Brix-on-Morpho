@@ -14,7 +14,7 @@ const SECTIONS: Array<{ slug: string; label: string; blurb: string }> = [
 export default function HelpIndex() {
   return (
     <div className="space-y-3">
-      <p className="text-sm text-neutral-600 dark:text-neutral-400">
+      <p className="text-sm text-neutral-400">
         Pick a section to read detailed explanations, formulas, worked examples, and diagrams.
       </p>
       <ul className="space-y-2">
@@ -22,7 +22,7 @@ export default function HelpIndex() {
           <li key={s.slug}>
             <Link
               href={`/help/${s.slug}` as Route}
-              className="block rounded border border-neutral-300 dark:border-neutral-700 px-3 py-2 hover:bg-neutral-100 dark:hover:bg-neutral-800"
+              className="block rounded border border-brix-border px-3 py-2 hover:bg-brix-surface"
             >
               <span className="font-medium">{s.label}</span>{' '}
               <span className="text-sm text-neutral-500">— {s.blurb}</span>

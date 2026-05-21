@@ -3,25 +3,85 @@
 @tailwind utilities;
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --background: #0a0a0a;
+  --foreground: #ededed;
+  --brix-accent: #5b9dff;
+  --brix-accent-hover: #7ab0ff;
+  --brix-border: #262626;
+  --brix-card: rgba(23, 23, 23, 0.4);
+  --brix-muted: #737373;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+html {
+  color-scheme: dark;
 }
 
 body {
   color: var(--foreground);
   background: var(--background);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-geist-sans), Arial, Helvetica, sans-serif;
+}
+
+/* Brix typographic accents */
+.brix-kicker {
+  font-size: 12px;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--brix-muted);
+}
+
+.brix-accent {
+  color: var(--brix-accent);
+}
+
+a.brix-link {
+  color: var(--brix-accent);
+}
+a.brix-link:hover {
+  color: var(--brix-accent-hover);
+}
+
+/* Form controls — dark Brix surface */
+input[type="number"],
+input[type="text"],
+select,
+textarea {
+  color: var(--foreground);
+  background: #171717;
+  border-color: var(--brix-border);
+}
+
+input[type="range"] {
+  accent-color: var(--brix-accent);
+}
+
+input[type="checkbox"] {
+  accent-color: var(--brix-accent);
+}
+
+/* Native browser controls inherit dark palette */
+::selection {
+  background: rgba(91, 157, 255, 0.35);
+  color: #fff;
 }
 
 @layer utilities {
   .text-balance {
     text-wrap: balance;
+  }
+  .text-brix-accent {
+    color: var(--brix-accent);
+  }
+  .bg-brix-accent {
+    background-color: var(--brix-accent);
+  }
+  .border-brix-accent {
+    border-color: var(--brix-accent);
+  }
+  .border-brix {
+    border-color: var(--brix-border);
+  }
+  .bg-brix-card {
+    background-color: var(--brix-card);
   }
 }

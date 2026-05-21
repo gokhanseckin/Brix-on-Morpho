@@ -105,7 +105,8 @@ export function VaultRecommendations() {
   return (
     <section id="section-vault-recommendations" className="space-y-6">
       <div>
-        <h2 className="text-xl font-semibold">5. Vault V2 Parameter Recommendations</h2>
+        <div className="brix-kicker mb-2">05 · Vault V2</div>
+        <h2 className="text-2xl md:text-3xl font-semibold tracking-tight">Vault Recommendations</h2>
         <p className="text-sm text-neutral-500 mt-1">
           Aggregated configuration ready for deployment. Copy the JSON for direct use with the
           Morpho Blue + MetaMorpho deployment scripts.
@@ -131,7 +132,7 @@ export function VaultRecommendations() {
         <h3 className="text-sm font-semibold mb-2">Recommendation table</h3>
         <table className="text-sm w-full border-collapse">
           <thead>
-            <tr className="border-b border-neutral-300 dark:border-neutral-700">
+            <tr className="border-b border-brix-border">
               <th className="text-left py-1 pr-4">Parameter</th>
               <th className="text-left py-1 pr-4">Recommended value</th>
               <th className="text-left py-1">Source</th>
@@ -153,15 +154,15 @@ export function VaultRecommendations() {
         <button
           type="button"
           onClick={onCopyJson}
-          className="rounded border border-neutral-400 dark:border-neutral-600 bg-white dark:bg-neutral-800 hover:bg-neutral-100 dark:hover:bg-neutral-700 px-3 py-2 text-sm font-medium"
+          className="rounded border border-brix-border bg-brix-surface hover:border-brix-accent px-3 py-2 text-sm font-medium"
         >
           {copied ? 'Copied!' : 'Copy JSON'}
         </button>
         <details className="flex-1">
-          <summary className="cursor-pointer text-sm text-neutral-600 dark:text-neutral-400">
+          <summary className="cursor-pointer text-sm text-neutral-400">
             Preview deployment JSON
           </summary>
-          <pre className="mt-2 p-3 text-xs bg-neutral-100 dark:bg-neutral-900 rounded overflow-x-auto">
+          <pre className="mt-2 p-3 text-xs bg-brix-surface rounded overflow-x-auto">
             {JSON.stringify(vaultJson, null, 2)}
           </pre>
         </details>
