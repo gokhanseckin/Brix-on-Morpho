@@ -238,7 +238,7 @@ const slides: Slide[] = [
             { k: 'Utilization', v: 'Borrowed ÷ supplied. Stay 70–90%. Above 95% = trouble.' },
             { k: 'Idle USDM', v: 'Unborrowed supply. Lenders’ cushion for withdrawals.' },
             { k: 'Time stuck at 100% util', v: 'No new borrows, no withdrawals. If > 1h: lift supply cap, or push target util down so the rate curve bites sooner.' },
-            { k: 'Supply / borrow caps', v: <>Hard ceilings. Sized to live Kumbaya depth — <SL n={9} />.</> },
+            { k: 'Supply / borrow caps', v: <>Hard ceilings. Sized to live Kumbaya one-sided depth — <SL n={9} />.</> },
             { k: 'Curator allocation share', v: 'How much of the vault’s TVL is allocated to our market.' },
             { k: 'Bad-debt P95', v: <>95th-percentile loss from the FX simulator. <SL n={13} />.</> },
           ] as { k: string; v: React.ReactNode }[]).map(({ k, v }) => (
@@ -489,7 +489,7 @@ const slides: Slide[] = [
       <div className="flex h-full flex-col">
         <Kicker>09 · The constraint that runs the market</Kicker>
         <H2>
-          Borrow cap <Accent>≤</Accent> pool depth <Accent>÷</Accent> 5
+          Borrow cap <Accent>≤</Accent> one-sided depth <Accent>÷</Accent> 5
         </H2>
         <div className="mt-6 grid grid-cols-[1.1fr_1fr] gap-6">
           <Card>
@@ -552,8 +552,8 @@ const slides: Slide[] = [
                 <li>
                   <span className="font-mono text-neutral-500">1.</span>{' '}
                   Market borrow cap ={' '}
-                  <Accent>1× live Kumbaya depth</Accent>. Morpho-native hard
-                  ceiling on total debt.
+                  <Accent>1× live one-sided depth</Accent>. Morpho-native
+                  hard ceiling on total debt.
                 </li>
                 <li>
                   <span className="font-mono text-neutral-500">2.</span>{' '}
@@ -701,10 +701,10 @@ const slides: Slide[] = [
               </thead>
               <tbody className="divide-y divide-neutral-800">
                 {([
-                  ['LLTV', '86%', 'Morpho governance tier. Costs us pool depth.'],
+                  ['LLTV', '86%', 'Morpho governance tier. Costs us one-sided depth.'],
                   ['LIF', '~5%', 'Derived from LLTV. The full liquidator budget.'],
                   ['Pre-liquidations', 'On · opt-in', 'Gated by Brix points. Dutch-auction LIF chops large positions.'],
-                  ['Market borrow cap', '1× live Kumbaya depth', <>Morpho-native hard ceiling on total debt. <SL n={9}>Slide 9</SL>.</>],
+                  ['Market borrow cap', '1× live one-sided depth', <>Morpho-native hard ceiling on total debt. <SL n={9}>Slide 9</SL>.</>],
                   ['Per-wallet target', '≤ pool ÷ 5', 'Not enforceable on Morpho Blue. Hypernative alert; respond by lowering market cap.'],
                   ['Vault factory', 'V1.1 (no bad-debt realization)', 'wiTRY share price can\'t decrease → ERC-4626 risk neutralized.'],
                 ] as [string, string, React.ReactNode][]).map(([p, v, w]) => (
