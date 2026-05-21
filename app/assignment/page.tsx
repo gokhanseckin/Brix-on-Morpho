@@ -512,8 +512,7 @@ const slides: Slide[] = [
               <p>
                 The control we have is on the Morpho side: size the borrow
                 cap so a worst-case 100% liquidation lands near 20% of pool
-                depth. Beyond that, the liquidator simply doesn&apos;t sign
-                the tx.
+                depth.
               </p>
               <ul className="ml-4 list-disc space-y-2 text-neutral-400">
                 <li>
@@ -538,7 +537,7 @@ const slides: Slide[] = [
             <NumberBlock
               label="LLTV"
               value="86%"
-              hint="Set by Morpho governance tier. Costs us pool depth."
+              hint="Morpho governance tier. Adjacent tiers: 77% (safer, more LIF) and 91.5% (more borrow capacity, thinner LIF)."
             />
             <NumberBlock
               label="LIF (slippage budget)"
