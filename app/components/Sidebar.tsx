@@ -39,7 +39,8 @@ export function Sidebar() {
   return (
     <div className="space-y-6 text-sm">
       <div>
-        <h2 className="font-bold text-base mb-1">Parameters</h2>
+        <div className="brix-kicker mb-2">Parameters</div>
+        <h2 className="text-lg font-semibold tracking-tight mb-1">Calibration inputs</h2>
         <p className="text-xs text-neutral-500">All inputs sync to URL</p>
       </div>
 
@@ -73,7 +74,7 @@ export function Sidebar() {
           step={0.01}
           format={(v) => `${(v * 100).toFixed(0)}%`}
         />
-        <a href="/utilization" className="text-xs text-blue-500 hover:underline -mt-1 block">
+        <a href="/utilization" className="text-xs text-brix-accent hover:text-brix-accentHover -mt-1 block">
           → calibrate in utilization tool
         </a>
         <NumberField
@@ -254,11 +255,11 @@ export function Sidebar() {
       <button
         type="button"
         onClick={onCopy}
-        className="w-full rounded border border-neutral-400 dark:border-neutral-600 bg-white dark:bg-neutral-800 hover:bg-neutral-100 dark:hover:bg-neutral-700 px-3 py-2 text-sm font-medium"
+        className="w-full rounded-md border border-brix-border bg-brix-surface hover:border-brix-accent hover:text-brix-accent px-3 py-2 text-sm font-medium transition-colors"
       >
         {copied ? 'Copied!' : 'Copy share link'}
       </button>
-      <a href="/swapliquidity" className="block mt-4 text-xs text-blue-600 hover:underline">
+      <a href="/swapliquidity" className="block mt-4 text-xs text-brix-accent hover:text-brix-accentHover">
         → Swap liquidity lab
       </a>
     </div>
@@ -267,8 +268,8 @@ export function Sidebar() {
 
 function Group({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <fieldset className="space-y-2 border-t border-neutral-200 dark:border-neutral-800 pt-3">
-      <legend className="text-xs font-semibold uppercase tracking-wide text-neutral-500">
+    <fieldset className="space-y-2 border-t border-brix-border pt-3">
+      <legend className="text-[11px] font-semibold uppercase tracking-[0.18em] text-neutral-500">
         {title}
       </legend>
       <div className="space-y-2">{children}</div>
@@ -287,7 +288,7 @@ function NumberField(props: {
 }) {
   return (
     <label className="flex flex-col gap-1">
-      <span className="text-xs text-neutral-600 dark:text-neutral-400">
+      <span className="text-xs text-neutral-400">
         {props.label}
         {props.helpKey && paramTooltip(props.helpKey)}
       </span>
@@ -301,7 +302,7 @@ function NumberField(props: {
           const parsed = parseFloat(e.target.value);
           if (Number.isFinite(parsed)) props.onChange(parsed);
         }}
-        className="rounded border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-800 px-2 py-1 text-sm"
+        className="rounded-md border border-brix-border bg-brix-surface text-neutral-200 px-2 py-1 text-sm focus:border-brix-accent focus:outline-none"
       />
     </label>
   );
@@ -319,7 +320,7 @@ function RangeField(props: {
 }) {
   return (
     <label className="flex flex-col gap-1">
-      <span className="text-xs text-neutral-600 dark:text-neutral-400">
+      <span className="text-xs text-neutral-400">
         {props.label}: <span className="font-mono">{props.format(props.value)}</span>
         {props.helpKey && paramTooltip(props.helpKey)}
       </span>
@@ -347,14 +348,14 @@ function SelectField(props: {
 }) {
   return (
     <label className="flex flex-col gap-1">
-      <span className="text-xs text-neutral-600 dark:text-neutral-400">
+      <span className="text-xs text-neutral-400">
         {props.label}
         {props.helpKey && paramTooltip(props.helpKey)}
       </span>
       <select
         value={props.value}
         onChange={(e) => props.onChange(e.target.value)}
-        className="rounded border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-800 px-2 py-1 text-sm"
+        className="rounded-md border border-brix-border bg-brix-surface text-neutral-200 px-2 py-1 text-sm focus:border-brix-accent focus:outline-none"
       >
         {props.options.map((o) => (
           <option key={o.value} value={o.value}>
@@ -379,7 +380,7 @@ function CheckboxField(props: {
         checked={props.checked}
         onChange={(e) => props.onChange(e.target.checked)}
       />
-      <span className="text-xs text-neutral-600 dark:text-neutral-400">
+      <span className="text-xs text-neutral-400">
         {props.label}
         {props.helpKey && paramTooltip(props.helpKey)}
       </span>

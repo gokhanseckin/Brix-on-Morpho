@@ -8,12 +8,15 @@ export const metadata = { title: 'Brix — Swap Liquidity Lab' };
 
 export default function SwapLiquidityPage() {
   return (
-    <main className="flex">
+    <main className="flex bg-brix-bg min-h-screen text-neutral-200">
       <SwapliquiditySidebar />
-      <div className="flex-1 p-6 space-y-8">
-        <header>
-          <h1 className="text-2xl font-bold">wTRY/USDM Swap Liquidity Lab</h1>
-          <p id="page-subtitle" className="text-sm text-neutral-500 mt-1">
+      <div className="flex-1 p-8 space-y-10">
+        <header className="border-b border-brix-border pb-6">
+          <div className="brix-kicker mb-3">Brix · Swap liquidity lab</div>
+          <h1 className="text-3xl md:text-4xl font-semibold tracking-tight">
+            wTRY <span className="text-brix-accent">/</span> USDM pool design
+          </h1>
+          <p id="page-subtitle" className="text-sm text-neutral-400 mt-3 max-w-2xl leading-relaxed">
             Uniswap v3 pool design for liquidators. Models a kumbaya.xyz pool with an asymmetric
             LP ladder biased to absorb seized wTRY.
           </p>

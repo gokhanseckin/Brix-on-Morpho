@@ -25,13 +25,18 @@ export default function UtilizationPage() {
   });
 
   return (
-    <div className="mx-auto max-w-6xl p-6 space-y-6 [&_section.bg-white]:text-gray-900">
-      <header className="flex items-center justify-between">
-        <h1 className="text-2xl font-semibold">Target Utilization Calibration</h1>
-        <Link href="/" className="text-sm text-blue-600 underline">← back to sim</Link>
+    <div className="mx-auto max-w-6xl p-8 space-y-8 bg-brix-bg min-h-screen text-neutral-200">
+      <header className="border-b border-brix-border pb-6">
+        <div className="brix-kicker mb-3">Brix · Calibration tool</div>
+        <div className="flex items-end justify-between">
+          <h1 className="text-3xl md:text-4xl font-semibold tracking-tight">
+            Target utilization <span className="text-brix-accent">calibration</span>
+          </h1>
+          <Link href="/" className="text-sm text-brix-accent hover:text-brix-accentHover">← back to sim</Link>
+        </div>
       </header>
 
-      <section className="space-y-4 rounded-lg border p-4">
+      <section className="space-y-4 rounded-lg border border-brix-border bg-brix-card p-6">
         <NumberInput
           label="Vault TVL — total USDM supply"
           helpKey="tvlUSDMInput"
@@ -107,7 +112,7 @@ function NumberInput(props: {
       <span className="flex items-center gap-1">
         <span className="font-medium">{props.label}</span>
         {props.helpKey && <HelpPopover kpiKey={props.helpKey} />}
-        <span className="ml-auto font-mono text-blue-600">{props.format(props.value)}</span>
+        <span className="ml-auto font-mono text-brix-accent">{props.format(props.value)}</span>
       </span>
       <p className="text-xs text-neutral-500">
         How much USDM is deposited in the vault in total. The liquidity buffer and stress-test amounts below are calculated from this number.
@@ -129,7 +134,7 @@ function NumberInput(props: {
           props.onChange(clamped);
           setRaw(String(clamped));
         }}
-        className="rounded border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-800 px-3 py-2 text-sm w-full max-w-xs"
+        className="rounded-md border border-brix-border bg-brix-surface text-neutral-200 px-3 py-2 text-sm w-full max-w-xs focus:border-brix-accent focus:outline-none"
       />
     </div>
   );

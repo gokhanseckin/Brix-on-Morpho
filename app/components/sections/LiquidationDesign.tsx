@@ -110,7 +110,8 @@ export function LiquidationDesign() {
   return (
     <section id="section-liquidation-design" className="space-y-6">
       <div>
-        <h2 className="text-xl font-semibold">4. Liquidation Design</h2>
+        <div className="brix-kicker mb-2">04 · Liquidation</div>
+        <h2 className="text-2xl md:text-3xl font-semibold tracking-tight">Liquidation Design</h2>
         <p className="text-sm text-neutral-500 mt-1">
           Whether liquidations will actually fire given pool depth and gas, expected bad-debt
           distribution, and the value of pre-liquidation.
@@ -157,7 +158,7 @@ export function LiquidationDesign() {
         <h3 className="text-sm font-semibold mb-2">
           Liquidator profit cliff (debt log-scale, pool depth {formatUSD(inputs.poolDepth_USD)})
         </h3>
-        <div className="border border-neutral-200 dark:border-neutral-800 rounded p-2 bg-white dark:bg-neutral-950">
+        <div className="border border-brix-border rounded p-2 bg-brix-card">
           <ResponsiveContainer width="100%" height={260}>
             <LineChart data={profitCurve} margin={{ top: 8, right: 20, bottom: 8, left: 8 }}>
               <CartesianGrid strokeDasharray="3 3" opacity={0.3} />
@@ -185,7 +186,7 @@ export function LiquidationDesign() {
           <h3 className="text-sm font-semibold">Bad-debt distribution across simulated paths</h3>
           <HelpPopover chartKey="badDebtHistogram" />
         </div>
-        <div className="border border-neutral-200 dark:border-neutral-800 rounded p-2 bg-white dark:bg-neutral-950">
+        <div className="border border-brix-border rounded p-2 bg-brix-card">
           <ResponsiveContainer width="100%" height={240}>
             <BarChart data={badDebtBins} margin={{ top: 8, right: 16, bottom: 8, left: 8 }}>
               <CartesianGrid strokeDasharray="3 3" opacity={0.3} />
@@ -208,7 +209,7 @@ export function LiquidationDesign() {
               <tr>
                 <th className="p-2"></th>
                 {POOL_DEPTH_GRID_USD.map((d) => (
-                  <th key={d} className="p-2 text-right border-b border-neutral-300 dark:border-neutral-700">
+                  <th key={d} className="p-2 text-right border-b border-brix-border">
                     {formatUSD(d)}
                   </th>
                 ))}
@@ -217,7 +218,7 @@ export function LiquidationDesign() {
             <tbody>
               {heatmap.map((row) => (
                 <tr key={row.lltv}>
-                  <td className="p-2 text-left border-r border-neutral-300 dark:border-neutral-700 font-medium">
+                  <td className="p-2 text-left border-r border-brix-border font-medium">
                     {(row.lltv * 100).toFixed(1)}%
                   </td>
                   {row.cells.map((c) => {
@@ -267,8 +268,8 @@ export function LiquidationDesign() {
         </div>
       </div>
 
-      <div className="p-4 rounded border border-blue-500/50 bg-blue-50 dark:bg-blue-950/30">
-        <div className="text-xs uppercase tracking-wide text-blue-600 dark:text-blue-400 mb-1">
+      <div className="p-4 rounded border border-brix-accent/40 bg-brix-accent/10">
+        <div className="text-xs uppercase tracking-wide text-brix-accent mb-1">
           Recommendation
         </div>
         <div className="text-sm">

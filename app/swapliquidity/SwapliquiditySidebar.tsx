@@ -32,7 +32,7 @@ export function SwapliquiditySidebar() {
           type="number"
           step="0.5"
           min={1}
-          className="mt-1 w-full rounded border px-2 py-1 bg-white dark:bg-neutral-900"
+          className="mt-1 w-full rounded border px-2 py-1 bg-brix-card"
           value={state.usdtryBaseline}
           onChange={(e) => setState({ usdtryBaseline: parseFloat(e.target.value) || 0 })}
         />
@@ -46,7 +46,7 @@ export function SwapliquiditySidebar() {
           LLTV{paramTooltip('lltv')}
         </span>
         <select
-          className="mt-1 w-full rounded border px-2 py-1 bg-white dark:bg-neutral-900"
+          className="mt-1 w-full rounded border px-2 py-1 bg-brix-card"
           value={String(state.lltv)}
           onChange={(e) => setState({ lltv: parseFloat(e.target.value) as LLTV })}
         >
@@ -63,7 +63,7 @@ export function SwapliquiditySidebar() {
           Fee tier{paramTooltip('poolFeeTier')}
         </span>
         <select
-          className="mt-1 w-full rounded border px-2 py-1 bg-white dark:bg-neutral-900"
+          className="mt-1 w-full rounded border px-2 py-1 bg-brix-card"
           value={state.poolFeeTier}
           onChange={(e) => setState({ poolFeeTier: parseInt(e.target.value, 10) })}
         >
@@ -78,7 +78,7 @@ export function SwapliquiditySidebar() {
         </span>
         <input
           type="number"
-          className="mt-1 w-full rounded border px-2 py-1 bg-white dark:bg-neutral-900"
+          className="mt-1 w-full rounded border px-2 py-1 bg-brix-card"
           value={state.poolTVL_USD}
           onChange={(e) => setState({ poolTVL_USD: parseFloat(e.target.value) || 0 })}
         />
@@ -93,7 +93,7 @@ export function SwapliquiditySidebar() {
           step="0.05"
           min={0}
           max={1}
-          className="mt-1 w-full rounded border px-2 py-1 bg-white dark:bg-neutral-900"
+          className="mt-1 w-full rounded border px-2 py-1 bg-brix-card"
           value={state.bandSplitCore}
           onChange={(e) => setState({ bandSplitCore: parseFloat(e.target.value) || 0 })}
         />
@@ -108,7 +108,7 @@ export function SwapliquiditySidebar() {
           step="0.05"
           min={0}
           max={1}
-          className="mt-1 w-full rounded border px-2 py-1 bg-white dark:bg-neutral-900"
+          className="mt-1 w-full rounded border px-2 py-1 bg-brix-card"
           value={state.bandSplitAbsorb}
           onChange={(e) => setState({ bandSplitAbsorb: parseFloat(e.target.value) || 0 })}
         />
@@ -121,10 +121,10 @@ export function SwapliquiditySidebar() {
         </span>
       </p>
 
-      <a href="/help/swap-liquidity" className="text-blue-600 hover:underline text-xs block pt-2">
+      <a href="/help/swap-liquidity" className="text-brix-accent hover:underline text-xs block pt-2">
         Help · Read the swap-liquidity guide →
       </a>
-      <a href="/" className="text-blue-600 hover:underline text-xs block">
+      <a href="/" className="text-brix-accent hover:underline text-xs block">
         ← Back to homepage
       </a>
     </aside>

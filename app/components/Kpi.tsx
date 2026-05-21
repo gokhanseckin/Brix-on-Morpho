@@ -17,20 +17,30 @@ export function Kpi({
 }) {
   const toneCls =
     tone === 'good'
-      ? 'border-emerald-500/50 bg-emerald-50 dark:bg-emerald-950/30'
+      ? 'border-emerald-500/40 bg-emerald-950/20'
       : tone === 'warn'
-        ? 'border-amber-500/50 bg-amber-50 dark:bg-amber-950/30'
+        ? 'border-amber-500/40 bg-amber-950/20'
         : tone === 'bad'
-          ? 'border-red-500/50 bg-red-50 dark:bg-red-950/30'
-          : 'border-neutral-300 dark:border-neutral-700';
+          ? 'border-red-500/40 bg-red-950/20'
+          : 'border-brix-border bg-brix-card';
+  const valueCls =
+    tone === 'good'
+      ? 'text-emerald-300'
+      : tone === 'warn'
+        ? 'text-amber-300'
+        : tone === 'bad'
+          ? 'text-red-300'
+          : 'text-brix-accent';
   return (
     <div className={`p-4 border rounded-lg ${toneCls}`}>
-      <div className="text-xs uppercase tracking-wide text-neutral-500 flex items-center">
+      <div className="text-[11px] uppercase tracking-[0.18em] text-neutral-500 flex items-center">
         <span>{label}</span>
         {helpKey && <HelpPopover kpiKey={helpKey} />}
       </div>
-      <div className="text-2xl font-semibold mt-1">{value}</div>
-      {hint && <div className="text-xs text-neutral-500 mt-1">{hint}</div>}
+      <div className={`text-3xl font-semibold font-mono tracking-tight mt-2 ${valueCls}`}>
+        {value}
+      </div>
+      {hint && <div className="text-xs text-neutral-500 mt-2 leading-relaxed">{hint}</div>}
     </div>
   );
 }

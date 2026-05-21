@@ -7,19 +7,35 @@ import { VaultRecommendations } from './components/sections/VaultRecommendations
 
 export default function Page() {
   return (
-    <div className="grid grid-cols-[320px_1fr] min-h-screen">
-      <aside className="sticky top-0 h-screen overflow-y-auto border-r border-neutral-300 dark:border-neutral-700 p-4 bg-neutral-50 dark:bg-neutral-900">
+    <div className="grid grid-cols-[320px_1fr] min-h-screen bg-brix-bg text-neutral-200">
+      <aside className="sticky top-0 h-screen overflow-y-auto border-r border-brix-border p-4 bg-neutral-950">
         <Sidebar />
       </aside>
-      <main className="p-6 space-y-12 max-w-5xl">
-        <header>
-          <h1 className="text-2xl font-bold">Brix · wiTRY → USDM Market Simulator</h1>
-          <p className="text-sm text-neutral-600 dark:text-neutral-400 mt-1">
+      <main className="p-8 space-y-16 max-w-5xl">
+        <header className="border-b border-brix-border pb-8">
+          <div className="brix-kicker mb-4">Brix · Internal · Morpho Launch</div>
+          <h1 className="text-4xl md:text-5xl font-semibold tracking-tight leading-[1.05]">
+            wiTRY <span className="text-brix-accent">→</span> USDM
+            <br />
+            <span className="text-neutral-400">Market Simulator</span>
+          </h1>
+          <p className="mt-6 max-w-2xl text-lg leading-relaxed text-neutral-400">
             Pre-launch parameter calibration for a Morpho Blue market on MegaETH.
           </p>
-          <p className="text-sm mt-2">
-            <a href="/utilization" className="text-blue-600 underline">Target utilization calibration →</a>
-          </p>
+          <div className="mt-6 flex gap-6 text-sm">
+            <a href="/utilization" className="text-brix-accent hover:text-brix-accentHover">
+              Target utilization →
+            </a>
+            <a href="/lltv" className="text-brix-accent hover:text-brix-accentHover">
+              LLTV calibration →
+            </a>
+            <a href="/swapliquidity" className="text-brix-accent hover:text-brix-accentHover">
+              Swap liquidity →
+            </a>
+            <a href="/assignment" className="text-brix-accent hover:text-brix-accentHover">
+              Pitch deck →
+            </a>
+          </div>
         </header>
         <section id="section-liquidity-need-anchor">
           <h2 className="sr-only">1. USDM Liquidity Need</h2>

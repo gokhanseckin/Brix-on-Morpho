@@ -93,7 +93,7 @@ export function InfoTooltip({ text, moreInfo }: { text: string; moreInfo?: MoreI
           role="dialog"
           aria-modal="false"
           style={popoverStyle}
-          className="fixed z-[100] w-64 rounded-lg border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-900 p-3 text-xs shadow-xl normal-case tracking-normal"
+          className="fixed z-[100] w-64 rounded-lg border border-brix-border bg-brix-card p-3 text-xs shadow-xl normal-case tracking-normal"
         >
           <div className="flex items-start justify-between gap-2">
             <span className="leading-snug">{text}</span>
@@ -113,7 +113,7 @@ export function InfoTooltip({ text, moreInfo }: { text: string; moreInfo?: MoreI
             <div className="mt-3 pt-2 border-t border-neutral-200 dark:border-neutral-800 text-right">
               <Link
                 href={{ pathname: `/help/${moreInfo.section}` as Route, hash: moreInfo.anchor }}
-                className="text-xs font-medium text-blue-600 dark:text-blue-400 hover:underline"
+                className="text-xs font-medium text-brix-accent hover:underline"
                 onClick={() => setOpen(false)}
               >
                 More info →

@@ -32,7 +32,7 @@ export function PresetExportPanel() {
       <p className="text-sm text-neutral-500">
         Paste into kumbaya.xyz deploy script. Homepage §4 also reads this preset (via URL state).
       </p>
-      <pre className="text-xs bg-neutral-100 dark:bg-neutral-900 rounded p-3 overflow-x-auto">
+      <pre className="text-xs bg-brix-surface rounded p-3 overflow-x-auto">
 {json}
       </pre>
     </section>

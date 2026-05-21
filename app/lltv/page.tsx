@@ -94,21 +94,26 @@ export default function LLTVPage() {
     : null;
 
   return (
-    <div className="mx-auto max-w-4xl px-4 py-8">
-      <header className="mb-6 flex items-center justify-between border-b border-neutral-200 dark:border-neutral-800 pb-3">
-        <h1 className="text-lg font-semibold">LLTV calibration — 5-year USDTRY</h1>
-        <Link href="/" className="text-sm text-blue-600 dark:text-blue-400 hover:underline">
-          ← Back to dashboard
-        </Link>
+    <div className="mx-auto max-w-4xl px-6 py-10 bg-brix-bg min-h-screen text-neutral-200">
+      <header className="mb-8 border-b border-brix-border pb-6">
+        <div className="brix-kicker mb-3">Brix · LLTV analysis</div>
+        <div className="flex items-end justify-between">
+          <h1 className="text-3xl font-semibold tracking-tight">
+            LLTV calibration <span className="text-brix-accent">·</span> 5-year USD/TRY
+          </h1>
+          <Link href="/" className="text-sm text-brix-accent hover:text-brix-accentHover">
+            ← Back to dashboard
+          </Link>
+        </div>
       </header>
 
       <section className="space-y-3">
         <h2 className="text-xl font-semibold">Recommendation</h2>
-        <div className="rounded border border-emerald-300 dark:border-emerald-700 bg-emerald-50 dark:bg-emerald-950/40 p-4">
-          <div className="text-3xl font-bold text-emerald-700 dark:text-emerald-300">
+        <div className="rounded border border-emerald-500/40 bg-emerald-950/30 p-4">
+          <div className="text-3xl font-bold text-emerald-300">
             LLTV = {pct(recommended, 1)}
           </div>
-          <p className="text-sm mt-1 text-neutral-700 dark:text-neutral-300">
+          <p className="text-sm mt-1 text-neutral-300">
             Snapped down from raw {derived.raw.toFixed(4)} ({pct(derived.raw, 2)}) to the nearest
             governance tier. Risk tier: <strong>Moderate</strong>.
           </p>
@@ -117,7 +122,7 @@ export default function LLTVPage() {
 
       <section className="space-y-3 mt-8">
         <h2 className="text-xl font-semibold">Data window</h2>
-        <p className="text-sm text-neutral-700 dark:text-neutral-300">
+        <p className="text-sm text-neutral-300">
           Yahoo Finance <code>TRY=X</code> daily close, {first.date} → {last.date} ({fiveY.length}{' '}
           trading days). Source: <code>lib/usdtryData.json</code>.
         </p>
@@ -137,7 +142,7 @@ export default function LLTVPage() {
 
       <section className="space-y-3 mt-8">
         <h2 className="text-xl font-semibold">wiTRY-in-USD drawdowns</h2>
-        <p className="text-sm text-neutral-700 dark:text-neutral-300">
+        <p className="text-sm text-neutral-300">
           wiTRY is iTRY held as collateral; its USD value moves with <code>1 / USDTRY</code>. The
           k-day drawdown at day <em>t</em> is the worst loss from the peak of the prior k days. This
           is what a liquidator faces if oracle and on-chain price diverge during a window of length
@@ -145,7 +150,7 @@ export default function LLTVPage() {
         </p>
         <table className="text-sm w-full max-w-2xl border-collapse">
           <thead>
-            <tr className="border-b border-neutral-300 dark:border-neutral-700">
+            <tr className="border-b border-brix-border">
               <th className="text-left py-1">Window</th>
               <th className="text-right py-1">p50</th>
               <th className="text-right py-1">p90</th>
@@ -161,7 +166,7 @@ export default function LLTVPage() {
               { k: '7d', d: dd7 },
               { k: '30d', d: dd30 },
             ].map((r) => (
-              <tr key={r.k} className="border-b border-neutral-200 dark:border-neutral-800">
+              <tr key={r.k} className="border-b border-brix-border">
                 <td className="py-1 font-sans">{r.k}</td>
                 <td className="text-right">{pct(r.d.p50)}</td>
                 <td className="text-right">{pct(r.d.p90)}</td>
@@ -176,15 +181,15 @@ export default function LLTVPage() {
 
       <section className="space-y-3 mt-8">
         <h2 className="text-xl font-semibold">Formula</h2>
-        <p className="text-sm text-neutral-700 dark:text-neutral-300">
+        <p className="text-sm text-neutral-300">
           The recommended LLTV is the largest L such that, after a p95 collateral drawdown and
           liquidator-pays-slippage-and-LIF, the liquidator still breaks even with a safety buffer.
           From <code>lib/simulator.ts</code>:
         </p>
-        <pre className="rounded bg-neutral-100 dark:bg-neutral-900 p-3 text-sm overflow-x-auto">
+        <pre className="rounded bg-brix-surface p-3 text-sm overflow-x-auto">
 {`L = (1 − p95Drawdown) / (LIF(L) · (1 + slippage)) − safetyMargin`}
         </pre>
-        <p className="text-sm text-neutral-700 dark:text-neutral-300">
+        <p className="text-sm text-neutral-300">
           Solved by fixed-point iteration starting at L = 0.80, then snapped down to the nearest
           governance LLTV in <code>GOV_LLTVS</code>.
         </p>
@@ -192,7 +197,7 @@ export default function LLTVPage() {
 
       <section className="space-y-3 mt-8">
         <h2 className="text-xl font-semibold">Assumptions</h2>
-        <ul className="text-sm space-y-2 list-disc pl-5 text-neutral-700 dark:text-neutral-300">
+        <ul className="text-sm space-y-2 list-disc pl-5 text-neutral-300">
           <li>
             <strong>Drawdown horizon = 3 days.</strong> Matches the worker&apos;s
             <code> threeDayMaxDrawdown</code> output and is a realistic upper bound on the time
@@ -229,7 +234,7 @@ export default function LLTVPage() {
 
       <section className="space-y-3 mt-8">
         <h2 className="text-xl font-semibold">Walk-through</h2>
-        <pre className="rounded bg-neutral-100 dark:bg-neutral-900 p-3 text-sm overflow-x-auto">
+        <pre className="rounded bg-brix-surface p-3 text-sm overflow-x-auto">
 {`p95 3-day drawdown    = ${pct(p95Drawdown, 4)}
 slippage              = ${pct(slippage, 2)}
 safety margin         = ${pct(safetyMargin, 2)}
@@ -251,7 +256,7 @@ LIF(${recommended})              = ${lifAtRecommended.toFixed(4)}`}
           <h2 className="text-xl font-semibold">
             Bumping one step to {pct(oneStepLarger, 1)}
           </h2>
-          <p className="text-sm text-neutral-700 dark:text-neutral-300">
+          <p className="text-sm text-neutral-300">
             The next governance tier above {pct(recommended, 1)} is{' '}
             <strong>{pct(oneStepLarger, 1)}</strong>. The raw derivation currently lands at{' '}
             <code>{derived.raw.toFixed(4)}</code>, which is{' '}
@@ -262,26 +267,26 @@ LIF(${recommended})              = ${lifAtRecommended.toFixed(4)}`}
 
           <table className="text-sm w-full max-w-3xl border-collapse">
             <thead>
-              <tr className="border-b border-neutral-300 dark:border-neutral-700">
+              <tr className="border-b border-brix-border">
                 <th className="text-left py-1">Knob</th>
                 <th className="text-right py-1">Current</th>
                 <th className="text-right py-1">Required to snap to {pct(oneStepLarger, 1)}</th>
               </tr>
             </thead>
             <tbody className="font-mono">
-              <tr className="border-b border-neutral-200 dark:border-neutral-800">
+              <tr className="border-b border-brix-border">
                 <td className="py-1 font-sans">p95 3-day drawdown</td>
                 <td className="text-right">{pct(p95Drawdown, 3)}</td>
                 <td className="text-right">≤ {pct(ddCeilingForNext!, 3)}</td>
               </tr>
-              <tr className="border-b border-neutral-200 dark:border-neutral-800">
+              <tr className="border-b border-brix-border">
                 <td className="py-1 font-sans">Slippage</td>
                 <td className="text-right">{pct(slippage, 2)}</td>
                 <td className="text-right">
                   {slipCeilingForNext! > 0 ? `≤ ${pct(slipCeilingForNext!, 3)}` : 'infeasible at current dd+safety'}
                 </td>
               </tr>
-              <tr className="border-b border-neutral-200 dark:border-neutral-800">
+              <tr className="border-b border-brix-border">
                 <td className="py-1 font-sans">Safety margin</td>
                 <td className="text-right">{pct(safetyMargin, 2)}</td>
                 <td className="text-right">
@@ -292,7 +297,7 @@ LIF(${recommended})              = ${lifAtRecommended.toFixed(4)}`}
           </table>
 
           <h3 className="text-base font-semibold mt-4">What that means operationally</h3>
-          <ul className="text-sm space-y-2 list-disc pl-5 text-neutral-700 dark:text-neutral-300">
+          <ul className="text-sm space-y-2 list-disc pl-5 text-neutral-300">
             <li>
               <strong>Drawdown ceiling ({pct(ddCeilingForNext!, 2)}).</strong> The current 5-year
               p95 is {pct(p95Drawdown, 2)} — a soft pre-liquidation that cuts positions on a smaller
@@ -329,7 +334,7 @@ LIF(${recommended})              = ${lifAtRecommended.toFixed(4)}`}
 
       <section className="space-y-3 mt-8">
         <h2 className="text-xl font-semibold">Caveats</h2>
-        <ul className="text-sm space-y-2 list-disc pl-5 text-neutral-700 dark:text-neutral-300">
+        <ul className="text-sm space-y-2 list-disc pl-5 text-neutral-300">
           <li>
             This page is a <strong>point estimate</strong> using the historical 5-year window
             directly. The full simulator runs bootstrap / GBM / Scenario paths and may produce a

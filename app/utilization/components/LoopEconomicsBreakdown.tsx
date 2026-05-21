@@ -7,7 +7,7 @@ const pct = (v: number) => `${(v * 100).toFixed(2)}%`;
 
 export function LoopEconomicsBreakdown({ analysis }: { analysis: UtilizationAnalysisOutput }) {
   const econ = analysis.recommendedDetails.economics;
-  if (!econ) return <section className="rounded-lg border p-4 text-sm text-gray-500">No loop economics — looper inputs unviable.</section>;
+  if (!econ) return <section className="rounded-lg border border-brix-border p-4 text-sm text-neutral-500">No loop economics — looper inputs unviable.</section>;
 
   const data = [
     { name: 'Gross loop APY',  value: econ.grossLoopAPY * 100, color: '#10b981' },
@@ -19,11 +19,11 @@ export function LoopEconomicsBreakdown({ analysis }: { analysis: UtilizationAnal
   ];
 
   return (
-    <section className="rounded-lg border bg-white p-4">
+    <section className="rounded-lg border border-brix-border bg-brix-card p-4">
       <h2 className="font-semibold inline-flex items-center gap-1">Loop Economics Breakdown<HelpPopover chartKey="loopEconomicsWaterfall" /></h2>
-      <p className="text-sm text-gray-600">
+      <p className="text-sm text-neutral-400">
         Effective leverage <span className="font-mono">{econ.effectiveLeverage.toFixed(2)}×</span>.
-        Loop margin <span className={`font-mono ${econ.loopMargin > 0 ? 'text-green-700' : 'text-red-700'}`}>{pct(econ.loopMargin)}</span>.
+        Loop margin <span className={`font-mono ${econ.loopMargin > 0 ? 'text-emerald-300' : 'text-red-300'}`}>{pct(econ.loopMargin)}</span>.
       </p>
       <div className="h-64 mt-3">
         <ResponsiveContainer>

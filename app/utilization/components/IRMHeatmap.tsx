@@ -25,9 +25,9 @@ export function IRMHeatmap({ analysis }: { analysis: UtilizationAnalysisOutput }
   const currentR = analysis.inputs.rTarget;
 
   return (
-    <section className="rounded-lg border bg-white p-4">
+    <section className="rounded-lg border border-brix-border bg-brix-card p-4">
       <h2 className="font-semibold inline-flex items-center gap-1">IRM Sensitivity Heatmap<HelpPopover chartKey="irmHeatmap" /></h2>
-      <p className="text-sm text-gray-600">
+      <p className="text-sm text-neutral-400">
         borrowAPY across (u_target, r_target). Cells below wiTRY 7d ({(w7*100).toFixed(2)}%) are loop-feasible.
       </p>
       <div className="mt-3 overflow-x-auto">
@@ -56,7 +56,7 @@ export function IRMHeatmap({ analysis }: { analysis: UtilizationAnalysisOutput }
           </tbody>
         </table>
       </div>
-      <p className="mt-2 text-xs text-gray-500">x: u_target · y: r_target · cell: borrowAPY% · outline: current (recommended)</p>
+      <p className="mt-2 text-xs text-neutral-500">x: u_target · y: r_target · cell: borrowAPY% · outline: current (recommended)</p>
     </section>
   );
 }

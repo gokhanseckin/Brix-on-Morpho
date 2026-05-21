@@ -33,7 +33,8 @@ export function LiquidityNeed() {
   return (
     <section id="section-liquidity-need" className="space-y-6">
       <div>
-        <h2 className="text-xl font-semibold">1. USDM Liquidity Need</h2>
+        <div className="brix-kicker mb-2">01 · Liquidity Need</div>
+        <h2 className="text-2xl md:text-3xl font-semibold tracking-tight">USDM Liquidity Need</h2>
         <p className="text-sm text-neutral-500 mt-1">
           How much USDM the vault must hold to satisfy expected borrow demand at the configured
           target utilization, given a Beta-distributed borrower LTV profile.
@@ -68,7 +69,7 @@ export function LiquidityNeed() {
           </h3>
           <HelpPopover chartKey="irmCurve" />
         </div>
-        <div className="border border-neutral-200 dark:border-neutral-800 rounded p-2 bg-white dark:bg-neutral-950">
+        <div className="border border-brix-border rounded p-2 bg-brix-card">
           <ResponsiveContainer width="100%" height={260}>
             <LineChart data={liquidity.irmCurve} margin={{ top: 8, right: 20, bottom: 8, left: 8 }}>
               <CartesianGrid strokeDasharray="3 3" opacity={0.3} />
@@ -102,7 +103,7 @@ export function LiquidityNeed() {
           </h3>
           <HelpPopover chartKey="betaDistribution" />
         </div>
-        <div className="border border-neutral-200 dark:border-neutral-800 rounded p-2 bg-white dark:bg-neutral-950">
+        <div className="border border-brix-border rounded p-2 bg-brix-card">
           <ResponsiveContainer width="100%" height={260}>
             <LineChart data={betaCurve} margin={{ top: 8, right: 20, bottom: 8, left: 8 }}>
               <CartesianGrid strokeDasharray="3 3" opacity={0.3} />
@@ -156,7 +157,7 @@ export function LiquidityNeed() {
         </div>
         <table className="text-sm border-collapse w-full max-w-md">
           <thead>
-            <tr className="border-b border-neutral-300 dark:border-neutral-700">
+            <tr className="border-b border-brix-border">
               <th className="text-left py-1">LLTV</th>
               <th className="text-right py-1">Required USDM</th>
             </tr>
@@ -167,7 +168,7 @@ export function LiquidityNeed() {
                 key={r.lltv}
                 className={
                   r.lltv === inputs.lltv
-                    ? 'bg-blue-50 dark:bg-blue-950/40 font-medium'
+                    ? 'bg-brix-accent/10 font-medium'
                     : 'border-b border-neutral-100 dark:border-neutral-900'
                 }
               >
