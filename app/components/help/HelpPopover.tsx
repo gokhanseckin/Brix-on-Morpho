@@ -19,8 +19,17 @@ export function HelpPopover(props: Props) {
   const anchor = isKpi ? props.kpiKey! : props.chartKey!;
 
   const [open, setOpen] = useState(false);
+  const [align, setAlign] = useState<'left' | 'right'>('right');
   const triggerRef = useRef<HTMLButtonElement>(null);
   const id = useId();
+
+  // Flip popover horizontally if there isn't enough room to the left of the trigger.
+  useEffect(() => {
+    if (!open || !triggerRef.current) return;
+    const rect = triggerRef.current.getBoundingClientRect();
+    const popoverWidth = 380;
+    setAlign(rect.right < popoverWidth + 16 ? 'left' : 'right');
+  }, [open]);
 
   useEffect(() => {
     if (!open) return;
@@ -66,7 +75,7 @@ export function HelpPopover(props: Props) {
           role="dialog"
           aria-modal="false"
           aria-label={effectiveTitle}
-          className="absolute right-0 z-50 mt-2 w-[380px] max-h-[80vh] overflow-auto rounded-lg border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-900 p-4 shadow-xl sm:right-0 max-sm:fixed max-sm:inset-x-0 max-sm:bottom-0 max-sm:rounded-t-lg max-sm:rounded-b-none max-sm:w-auto"
+          className={`absolute ${align === 'right' ? 'right-0 sm:right-0' : 'left-0 sm:left-0'} z-50 mt-2 w-[380px] max-h-[80vh] overflow-auto rounded-lg border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-900 p-4 shadow-xl max-sm:fixed max-sm:inset-x-0 max-sm:bottom-0 max-sm:rounded-t-lg max-sm:rounded-b-none max-sm:w-auto`}
         >
           <div className="flex items-start justify-between mb-3">
             <h2 className="text-sm font-semibold">{effectiveTitle}</h2>
