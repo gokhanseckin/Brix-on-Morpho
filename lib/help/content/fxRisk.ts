@@ -52,42 +52,49 @@ export const FX_RISK_PARAMS: Partial<Record<string, ParamHelp>> = {
   },
   historicalPeriod: {
     oneLiner:
-      'How many years of daily USD/TRY history to draw from when fitting GBM params or resampling for bootstrap. 1Y captures recent regime; 3Y default balances regime + crises; 5Y includes more tails.',
+      'How many years of daily USD/TRY history to draw from when resampling for Bootstrap or fitting GBM drift/vol. 1Y captures the recent regime; 3Y (default) balances recent behavior with past crises; 5Y includes more tail events. Note: GBM+Jumps jump parameters (frequency, size) are calibrated from the full 2015–2025 decade and do NOT change when you switch this window.',
   },
   simulationMode: {
     oneLiner:
-      'Path generator: Bootstrap (resample real returns — heavy-tail-preserving, default), GBM (smooth log-normal), GBM+Jumps (Merton jump-diffusion), Scenario (deterministic linear glide to a chosen shock).',
+      'How the simulator generates 1000 imaginary TRY futures. Bootstrap (default) shuffles real history; GBM uses a math model; GBM+Jumps adds sudden crisis shocks on top; Scenario lets you hardcode a specific crash.',
     details: {
       description:
-        'The simulation mode determines how Monte-Carlo USD/TRY paths are generated. All four modes drive Sections 2 (FX Risk), 4 (Liquidation), and 5 (Vault Recommendations). Section 1 (Liquidity Need) and Section 3 (Strategy) are pre-FX and do not depend on path generation.',
+        'The simulator runs 1000 parallel "what if" futures for USD/TRY to answer: how often do positions go underwater, how fast, and how much bad debt accumulates? All four modes feed Sections 2 (FX Risk), 4 (Liquidation), and 5 (Vault Recommendations). Section 1 (Liquidity Need) and Section 3 (Strategy) are pre-FX and do not depend on the simulation.',
       options: [
         {
           name: 'Bootstrap (default)',
           description:
-            'Resamples real USD/TRY daily returns from the embedded Yahoo history (window length = `historicalPeriod` years). Each path picks a random historical day, applies its return, repeats for `simulationHorizonDays` steps. Preserves heavy tails and skew — what actually happened can happen again. The `blockBootstrap` toggle pulls returns in 5-day blocks to preserve short-run autocorrelation (volatility clustering).',
+            'Takes the actual historical daily TRY moves from the embedded dataset, shuffles them randomly, and strings them together to build each fake future path. Day 1: pick a random real historical day\'s move. Day 2: pick another. Repeat for the full horizon. Because you\'re resampling real moves, crashes like −15% in a day (Aug 2018, Nov 2021) can and do appear. The `blockBootstrap` toggle pulls 5-day blocks instead of single days to preserve crisis sequences (see below).',
           bestFor:
-            'Realistic stress where you trust the historical window to represent the future. Strongest match to recent crisis regimes.',
+            'Default choice. The real distribution of TRY moves — including past crises — is already in the data. What actually happened can happen again.',
+        },
+        {
+          name: 'Block Bootstrap',
+          description:
+            'Same as Bootstrap, but instead of picking one day at a time, the simulator picks consecutive 5-day blocks of history and inserts them together. This preserves the fact that TRY crises don\'t last one day — they persist for weeks. Plain Bootstrap breaks up real crisis sequences into scattered noise; Block Bootstrap keeps them intact. Enable via the `blockBootstrap` toggle when in Bootstrap mode.',
+          bestFor:
+            'When you want Bootstrap realism but also want to model realistic crisis durations (volatility clustering).',
         },
         {
           name: 'GBM (Geometric Brownian Motion)',
           description:
-            'Fits μ (drift) and σ (vol) from the historical window, then generates each step as S_t · exp((μ − σ²/2)·dt + σ·√dt·Z) with Z ~ N(0, 1). Smooth log-normal walk with no fat tails, no jumps, and no autocorrelation. Tighter P5/P95 bands than Bootstrap.',
+            'Forgets history entirely and models TRY as a math formula. Each day\'s move is drawn from a bell curve (normal distribution) using drift μ and volatility σ fitted from the historical window. Produces smooth random walks with no sudden jumps. Because TRY moves are not bell-curve shaped in reality (they have fat tails), GBM will rarely simulate a 20%+ single-day crash even if that\'s happened historically — it systematically underestimates extreme events.',
           bestFor:
-            'Textbook analytic baseline. Useful for comparing against Bootstrap to see how much of the tail risk comes from real history vs. the normal-distribution assumption.',
+            'Textbook baseline. Compare against Bootstrap to see how much of the tail risk comes from real history vs. the normal-distribution assumption. If even GBM shows bad debt risk, you\'re definitely in trouble.',
         },
         {
           name: 'GBM+Jumps (Merton jump-diffusion)',
           description:
-            'GBM plus a Poisson jump process (default λ ≈ 4 jumps/year, log-normal jump size). Same drift/vol fit as GBM, with a martingale compensator so the mean still tracks S₀ · exp(μT). Reintroduces fat tails that pure GBM misses — single-day step-changes such as central-bank moves or currency interventions.',
+            'GBM with random disasters added on top. Same smooth daily noise as GBM, but roughly 4 times per year (≈1.1% chance each day) a sudden extra "jump" hits — an additional TRY drop of about −5% on average (drawn from a normal distribution with mean −5%, std 4%). So a mild jump is −1% to −3%, a typical one −5%, and a severe one −9% to −13%. The jump parameters are calibrated from a decade of TRY history (2015–2025) and are fixed constants — they do NOT change when you adjust the historicalPeriod window.',
           bestFor:
-            'Tail-aware modeling without abandoning the analytic GBM structure. The tail comes from a parameterized jump process, not from historical resampling.',
+            'Captures fat tails (sudden currency crises, central bank moves) without relying purely on resampling history. Good complement to Bootstrap.',
         },
         {
           name: 'Scenario',
           description:
-            'Single deterministic path. Ignores history entirely. Glides linearly from `usdtryBaseline` to `usdtryBaseline × (1 + |tryShockPct|)` over the horizon. The `tryShockPct` slider controls shock magnitude; sign is ignored (always interpreted as TRY weakening).',
+            'Not random at all. You define one specific future: TRY weakens linearly by `tryShockPct` over the simulation horizon. All 1000 "paths" follow the same deterministic glide. Ignores all historical data and volatility estimates.',
           bestFor:
-            '"What if TRY drops X% in N days?" stress tests with a single number to point at. Use to validate that the LLTV recommendation withstands a specific scenario the team wants to defend.',
+            '"What if the 2018 crisis happens again?" stress tests. Answers "would we survive X?" with certainty under that assumption, rather than giving a probability. Use to validate the LLTV against a specific scenario the team wants to defend.',
         },
       ],
       downstream: [
@@ -126,7 +133,7 @@ export const FX_RISK_PARAMS: Partial<Record<string, ParamHelp>> = {
   },
   simulationHorizonDays: {
     oneLiner:
-      'How far forward to simulate per path (in days). Longer horizons let more drawdown accumulate; shorter horizons fit faster but undersample tail events. 30d is the default operational window.',
+      'How many days forward each simulated path runs. Day 0 = today; Day N = N days from now. The x-axis on all FX Risk charts goes from 0 to this number. Longer horizons let more drawdown accumulate; shorter horizons model a tighter liquidation window. 30 days is the default.',
   },
   pathCount: {
     oneLiner:
@@ -138,7 +145,7 @@ export const FX_RISK_PARAMS: Partial<Record<string, ParamHelp>> = {
   },
   blockBootstrap: {
     oneLiner:
-      'Bootstrap-mode toggle. ON: resample in 5-day blocks to preserve short-run autocorrelation (more realistic clustering). OFF: pure i.i.d. resampling, fastest.',
+      'Bootstrap-mode toggle. ON: resample history in consecutive 5-day blocks instead of one day at a time. This preserves real crisis sequences — TRY crises last weeks, not single days, so block sampling keeps them intact rather than scattering them as noise. OFF: pure day-by-day resampling, fastest.',
   },
   seed: {
     oneLiner:
@@ -152,7 +159,7 @@ export const FX_RISK_PARAMS: Partial<Record<string, ParamHelp>> = {
 
 const threeDayMaxDrawdownP50: KpiHelp = {
   title: '3-day max drawdown — P50',
-  oneLiner: 'Median worst 3-day drop in wiTRY USD value across all simulated paths. The "typical" adverse window a liquidator faces if they must hold collateral while waiting for secondary-market exit.',
+  oneLiner: 'In each of the 1000 simulated futures, find the single worst 3-day TRY crash. This is the median of those worst crashes — the "typical" hit a liquidator faces if they receive wiTRY collateral and need a few days to sell it. Half of simulated futures had a worse 3-day crash, half had a milder one.',
   formula: {
     plain: 'for each path:\n  perPath = max over t of (max S[t..t+3] − S[t]) / S[t]\nthreeDayDD_P50 = median(perPath across paths)',
     latex: 'P50\\big(\\max_{t} \\tfrac{\\max(S_{t..t+3}) - S_t}{S_t}\\big)',
@@ -175,7 +182,7 @@ const threeDayMaxDrawdownP50: KpiHelp = {
 
 const threeDayMaxDrawdownP95: KpiHelp = {
   title: '3-day max drawdown — P95',
-  oneLiner: 'The tail (95th-percentile) worst 3-day drop. This is the number that drives the recommended LLTV in Section 5: the vault is sized to survive this event.',
+  oneLiner: 'The worst 3-day TRY crash at the 95th percentile — only 5% of simulated futures had a more severe 3-day drop. This is the tail event the LLTV is sized to survive: the vault must still be able to liquidate without bad debt even if TRY crashes this hard over any 3-day window.',
   formula: {
     plain: 'threeDayDD_P95 = P95(perPath worst-3d drawdown across paths)',
     latex: 'P95\\big(\\max_{t} \\tfrac{\\max(S_{t..t+3}) - S_t}{S_t}\\big)',
@@ -252,13 +259,13 @@ export const FX_RISK_KPIS = {
 
 const fxBands: ChartHelp = {
   title: 'USD/TRY paths (P5 / P50 / P95)',
-  oneLiner: 'The fan of simulated USD/TRY paths summarized as the 5th / 50th / 95th percentile at each day. Visualizes the range of FX outcomes the vault must withstand.',
-  axes: { x: 'Day (0 = today)', y: 'USD/TRY rate (TRY per 1 USD)' },
+  oneLiner: 'The 1000 simulated TRY futures summarized as three lines at each day: the median outcome (P50) and the two tails (P5 = optimistic, P95 = pessimistic). The fan shape widens over time because uncertainty compounds — the further into the future, the more the paths diverge.',
+  axes: { x: 'Day (0 = today, Day N = N calendar days from now)', y: 'USD/TRY rate (TRY per 1 USD — higher = TRY weaker)' },
   definitions: [
-    { term: 'P5 (green)', definition: 'Optimistic — only 5% of paths are BELOW this line (TRY stronger than this).' },
-    { term: 'P50 (blue)', definition: 'Median path. Equally likely to be above or below.' },
-    { term: 'P95 (red)', definition: 'Pessimistic — only 5% of paths are ABOVE this line (TRY weaker than this).' },
-    { term: 'Spread interpretation', definition: 'The P95–P5 gap grows over time roughly as √t under GBM. A widening gap means tail risk is accumulating.' },
+    { term: 'P50 (blue) — median', definition: 'Half of the 1000 simulations were worse than this, half better. The "most likely" scenario.' },
+    { term: 'P5 (green) — optimistic tail', definition: 'Only 5% of simulations had TRY stronger than this. TRY held up well.' },
+    { term: 'P95 (red) — pessimistic tail', definition: 'Only 5% of simulations had TRY weaker than this. This is the "things got really bad" tail — the number that drives the LLTV recommendation.' },
+    { term: 'Widening fan', definition: 'The gap between P5 and P95 grows as you move right on the x-axis. This is normal: small daily uncertainties stack up, so a 30-day forecast is much wider than a 1-day forecast. It is NOT growing because TRY is getting more volatile — it reflects compounding uncertainty.' },
   ],
   bands: [
     { name: 'Below P5 (≤ 5% of paths)', meaning: 'Best-case TRY strengthening. Collateral USD value rises; no liquidation pressure.' },
@@ -274,33 +281,35 @@ const fxBands: ChartHelp = {
 
 const netWitryUsdPaths: ChartHelp = {
   title: 'Net wiTRY USD value paths',
-  oneLiner: 'The same Monte-Carlo paths, but expressed as wiTRY USD value: (1 + witryYield)^(t/365) / S(t). Shows the partial offset of wiTRY yield against TRY depreciation.',
-  axes: { x: 'Day (0 = today)', y: 'wiTRY USD value per 1 iTRY' },
+  oneLiner: 'The USD value of wiTRY collateral over time — two forces fighting each other: wiTRY accrual pushes it up (yield compounds daily), TRY depreciation pushes it down. This chart shows which one wins across the 1000 simulated futures.',
+  axes: { x: 'Day (0 = today, Day N = N calendar days from now)', y: 'wiTRY USD value, normalized to 1.0 at Day 0' },
   definitions: [
-    { term: 'wiTRY yield offset', definition: 'wiTRY appreciates in TRY terms at the MMF NAV rate (iTRY itself is a 1:1 stable peg — the yield accrues at the wrapper level). Even when TRY depreciates, the USD value of wiTRY falls less than 1/S would suggest.' },
-    { term: 'Break-even', definition: 'wiTRY USD value stays flat when TRY depreciates exactly at the wiTRY yield rate (e.g. 38%/yr). Above that, USD value falls; below, USD value rises.' },
-    { term: 'Color flip vs fxBands', definition: 'Because wiTRY USD = ~1/S, the P5 of S corresponds to the P95 of wiTRY USD value and vice versa. Colors are remapped so green = good (high wiTRY USD), red = bad.' },
+    { term: 'Two competing forces', definition: 'wiTRY earns yield every day (the Turkish MMF NAV grows, giving you more TRY per wiTRY). At the same time TRY itself loses value against USD. The net USD value = (TRY per wiTRY) × (USD per TRY). If yield > depreciation rate, the value drifts up. If depreciation > yield, it drifts down. On the median path, TRY historically depreciates faster than the yield compensates, so the P50 line drifts downward.' },
+    { term: 'Break-even rate', definition: 'wiTRY USD value stays flat when TRY depreciates exactly at the annualized wiTRY yield rate (e.g. 38%/yr). This is the threshold — above that depreciation rate, USD value falls; below it, USD value rises.' },
+    { term: 'Reading the chart', definition: 'A value of 0.85 at Day 30 on the P95 line means: in the worst 5% of futures, the collateral is worth 85% of its original USD value after 30 days. If the loan was sized at 75% LLTV and collateral drops to 75% of original value, that position is exactly at the liquidation threshold.' },
+    { term: 'Color flip vs fxBands', definition: 'Because wiTRY USD ≈ 1/S, the P5 of USD/TRY corresponds to the P95 of wiTRY USD value and vice versa. Colors are remapped so green = good (high wiTRY USD value), red = bad.' },
   ],
   impact: {
-    health: 'This is what the LIQUIDATOR is actually seizing, not raw S. The yield offset is real protection.',
+    health: 'This is what the liquidator actually seizes. The yield offset is real protection — it partially compensates for TRY depreciation before a liquidation is triggered.',
     sustainability: 'If witryYield is overstated vs. actual MMF yields, this chart over-promises the offset and the vault is undersized.',
-    profitability: 'Borrow demand from leverage-loopers depends on this curve being positive over their hold horizon.',
+    profitability: 'Borrow demand from leverage-loopers depends on this curve staying positive over their hold horizon.',
   },
 };
 
 const positionsUnderwater: ChartHelp = {
   title: '% positions underwater by day (P50 path)',
-  oneLiner: 'Along the P50 USD/TRY path, the fraction of synthetic borrowers (drawn from the Beta(α,β) LTV distribution) whose LTV exceeds LLTV at each day.',
-  axes: { x: 'Day (0 = today)', y: '% of borrower population at LTV > LLTV' },
+  oneLiner: 'Imagine 500 borrowers who all opened loans today at various collateral ratios. On the median TRY path (P50), this chart shows what percentage of those positions have collateral value drop below their loan value — i.e., become liquidatable — by each day.',
+  axes: { x: 'Day (0 = today)', y: '% of borrower population whose collateral is worth less than their loan' },
   definitions: [
-    { term: 'Synthetic borrowers', definition: 'A sample of 500 LTV fractions drawn from Beta(α, β); each represents a hypothetical borrower position.' },
-    { term: 'Underwater condition', definition: 'A position is underwater (liquidatable) when ltvFraction > collateralRelChange, where collateralRelChange = wiTRY USD value at t / wiTRY USD value at 0.' },
-    { term: 'P50 path only', definition: 'This chart uses only the median FX path for clarity. The tail distribution drives Section 4 bad debt — not visualized here.' },
+    { term: 'The 500 synthetic borrowers', definition: 'Not real users — 500 hypothetical positions with loan-to-value ratios spread across a realistic distribution (Beta(α, β)). Each represents one point in the plausible borrower population.' },
+    { term: 'Underwater condition', definition: 'A position flips underwater when the wiTRY collateral USD value drops enough that the loan-to-value ratio exceeds the LLTV threshold. At that point the protocol can liquidate it.' },
+    { term: 'Why the curve rises over time', definition: 'On the median path, TRY slowly depreciates. Collateral USD value erodes day by day. Positions opened at riskier LTVs (close to LLTV) cross the threshold first; safer positions may never cross within the horizon.' },
+    { term: 'P50 path only', definition: 'This uses only the median FX future for clarity — it answers "how many positions get hit if things go as expected?" The tail scenarios (how bad it gets in the worst 5%) drive Section 4 bad debt instead.' },
   ],
   impact: {
-    health: 'Quick visual answer to "if FX moves as expected, how many positions get liquidated and when?".',
-    sustainability: 'A steady rise → orderly liquidations. A cliff → systemic cascade risk; the bad-debt cascade (§4) is where the dollar consequence shows up.',
-    profitability: 'High underwater fraction = high realized liquidation activity = high liquidator demand for the wiTRY/USDM AMM.',
+    health: 'Quick visual answer to "if FX moves as expected, how many positions get liquidated and how quickly?".',
+    sustainability: 'A gradual rise → orderly liquidations, liquidators have time to act. A sudden cliff → systemic cascade risk; the dollar consequence is in Section 4.',
+    profitability: 'High underwater fraction = high liquidation activity = high demand for the wiTRY/USDM AMM.',
   },
 };
 
