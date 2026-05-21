@@ -140,7 +140,7 @@ const slides: Slide[] = [
       <div className="flex h-full flex-col">
         <Kicker>02 · Economy flow</Kicker>
         <H2>
-          One market, six actors, two kinds of flow.
+          One market, six actors, <Accent>two kinds of flow</Accent>.
         </H2>
         <div className="mt-8 flex-1">
           <EconomySvg />
@@ -218,7 +218,7 @@ const slides: Slide[] = [
     render: () => (
       <div className="flex h-full flex-col">
         <Kicker>04 · Operations</Kicker>
-        <H2>Watch six numbers. Act on three.</H2>
+        <H2>Watch six numbers. <Accent>Act on three.</Accent></H2>
         <div className="mt-8 grid grid-cols-3 gap-4 text-[17px]">
           {[
             { k: 'Utilization', v: 'Borrowed ÷ supplied. Stay 70–90%. Above 95% = trouble.' },
@@ -318,7 +318,7 @@ const slides: Slide[] = [
     render: () => (
       <div className="flex h-full flex-col">
         <Kicker>06 · Who runs the vault</Kicker>
-        <H2>Five candidates.</H2>
+        <H2><Accent>Five</Accent> candidates.</H2>
         <div className="mt-6 overflow-hidden rounded-lg border border-neutral-800">
           <table className="w-full text-left text-[16px]">
             <thead className="bg-neutral-900/70 text-[12px] uppercase tracking-[0.18em] text-neutral-500">
@@ -366,7 +366,7 @@ const slides: Slide[] = [
     render: () => (
       <div className="flex h-full flex-col">
         <Kicker>07 · The supporting cast</Kicker>
-        <H2>One role, one partner.</H2>
+        <H2>One role, <Accent>one partner</Accent>.</H2>
         <div className="mt-6 overflow-hidden rounded-lg border border-neutral-800">
           <table className="w-full text-left text-[17px]">
             <thead className="bg-neutral-900/70 text-[12px] uppercase tracking-[0.18em] text-neutral-500">
@@ -409,7 +409,7 @@ const slides: Slide[] = [
     render: () => (
       <div className="flex h-full flex-col">
         <Kicker>08 · How a liquidation happens</Kicker>
-        <H2>Four steps. One transaction.</H2>
+        <H2>Four steps. <Accent>One transaction.</Accent></H2>
         <div className="mt-8 grid grid-cols-4 gap-4">
           {[
             { n: '1', t: 'Call', d: 'Liquidator calls liquidate() on the underwater position. Morpho opens an onMorphoLiquidate callback.' },
@@ -578,7 +578,7 @@ const slides: Slide[] = [
     render: () => (
       <div className="flex h-full flex-col">
         <Kicker>10 · What to seed in Kumbaya</Kicker>
-        <H2>Recommended AMM liquidity</H2>
+        <H2>Recommended <Accent>AMM liquidity</Accent></H2>
         <div className="mt-6">
           <Body>
             Seed the Kumbaya wiTRY/USDM pool to{' '}
