@@ -30,7 +30,7 @@ export function useUrlState() {
     witryYieldAnnual: parseAsFloat.withDefault(0.38),
     witryYieldUSD_7d:  parseAsFloat.withDefault(0.0631),
     witryYieldUSD_30d: parseAsFloat.withDefault(0.1931),
-    usdtryBaseline: parseAsFloat.withDefault(38.5),
+    usdtryBaseline: parseAsFloat.withDefault(45),
     historicalPeriod: parseAsInteger.withDefault(3),
     simulationMode: parseAsStringLiteral(MODES).withDefault('Bootstrap'),
     simulationHorizonDays: parseAsInteger.withDefault(30),
