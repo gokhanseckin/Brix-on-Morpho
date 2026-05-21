@@ -1,7 +1,7 @@
 // lib/univ3/swap.ts
 // Uniswap v3 exact-in swap walker. Reference: whitepaper §6.3 + Uniswap v3-core SwapMath.sol.
 import { priceToSqrtPriceX96, priceToTick, sqrtPriceX96ToPrice } from './tickMath';
-import { liquidityForAmounts, amountsForLiquidity } from './liquidityMath';
+import { liquidityForAmounts } from './liquidityMath';
 
 const Q96 = 2n ** 96n;
 
