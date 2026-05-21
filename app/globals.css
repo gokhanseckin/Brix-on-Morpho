@@ -65,6 +65,49 @@ input[type="checkbox"] {
   color: #fff;
 }
 
+/* Recharts dark Brix overrides */
+.recharts-default-tooltip {
+  background-color: #0a0a0a !important;
+  border: 1px solid #262626 !important;
+  border-radius: 6px !important;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+  padding: 8px 12px !important;
+}
+.recharts-tooltip-label {
+  color: #a3a3a3 !important;
+  font-size: 12px;
+  margin-bottom: 4px !important;
+}
+.recharts-tooltip-item {
+  color: #5b9dff !important;
+  font-family: var(--font-geist-mono), ui-monospace, monospace;
+  font-size: 12px;
+}
+.recharts-tooltip-item-name,
+.recharts-tooltip-item-separator {
+  color: #a3a3a3 !important;
+}
+.recharts-tooltip-item-value {
+  color: #5b9dff !important;
+}
+.recharts-cartesian-axis-tick text {
+  fill: #737373 !important;
+}
+.recharts-cartesian-axis-line,
+.recharts-cartesian-axis-tick-line {
+  stroke: #262626 !important;
+}
+.recharts-cartesian-grid line {
+  stroke: #1f1f1f !important;
+}
+.recharts-legend-item-text {
+  color: #d4d4d4 !important;
+}
+.recharts-tooltip-cursor {
+  stroke: #5b9dff !important;
+  stroke-opacity: 0.4;
+}
+
 @layer utilities {
   .text-balance {
     text-wrap: balance;
