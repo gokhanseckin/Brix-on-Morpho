@@ -4,7 +4,7 @@ import { useUrlState } from '@/lib/useUrlState';
 import { buildAsymmetricLadder } from '@/lib/poolPreset';
 import { materializePool } from '@/lib/univ3/quoteLiquidatorSell';
 import { sqrtPriceX96ToPrice, tickToPrice } from '@/lib/univ3/tickMath';
-import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
+import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, ReferenceLine } from 'recharts';
 import { Kpi } from '@/app/components/Kpi';
 import { HelpPopover } from '@/app/components/help/HelpPopover';
 
@@ -73,6 +73,7 @@ export function PoolStatePanel() {
             <YAxis />
             <Tooltip formatter={(v) => Number(v).toFixed(2)} />
             <Bar dataKey="liquidityNet" fill="#3b82f6" />
+            <ReferenceLine x={sqrtPriceX96ToPrice(pool.sqrtPriceX96)} stroke="#ef4444" strokeDasharray="4 3" label={{ value: 'spot', position: 'top', fill: '#ef4444', fontSize: 11 }} />
           </BarChart>
         </ResponsiveContainer>
       </div>
