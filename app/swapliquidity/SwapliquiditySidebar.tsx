@@ -1,15 +1,33 @@
 'use client';
 import { useUrlState } from '@/lib/useUrlState';
 import { GOV_LLTVS, type LLTV } from '@/types/simulator';
+import { InfoTooltip } from '@/app/components/help/InfoTooltip';
+import { PARAM_HELP, PARAM_SECTION } from '@/lib/help/registry';
+
+function paramTooltip(helpKey: keyof typeof PARAM_HELP) {
+  const help = PARAM_HELP[helpKey];
+  if (help.details) {
+    return (
+      <InfoTooltip
+        text={help.oneLiner}
+        moreInfo={{ section: PARAM_SECTION[helpKey], anchor: helpKey }}
+      />
+    );
+  }
+  return <InfoTooltip text={help.oneLiner} />;
+}
 
 export function SwapliquiditySidebar() {
   const [state, setState] = useUrlState();
+  const tailShare = Math.max(0, 1 - state.bandSplitCore - state.bandSplitAbsorb);
   return (
     <aside className="sticky top-0 h-screen w-72 border-r border-neutral-200 dark:border-neutral-800 p-4 overflow-y-auto text-sm space-y-4">
       <h2 className="font-semibold text-base">Pool Config</h2>
 
       <label className="block">
-        LLTV
+        <span className="text-xs text-neutral-600 dark:text-neutral-400">
+          LLTV{paramTooltip('lltv')}
+        </span>
         <select
           className="mt-1 w-full rounded border px-2 py-1 bg-white dark:bg-neutral-900"
           value={String(state.lltv)}
@@ -24,7 +42,9 @@ export function SwapliquiditySidebar() {
       </label>
 
       <label className="block">
-        Fee tier
+        <span className="text-xs text-neutral-600 dark:text-neutral-400">
+          Fee tier{paramTooltip('poolFeeTier')}
+        </span>
         <select
           className="mt-1 w-full rounded border px-2 py-1 bg-white dark:bg-neutral-900"
           value={state.poolFeeTier}
@@ -36,7 +56,9 @@ export function SwapliquiditySidebar() {
       </label>
 
       <label className="block">
-        Total TVL (USD)
+        <span className="text-xs text-neutral-600 dark:text-neutral-400">
+          Total TVL (USD){paramTooltip('poolTVL_USD')}
+        </span>
         <input
           type="number"
           className="mt-1 w-full rounded border px-2 py-1 bg-white dark:bg-neutral-900"
@@ -46,7 +68,9 @@ export function SwapliquiditySidebar() {
       </label>
 
       <label className="block">
-        Core band share (0..1)
+        <span className="text-xs text-neutral-600 dark:text-neutral-400">
+          Core band share (0..1){paramTooltip('bandSplitCore')}
+        </span>
         <input
           type="number"
           step="0.05"
@@ -59,7 +83,9 @@ export function SwapliquiditySidebar() {
       </label>
 
       <label className="block">
-        Absorb band share (0..1)
+        <span className="text-xs text-neutral-600 dark:text-neutral-400">
+          Absorb band share (0..1){paramTooltip('bandSplitAbsorb')}
+        </span>
         <input
           type="number"
           step="0.05"
@@ -72,10 +98,16 @@ export function SwapliquiditySidebar() {
       </label>
 
       <p className="text-xs text-neutral-500">
-        Tail share: {Math.max(0, 1 - state.bandSplitCore - state.bandSplitAbsorb).toFixed(2)}
+        Tail share: {tailShare.toFixed(2)}
+        <span title="Derived: 1 − Core − Absorb. Cannot exceed 1.">{' '}
+          <span className="inline-flex items-center justify-center w-4 h-4 rounded-full border border-neutral-400 text-[10px] text-neutral-400 ml-1 align-text-bottom">?</span>
+        </span>
       </p>
 
-      <a href="/" className="text-blue-600 hover:underline text-xs block pt-4">
+      <a href="/help/swap-liquidity" className="text-blue-600 hover:underline text-xs block pt-2">
+        Help · Read the swap-liquidity guide →
+      </a>
+      <a href="/" className="text-blue-600 hover:underline text-xs block">
         ← Back to homepage
       </a>
     </aside>

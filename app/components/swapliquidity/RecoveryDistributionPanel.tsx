@@ -15,6 +15,8 @@ import {
   ResponsiveContainer,
   CartesianGrid,
 } from 'recharts';
+import { Kpi } from '@/app/components/Kpi';
+import { HelpPopover } from '@/app/components/help/HelpPopover';
 
 const PROBE_COLLATERAL_USD = 25_000;
 const MAX_PATHS = 200;
@@ -121,24 +123,23 @@ export function RecoveryDistributionPanel() {
         ${debtUSD.toFixed(0)}; LIF buffer is {fmtPct(bufferPct, 2)}. Bad debt = max(0, debt − AMM proceeds).
       </div>
       <div className="grid grid-cols-3 gap-3">
-        <div className="p-3 border rounded text-sm">
-          <div className="text-neutral-500">Paths with zero bad debt</div>
-          <div className="font-semibold text-lg">{fmtPct(zeroBadDebtPct)}</div>
-        </div>
-        <div className="p-3 border rounded text-sm">
-          <div className="text-neutral-500">Median bad-debt rate</div>
-          <div className="font-semibold text-lg">
-            {medianBadDebt !== null ? fmtPct(medianBadDebt) : '—'}
-          </div>
-        </div>
-        <div className="p-3 border rounded text-sm">
-          <div className="text-neutral-500">95th-percentile bad-debt rate</div>
-          <div className="font-semibold text-lg">
-            {p95BadDebt !== null ? fmtPct(p95BadDebt) : '—'}
-          </div>
-        </div>
+        <Kpi label="Paths with zero bad debt" value={fmtPct(zeroBadDebtPct)} helpKey="zeroBadDebtPct" />
+        <Kpi
+          label="Median bad-debt rate"
+          value={medianBadDebt !== null ? fmtPct(medianBadDebt) : '—'}
+          helpKey="medianBadDebtRate"
+        />
+        <Kpi
+          label="95th-percentile bad-debt rate"
+          value={p95BadDebt !== null ? fmtPct(p95BadDebt) : '—'}
+          helpKey="p95BadDebtRate"
+        />
       </div>
       <div className="border rounded p-2">
+        <div className="flex items-center text-xs text-neutral-500 px-2 pt-1">
+          <span>Bad-debt rate distribution</span>
+          <HelpPopover chartKey="swapBadDebtHistogram" />
+        </div>
         <ResponsiveContainer width="100%" height={240}>
           <BarChart data={histogram}>
             <CartesianGrid strokeDasharray="3 3" opacity={0.3} />

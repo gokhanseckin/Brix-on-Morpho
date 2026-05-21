@@ -5,6 +5,8 @@ import { buildAsymmetricLadder } from '@/lib/poolPreset';
 import { materializePool } from '@/lib/univ3/quoteLiquidatorSell';
 import { sqrtPriceX96ToPrice, tickToPrice } from '@/lib/univ3/tickMath';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
+import { Kpi } from '@/app/components/Kpi';
+import { HelpPopover } from '@/app/components/help/HelpPopover';
 
 const fmtUSD = (n: number) => `$${Math.round(n).toLocaleString()}`;
 const fmt6 = (n: number) => n.toFixed(6);
@@ -44,21 +46,28 @@ export function PoolStatePanel() {
   return (
     <section id="section-pool-state" className="space-y-3">
       <h2 className="text-lg font-semibold">1. Pool state</h2>
-      <div className="grid grid-cols-3 gap-4 text-sm">
-        <div className="p-3 border rounded">
-          <div className="text-xs text-neutral-500">Spot wTRY/USDM</div>
-          <div className="text-lg font-semibold">{fmt6(sqrtPriceX96ToPrice(pool.sqrtPriceX96))}</div>
-        </div>
-        <div className="p-3 border rounded">
-          <div className="text-xs text-neutral-500">Active liquidity (scaled)</div>
-          <div className="text-lg font-semibold">{(Number(pool.liquidity) / 1e12).toFixed(2)}</div>
-        </div>
-        <div className="p-3 border rounded">
-          <div className="text-xs text-neutral-500">Fee tier</div>
-          <div className="text-lg font-semibold">{(pool.feeBps / 100).toFixed(2)}%</div>
-        </div>
+      <div className="grid grid-cols-3 gap-4">
+        <Kpi
+          label="Spot wTRY/USDM"
+          value={fmt6(sqrtPriceX96ToPrice(pool.sqrtPriceX96))}
+          helpKey="spotWtryUsdm"
+        />
+        <Kpi
+          label="Active liquidity (scaled)"
+          value={(Number(pool.liquidity) / 1e12).toFixed(2)}
+          helpKey="activeLiquidityScaled"
+        />
+        <Kpi
+          label="Fee tier"
+          value={`${(pool.feeBps / 100).toFixed(2)}%`}
+          helpKey="poolFeeTierKpi"
+        />
       </div>
       <div className="border rounded p-2">
+        <div className="flex items-center text-xs text-neutral-500 px-2 pt-1">
+          <span>Liquidity by tick</span>
+          <HelpPopover chartKey="liquidityByTick" />
+        </div>
         <ResponsiveContainer width="100%" height={220}>
           <BarChart data={ticksChart}>
             <CartesianGrid strokeDasharray="3 3" opacity={0.3} />
@@ -69,18 +78,24 @@ export function PoolStatePanel() {
           </BarChart>
         </ResponsiveContainer>
       </div>
-      <table className="text-xs w-full">
-        <thead><tr><th className="text-left">Band</th><th>Range</th><th>USD</th></tr></thead>
-        <tbody>
-          {preset.positions.map((p) => (
-            <tr key={p.label}>
-              <td>{p.label}</td>
-              <td>{fmt6(tickToPrice(p.tickLower))} → {fmt6(tickToPrice(p.tickUpper))}</td>
-              <td>{fmtUSD(p.liquidityUSD)}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+      <div>
+        <div className="flex items-center text-xs text-neutral-500">
+          <span>Band allocation</span>
+          <HelpPopover chartKey="bandAllocationTable" />
+        </div>
+        <table className="text-xs w-full mt-1">
+          <thead><tr><th className="text-left">Band</th><th className="text-left">Range</th><th className="text-left">USD</th></tr></thead>
+          <tbody>
+            {preset.positions.map((p) => (
+              <tr key={p.label}>
+                <td>{p.label}</td>
+                <td>{fmt6(tickToPrice(p.tickLower))} → {fmt6(tickToPrice(p.tickUpper))}</td>
+                <td>{fmtUSD(p.liquidityUSD)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </section>
   );
 }

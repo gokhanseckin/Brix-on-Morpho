@@ -8,6 +8,7 @@ const SECTIONS: Array<{ slug: string; label: string; blurb: string }> = [
   { slug: 'liquidation', label: '4. Liquidation', blurb: 'Liquidator economics and bad debt.' },
   { slug: 'vault', label: '5. Vault', blurb: 'Recommended LLTV, risk tier, deploy JSON.' },
   { slug: 'utilization', label: '6. Utilization', blurb: 'Target-utilization calibration: looper viability, stress, IRM kink.' },
+  { slug: 'swap-liquidity', label: '7. Swap Liquidity', blurb: 'Uniswap v3 pool design for liquidators: asymmetric ladder, slippage, bad-debt math.' },
 ];
 
 export default function HelpIndex() {

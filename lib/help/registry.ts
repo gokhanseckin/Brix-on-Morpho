@@ -35,6 +35,11 @@ import {
   VAULT_KPIS,
   VAULT_CHARTS,
 } from './content/vault';
+import {
+  SWAP_LIQUIDITY_PARAMS,
+  SWAP_LIQUIDITY_KPIS,
+  SWAP_LIQUIDITY_CHARTS,
+} from './content/swapLiquidity';
 
 const STUB_ONE_LINER = 'Coming soon. See /help for details.';
 
@@ -75,6 +80,8 @@ const SECTION_PARAMS: Partial<Record<string, ParamHelp>> = {
   // ── Utilization section ──────────────────────────────────────────────────
   witryYieldUSD_7d:  { oneLiner: 'Trailing-7-day USD APY of holding wiTRY. Used by /utilization as the conservative loop-viability threshold.' },
   witryYieldUSD_30d: { oneLiner: 'Trailing-30-day USD APY of holding wiTRY. Shown as the optimistic reference on /utilization.' },
+  // ── SwapLiquidity section ────────────────────────────────────────────────
+  ...SWAP_LIQUIDITY_PARAMS,
 };
 
 const SECTION_KPIS: Partial<Record<KpiKey, KpiHelp>> = {
@@ -507,6 +514,8 @@ const SECTION_KPIS: Partial<Record<KpiKey, KpiHelp>> = {
       profitability: 'Each 1pp increase in r_target raises borrowAPYAtTarget by roughly 0.86pp at u=0.80 and lowers looperNetAPY by the same amount × borrowedShare — directly compressing loopMargin7d and threatening recommendedUTarget.',
     },
   },
+  // ── SwapLiquidity section ────────────────────────────────────────────────
+  ...SWAP_LIQUIDITY_KPIS,
 };
 
 const SECTION_CHARTS: Partial<Record<ChartKey, ChartHelp>> = {
@@ -603,6 +612,8 @@ const SECTION_CHARTS: Partial<Record<ChartKey, ChartHelp>> = {
       profitability: 'Comparing the loop margin 7d column across Feasible rows shows the profitability cost of choosing a lower (more conservative) target — typically 0.3–0.5pp of loopMargin7d per 5pp step down in u_target.',
     },
   },
+  // ── SwapLiquidity section ────────────────────────────────────────────────
+  ...SWAP_LIQUIDITY_CHARTS,
 };
 
 const sectionParam = (k: keyof SidebarInputs): ParamHelp =>
@@ -635,6 +646,10 @@ export const PARAM_HELP: Record<keyof SidebarInputs, ParamHelp> = {
   preLiquidationEnabled: sectionParam('preLiquidationEnabled'),
   blockBootstrap: sectionParam('blockBootstrap'),
   seed: sectionParam('seed'),
+  poolFeeTier: sectionParam('poolFeeTier'),
+  poolTVL_USD: sectionParam('poolTVL_USD'),
+  bandSplitCore: sectionParam('bandSplitCore'),
+  bandSplitAbsorb: sectionParam('bandSplitAbsorb'),
 };
 
 export const KPI_HELP: Record<KpiKey, KpiHelp> = Object.fromEntries(
@@ -674,4 +689,8 @@ export const PARAM_SECTION: Record<keyof SidebarInputs, HelpSection> = {
   poolDepth_USD: 'liquidation',
   safetyMargin: 'liquidation',
   preLiquidationEnabled: 'liquidation',
+  poolFeeTier: 'swap-liquidity',
+  poolTVL_USD: 'swap-liquidity',
+  bandSplitCore: 'swap-liquidity',
+  bandSplitAbsorb: 'swap-liquidity',
 };
