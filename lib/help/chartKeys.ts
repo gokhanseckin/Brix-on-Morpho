@@ -7,6 +7,7 @@ export const CHART_KEYS = [
   'fxBands',               // FXRisk: P5/P50/P95 USD/TRY
   'netWitryUsdPaths',      // FXRisk
   'positionsUnderwater',   // FXRisk
+  'drawdownDistribution',  // FXRisk: 3-day max drawdown histogram
   'badDebtHistogram',      // LiquidationDesign
   // Utilization (section 6)
   'looperViabilityCurve',
@@ -29,6 +30,7 @@ export const CHART_SECTION: Record<ChartKey, HelpSection> = {
   fxBands: 'fx-risk',
   netWitryUsdPaths: 'fx-risk',
   positionsUnderwater: 'fx-risk',
+  drawdownDistribution: 'fx-risk',
   badDebtHistogram: 'liquidation',
   looperViabilityCurve: 'utilization',
   liquidityStressTable: 'utilization',
