@@ -428,7 +428,7 @@ const slides: Slide[] = [
             { n: '1', t: 'Call', d: 'Liquidator calls liquidate() on the underwater position. Morpho opens an onMorphoLiquidate callback.' },
             { n: '2', t: 'Swap', d: 'Inside the callback, Morpho releases wiTRY to the liquidator, who swaps it to USDM on Kumbaya.' },
             { n: '3', t: 'Settle', d: 'Callback closes. Morpho pulls the USDM debt from the liquidator. Atomic, zero working capital.' },
-            { n: '4', t: 'Pocket', d: 'Keep the LIF bonus (~5% at 86% LLTV).' },
+            { n: '4', t: 'Pocket', d: 'Keep the LIF bonus (4.38% at 86% LLTV).' },
           ].map(({ n, t, d }) => (
             <Card key={n}>
               <div className="font-mono text-3xl" style={{ color: ACCENT }}>
@@ -461,9 +461,12 @@ const slides: Slide[] = [
             </div>
             <div className="mt-2 text-[16px] leading-[1.5] text-neutral-300">
               Single sequencer. No public mempool. Proximity-seat auctions.
-              Classic Flashbots searcher competition doesn&apos;t exist here
-              yet — we keep one liquidator on retainer; anyone else can also
-              liquidate.
+              No Flashbots-style searcher ecosystem yet, so we can&apos;t
+              rely on open MEV competition to clear positions. The Morpho
+              contract is still permissionless — anyone can call{' '}
+              <code className="text-neutral-200">liquidate</code> — but
+              we keep one liquidator on retainer so coverage doesn&apos;t
+              depend on a market that doesn&apos;t exist here.
             </div>
           </Card>
           <Card>
@@ -502,7 +505,7 @@ const slides: Slide[] = [
             <div className="mt-3 space-y-3 text-[17px] leading-[1.55] text-neutral-300">
               <p>
                 At 86% LLTV, LIF is only{' '}
-                <Accent>~5%</Accent>. That bonus is the entire budget covering
+                <Accent>4.38%</Accent>. That bonus is the entire budget covering
                 slippage + gas + the seconds of TRY exposure during the atomic
                 tx.
               </p>
@@ -544,7 +547,7 @@ const slides: Slide[] = [
             />
             <NumberBlock
               label="LIF (slippage budget)"
-              value="~5%"
+              value="4.38%"
               hint="The entire liquidator margin. Slippage eats this directly."
             />
             <Card>
@@ -600,7 +603,7 @@ const slides: Slide[] = [
             <Accent>$1M</Accent> borrow market, or to{' '}
             <Accent>$1.5–2.5M</Accent> for the <Accent>$5M</Accent> market.
             Sized so the typical liquidation clears under 1% slippage and a
-            tail liquidation still fits inside the ~5% LIF budget.
+            tail liquidation still fits inside the 4.38% LIF budget.
           </Body>
         </div>
         <div className="mt-6 grid grid-cols-2 gap-5">
@@ -705,7 +708,7 @@ const slides: Slide[] = [
               <tbody className="divide-y divide-neutral-800">
                 {([
                   ['LLTV', '86%', 'Morpho governance tier. Costs us one-sided depth.'],
-                  ['LIF', '~5%', 'Derived from LLTV. The full liquidator budget.'],
+                  ['LIF', '4.38%', 'Derived from LLTV. The full liquidator budget.'],
                   ['Pre-liquidations', 'On · opt-in', 'Gated by Brix points. Dutch-auction LIF chops large positions.'],
                   ['Market borrow cap', '1× live one-sided depth', <>Morpho-native hard ceiling on total debt. <SL n={9}>Slide 9</SL>.</>],
                   ['Per-wallet target', '≤ pool ÷ 5', 'Not enforceable on Morpho Blue. Hypernative alert; respond by lowering market cap.'],
@@ -819,7 +822,7 @@ const slides: Slide[] = [
               <li>3-layer incentives: Merkl + MegaETH + Brix kicker.</li>
               <li>Pool depth is the binding constraint. 5× rule.</li>
               <li>Liquidator stack: Wintermute → internal → MM net → public.</li>
-              <li>Pre-liq on, day 1. LLTV 86%, LIF ~5%, V1.1 factory.</li>
+              <li>Pre-liq on, day 1. LLTV 86%, LIF 4.38%, V1.1 factory.</li>
             </ol>
           </Card>
           <Card>
