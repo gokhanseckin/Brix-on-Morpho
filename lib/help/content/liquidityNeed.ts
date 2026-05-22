@@ -224,8 +224,8 @@ const irmCurve: ChartHelp = {
   oneLiner: 'The static interest-rate curve the vault uses. Anchored at three points: r/4 at u=0, r at u=90% (target), 4r at u=100%. Two exponential segments interpolate between.',
   axes: { x: 'Borrow utilization (0–100%)', y: 'Borrow APY' },
   definitions: [
-    { term: 'r_target', definition: 'Target borrow APY at u = 90%. Currently fixed at 4% APR (Morpho IRM governance default).' },
-    { term: 'AdaptiveCurveIRM', definition: 'Morpho\'s only governance-approved IRM. The "adaptive" part — slow drift of r_target — is ignored here because it converges much slower than the parameters we are tuning.' },
+    { term: 'Rate at Target', definition: 'Morpho\'s official name (code: rateAtTarget; written as r_target in formulas) for the target borrow APY at u = 90%. Currently fixed at 4% APR (Morpho IRM governance default).' },
+    { term: 'AdaptiveCurveIRM', definition: 'Morpho\'s only governance-approved IRM. The "adaptive" part — slow drift of Rate at Target — is ignored here because it converges much slower than the parameters we are tuning.' },
     { term: 'Target utilization marker', definition: 'The vertical red line shows where the configured `targetUtilization` lands on the curve, and therefore the borrow APY the strategy section assumes.' },
   ],
   bands: [

@@ -159,13 +159,13 @@ const SECTION_KPIS: Partial<Record<KpiKey, KpiHelp>> = {
     ],
     definitions: [
       { term: 'AdaptiveCurveIRM', definition: 'Morpho Blue\'s interest rate model. It\'s a two-segment exponential curve anchored so the rate equals r_target exactly at u=0.9. Below the kink rates are gentle; above the kink they escalate rapidly to push utilization back down.' },
-      { term: 'r_target', definition: 'The IRM\'s anchor rate: the borrow APY the model is calibrated to produce at u=0.9. Changing it scales the entire curve up or down proportionally.' },
+      { term: 'Rate at Target', definition: 'Morpho\'s official name (code: rateAtTarget; written as r_target in formulas) for the IRM anchor rate — the borrow APY the model is calibrated to produce at u=0.9. Changing it scales the entire curve up or down proportionally.' },
       { term: 'kink', definition: 'At u=0.9 the IRM switches formula. Below it: a mild exponential starting at r_target/4. Above it: a steep exponential starting at r_target. The effect is that rates roughly quadruple between u=0.9 and u=1.0.' },
     ],
     impact: {
       health: 'A borrow APY that is far below wiTRY yield keeps loopers in their positions even during small TRY dips, sustaining utilization but also maintaining leveraged exposure during drawdowns.',
       sustainability: 'If borrowAPYAtTarget creeps above witryYieldUSD_7d, looperNetAPY goes negative, loopMargin7d turns red, and organic borrowing demand disappears — supplierAPYAtTarget then collapses too.',
-      profitability: 'Lowering r_target by 1pp lowers borrowAPYAtTarget and directly widens loopMargin7d by roughly the same amount, improving looperNetAPY and driving higher realized utilization.',
+      profitability: 'Lowering Rate at Target by 1pp lowers borrowAPYAtTarget and directly widens loopMargin7d by roughly the same amount, improving looperNetAPY and driving higher realized utilization.',
     },
   },
 
@@ -380,7 +380,7 @@ const SECTION_KPIS: Partial<Record<KpiKey, KpiHelp>> = {
     impact: {
       health: 'Low looperNetAPY reduces the incentive for loopers to maintain leveraged positions through TRY drawdowns; they voluntarily deleverage earlier, creating cascading sell pressure on wiTRY.',
       sustainability: 'looperNetAPY must exceed witryYieldUSD_7d for loopMargin7d to stay positive — if it does not, borrowing demand evaporates and the vault drifts below its recommendedUTarget.',
-      profitability: 'This is the single most important number for borrower-side demand. Improving it 1pp (e.g. by lowering r_target 0.5pp) translates into higher realized utilization and higher supplierAPYAtTarget.',
+      profitability: 'This is the single most important number for borrower-side demand. Improving it 1pp (e.g. by lowering Rate at Target 0.5pp) translates into higher realized utilization and higher supplierAPYAtTarget.',
     },
   },
 
@@ -519,16 +519,35 @@ const SECTION_KPIS: Partial<Record<KpiKey, KpiHelp>> = {
   },
 
   rTargetOverrideInput: {
-    title: 'r_target override (slider)',
-    oneLiner: 'The anchor interest rate for the AdaptiveCurveIRM — the borrow APY the model is calibrated to hit when utilization is at 90%. Lower r_target makes borrowing cheaper, which helps loopers. Higher r_target generates more revenue for suppliers but can make looping unprofitable. Default 4%.',
+    title: 'Rate at Target override (slider)',
+    oneLiner: 'The borrow APY the market is anchored to when utilization sits at the kink (u = 0.9). Morpho\'s default is 4%. Lower it to make borrowing cheaper for loopers; raise it to pay suppliers more. The whole IRM curve scales with this number.',
     formula: {
       plain: [
         'Adjustable input (slider). Range: 1%–10%, default: 4%, step: 0.5%.',
+        '',
+        'Rate at Target (Morpho code: rateAtTarget) is the anchor point of the',
+        'AdaptiveCurveIRM. It is the borrow APY a borrower pays exactly when',
+        'market utilization equals 90% — the "kink". Think of the IRM as a curve',
+        'glued to one fixed pin: that pin is Rate at Target. Drag it up or down',
+        'and the whole curve scales with it.',
         '',
         'Downstream: borrowAPYAtTarget = adaptiveCurveIRM(u_target, r_target)',
         '            looperNetAPY       depends on borrowAPYAtTarget',
         '            irmHeatmap         redraws entirely when r_target changes',
         '            recommendedUTarget may change if loopMargin7d crosses zero',
+        '',
+        'Is it really "overridable"?',
+        '  On-chain, rateAtTarget is a per-market state variable that:',
+        '    1. Starts at whatever value you set when the market is deployed',
+        '       (Morpho default 4%).',
+        '    2. Drifts slowly afterwards based on real utilization — that is',
+        '       the "adaptive" part.',
+        '  This simulator treats it as static because that drift is much slower',
+        '  than the parameters we are tuning here. So the slider answers two',
+        '  real questions:',
+        '    • "What should we launch with?"',
+        '    • "If it eventually drifts to X% in steady state, does our design',
+        '       still hold?"',
         '',
         '// Example at r_target=4%, u_target=0.80:',
         '//   K1 = ln(4)/0.9 ≈ 1.5404',
@@ -541,14 +560,15 @@ const SECTION_KPIS: Partial<Record<KpiKey, KpiHelp>> = {
     },
     params: [],
     definitions: [
-      { term: 'AdaptiveCurveIRM', definition: 'Morpho Blue\'s interest rate model — a two-segment exponential curve that maps utilization to a borrow APY. The entire curve scales proportionally with r_target.' },
-      { term: 'r_target', definition: 'The IRM anchor: borrow APY exactly equals r_target when u=0.9 (the kink). Below the kink, the rate starts at r_target/4 at u=0 and rises smoothly. Above the kink it escalates steeply. Scaling r_target scales the whole curve.' },
-      { term: 'kink (u=0.9)', definition: 'The utilization level where the IRM switches from a gentle to a steep exponential. At the kink, borrow APY = r_target. The two segments are calibrated so the curve is continuous at u=0.9.' },
+      { term: 'Rate at Target', definition: 'Morpho\'s official name (code: rateAtTarget) for the IRM anchor. The borrow APY exactly equals this value when u = 0.9 (the kink). Below the kink, the rate starts at r_target/4 at u=0 and rises smoothly. Above the kink it escalates steeply. Scaling Rate at Target scales the whole curve. "r_target" in formulas is informal shorthand for the same value.' },
+      { term: 'AdaptiveCurveIRM', definition: 'Morpho Blue\'s only governance-approved interest rate model — a two-segment exponential curve that maps utilization to a borrow APY. The entire curve scales proportionally with Rate at Target.' },
+      { term: 'kink (u = 0.9)', definition: 'The utilization level where the IRM switches from a gentle to a steep exponential. At the kink, borrow APY = Rate at Target. The two segments are calibrated so the curve is continuous at u = 0.9.' },
+      { term: 'adaptive drift', definition: 'On-chain, rateAtTarget rises if utilization stays above target and falls if below. Slow (multi-day half-life). Ignored in this simulator because it converges much slower than the parameters we are tuning.' },
     ],
     impact: {
-      health: 'Higher r_target raises borrowAPYAtTarget, which squeezes looperNetAPY and may tip loopMargin7d negative — loopers exit, utilization falls, and the vault accumulates more idle buffer (ironically improving stress survival).',
-      sustainability: 'r_target is the primary dial for balancing supply yield vs. looper viability. The irmHeatmap shows the full (u_target, r_target) grid — the recommended point should stay in the green zone with margin.',
-      profitability: 'Each 1pp increase in r_target raises borrowAPYAtTarget by roughly 0.86pp at u=0.80 and lowers looperNetAPY by the same amount × borrowedShare — directly compressing loopMargin7d and threatening recommendedUTarget.',
+      health: 'Higher Rate at Target raises borrowAPYAtTarget, which squeezes looperNetAPY and may tip loopMargin7d negative — loopers exit, utilization falls, and the vault accumulates more idle buffer (ironically improving stress survival).',
+      sustainability: 'Rate at Target is the primary dial for balancing supply yield vs. looper viability. The irmHeatmap shows the full (u_target, r_target) grid — the recommended point should stay in the green zone with margin.',
+      profitability: 'Each 1pp increase in Rate at Target raises borrowAPYAtTarget by roughly 0.86pp at u=0.80 and lowers looperNetAPY by the same amount × borrowedShare — directly compressing loopMargin7d and threatening recommendedUTarget.',
     },
   },
   // ── SwapLiquidity section ────────────────────────────────────────────────
@@ -574,9 +594,9 @@ const SECTION_CHARTS: Partial<Record<ChartKey, ChartHelp>> = {
       { term: 'red vertical kink marker', definition: 'Marks u=0.9, where the IRM switches to exponential escalation. The recommended u_target must stay at least 7pp to the left of this line.' },
     ],
     impact: {
-      health: 'If the blue curve crosses the green line at u≈0.82, that is the maximum utilization where loopers still make money — any target above that will underutilize. A narrow gap between the lines signals fragility to small r_target increases.',
-      sustainability: 'If the green dashed line sits above the blue curve even at u=0.5, the IRM is too expensive relative to wiTRY yield and no utilization target is organically viable with the current r_target.',
-      profitability: 'Moving the r_target slider down shifts the blue curve downward, widening the profitable zone to the right and enabling higher u_targets — directly visible as more green area on this chart.',
+      health: 'If the blue curve crosses the green line at u≈0.82, that is the maximum utilization where loopers still make money — any target above that will underutilize. A narrow gap between the lines signals fragility to small Rate at Target increases.',
+      sustainability: 'If the green dashed line sits above the blue curve even at u=0.5, the IRM is too expensive relative to wiTRY yield and no utilization target is organically viable with the current Rate at Target.',
+      profitability: 'Moving the Rate at Target slider down shifts the blue curve downward, widening the profitable zone to the right and enabling higher u_targets — directly visible as more green area on this chart.',
     },
   },
 
@@ -612,7 +632,7 @@ const SECTION_CHARTS: Partial<Record<ChartKey, ChartHelp>> = {
     impact: {
       health: 'If the Borrow cost bar is close in height to the Gross bar, the loop has thin margin; any rise in borrowAPYAtTarget (e.g., utilization briefly spiking above target) immediately flips the loop unprofitable.',
       sustainability: 'When the Net bar shrinks below the wiTRY hold bar, loopMargin7d turns negative, loopers exit, and the vault loses its organic borrowing demand — supplierAPYAtTarget collapses accordingly.',
-      profitability: 'Lowering r_target shrinks the Borrow cost bar; raising LLTV or lowering hfBuffer grows the Gross bar (and Borrow/Slippage proportionally) — the waterfall shows which lever has the bigger payoff.',
+      profitability: 'Lowering Rate at Target shrinks the Borrow cost bar; raising LLTV or lowering hfBuffer grows the Gross bar (and Borrow/Slippage proportionally) — the waterfall shows which lever has the bigger payoff.',
     },
   },
 

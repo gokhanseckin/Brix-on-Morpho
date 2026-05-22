@@ -15,8 +15,8 @@ export function RecommendationCard({ analysis }: { analysis: UtilizationAnalysis
     return (
       <section className="rounded-lg border border-red-500 bg-red-50 p-4">
         <h2 className="text-lg font-semibold text-red-300">Looping is not profitable at any utilization</h2>
-        <p className="text-sm">With wiTRY 7d yield {pct(inputs.witryYield7d)} and r_target {pct(inputs.rTarget)},
-        no value of u_target produces positive loop margin. Lower r_target or raise wiTRY yield assumptions.</p>
+        <p className="text-sm">With wiTRY 7d yield {pct(inputs.witryYield7d)} and Rate at Target {pct(inputs.rTarget)},
+        no value of u_target produces positive loop margin. Lower Rate at Target or raise wiTRY yield assumptions.</p>
       </section>
     );
   }
