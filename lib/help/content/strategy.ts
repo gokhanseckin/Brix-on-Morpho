@@ -47,7 +47,7 @@ const COMMON_PARAMS: Record<string, KpiHelp['params'][number]> = {
 const borrowAPY: KpiHelp = {
   title: 'Borrow APY',
   oneLiner:
-    'The borrow rate the IRM produces at the configured target utilization. This is the static AdaptiveCurveIRM value (slow rate-target drift ignored) — it sets the ceiling on supplier yield.',
+    'The borrow rate the IRM produces at the configured target utilization. This is the static AdaptiveCurveIRM value (slow Rate at Target drift ignored) — it sets the ceiling on supplier yield.',
   formula: {
     plain: 'borrowAPY = adaptiveCurveIRM(targetUtilization, r_target = 4%)',
     latex: 'borrowAPY = \\text{adaptiveCurveIRM}(u_{\\text{target}},\\; r_{\\text{target}} = 0.04)',
@@ -58,7 +58,7 @@ const borrowAPY: KpiHelp = {
   ],
   definitions: [
     { term: 'AdaptiveCurveIRM', definition: 'Morpho\'s only governance-approved interest-rate model. Anchored at r/4 at u=0, r at u=90% (target), and 4r at u=100%, with two exponential segments interpolating between.' },
-    { term: 'r_target', definition: 'Target borrow APY at the target utilization. Currently fixed at 4% APR — the "adaptive" drift converges much slower than the parameters we are tuning, so we treat r_target as static.' },
+    { term: 'Rate at Target', definition: 'Morpho\'s official name (code: rateAtTarget; written as r_target in formulas) for the target borrow APY at the target utilization. Currently fixed at 4% APR — the "adaptive" drift converges much slower than the parameters we are tuning, so we treat Rate at Target as static.' },
     { term: 'Section 1 chart', definition: 'The full curve and where targetUtilization lands on it are visualized in Section 1\'s "Borrow APY curve" chart.' },
   ],
   impact: {

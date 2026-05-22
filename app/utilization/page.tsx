@@ -74,7 +74,7 @@ export default function UtilizationPage() {
           </div>
         </div>
         <Slider
-          label="r_target override"
+          label="Rate at Target override"
           helpKey="rTargetOverrideInput"
           value={rTarget}
           min={0.01}
