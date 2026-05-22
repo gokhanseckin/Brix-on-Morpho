@@ -9,6 +9,7 @@ export function LooperViabilityCurve({ analysis }: { analysis: UtilizationAnalys
   }));
   const wY7  = analysis.inputs.witryYield7d * 100;
   const wY30 = analysis.inputs.witryYield30d * 100;
+  const yMax = Math.max(wY7, wY30, ...data.map(d => d.borrowAPY)) * 1.1;
 
   return (
     <section className="rounded-lg border bg-white p-4">
@@ -19,11 +20,11 @@ export function LooperViabilityCurve({ analysis }: { analysis: UtilizationAnalys
           <LineChart data={data}>
             <CartesianGrid strokeDasharray="3 3" />
             <XAxis dataKey="u" tickFormatter={v => `${(v * 100).toFixed(0)}%`} />
-            <YAxis tickFormatter={v => `${v.toFixed(1)}%`} />
+            <YAxis domain={[0, yMax]} tickFormatter={v => `${v.toFixed(1)}%`} />
             <Tooltip formatter={(v) => typeof v === 'number' ? `${v.toFixed(2)}%` : v} labelFormatter={l => `u_target ${(Number(l)*100).toFixed(0)}%`} />
             <Legend />
-            <ReferenceLine y={wY7}  stroke="#10b981" strokeDasharray="4 4" label={{ value: 'wiTRY 7d', position: 'right' }} />
-            <ReferenceLine y={wY30} stroke="#a855f7" strokeDasharray="4 4" label={{ value: 'wiTRY 30d', position: 'right' }} />
+            <ReferenceLine y={wY7}  stroke="#16a34a" strokeDasharray="4 4" label={{ value: 'wiTRY 7d', position: 'right' }} />
+            <ReferenceLine y={wY30} stroke="#f97316" strokeDasharray="4 4" label={{ value: 'wiTRY 30d', position: 'right' }} />
             <ReferenceLine x={0.9}  stroke="#ef4444" strokeDasharray="2 2" label={{ value: 'IRM kink', position: 'top' }} />
             <Line type="monotone" dataKey="borrowAPY" stroke="#1d4ed8" strokeWidth={2} dot={false} name="Borrow APY" />
           </LineChart>
