@@ -10,6 +10,7 @@ import {
   rolling3DayMaxDrawdown,
 } from './fxModel';
 import { simulateBadDebt, sampleBetaLtvFractions } from './simulator';
+import { buildLadderFromInputs } from './poolPreset';
 import { quantile } from './stats';
 import type { SidebarInputs } from '@/types/simulator';
 
@@ -105,12 +106,20 @@ const api = {
       n: BORROWER_POPULATION_SAMPLES,
       seed: inputs.seed,
     });
+    const spot = 1 / inputs.usdtryBaseline;
+    const preset = buildLadderFromInputs(spot, {
+      poolTVL_USD: inputs.poolTVL_USD,
+      bandSplitCore: inputs.bandSplitCore,
+      bandSplitAbsorb: inputs.bandSplitAbsorb,
+      poolFeeTier: inputs.poolFeeTier,
+    });
     const badDebtOut = simulateBadDebt({
       paths,
       ltvFractions,
       lltv: inputs.lltv,
       tvl_USD: inputs.witryTVL_USD,
-      poolDepth_USD: inputs.poolDepth_USD,
+      preset,
+      spot,
       gasCost_USD: DEFAULT_GAS_COST_USD,
       witryYieldAnnual: inputs.witryYieldAnnual,
       preLiquidationEnabled: inputs.preLiquidationEnabled,

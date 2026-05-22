@@ -22,7 +22,6 @@ export interface SidebarInputs {
   incentiveBudgetMonthly_USD: number;
   attractionRate: number;
   lockPeriodDays: 30 | 60 | 90 | 180;
-  poolDepth_USD: number;
   performanceFee: number;
   managementFee: number;
   safetyMargin: number;

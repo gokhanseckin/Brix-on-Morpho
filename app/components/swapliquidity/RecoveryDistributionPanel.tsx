@@ -116,7 +116,7 @@ export function RecoveryDistributionPanel() {
 
   return (
     <section id="section-recovery" className="space-y-3">
-      <h2 className="text-lg font-semibold">3. Bad-debt distribution</h2>
+      <h2 className="text-lg font-semibold">4. Bad-debt distribution</h2>
       <div className="text-sm text-neutral-500">
         For each Monte-Carlo path (sampled, n={results.length}), liquidate ${PROBE_COLLATERAL_USD.toLocaleString()} of
         wTRY collateral at the path&apos;s terminal spot. At LLTV {fmtPct(lltv, 1)} the debt is{' '}

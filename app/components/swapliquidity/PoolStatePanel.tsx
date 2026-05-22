@@ -71,7 +71,13 @@ export function PoolStatePanel() {
             <CartesianGrid strokeDasharray="3 3" opacity={0.3} />
             <XAxis dataKey="price" tickFormatter={fmt6} />
             <YAxis />
-            <Tooltip formatter={(v) => Number(v).toFixed(2)} />
+            <Tooltip
+              formatter={(v) => Number(v).toFixed(2)}
+              cursor={{ fill: 'rgba(255,255,255,0.06)' }}
+              contentStyle={{ backgroundColor: '#0a0a0a', border: '1px solid #262626', borderRadius: 4, fontSize: 12 }}
+              labelStyle={{ color: '#a3a3a3' }}
+              itemStyle={{ color: '#e5e5e5' }}
+            />
             <Bar dataKey="liquidityNet" fill="#3b82f6" />
             <ReferenceLine x={sqrtPriceX96ToPrice(pool.sqrtPriceX96)} stroke="#ef4444" strokeDasharray="4 3" label={{ value: 'spot', position: 'top', fill: '#ef4444', fontSize: 11 }} />
           </BarChart>

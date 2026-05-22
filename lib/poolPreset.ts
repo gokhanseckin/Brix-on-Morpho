@@ -53,3 +53,45 @@ export function buildAsymmetricLadder(
     rebalancePolicy: { triggerPct: 0.15, intervalDays: 14 },
   };
 }
+
+// ---------------------------------------------------------------------------
+// Shared helpers: build a ladder from the URL-state shape used by both the
+// market simulator (home) and /swapliquidity, and derive a USD scalar
+// "effective depth" for UI labels and the heatmap axis.
+// ---------------------------------------------------------------------------
+
+export interface LadderInputs {
+  poolTVL_USD: number;
+  bandSplitCore: number;
+  bandSplitAbsorb: number;
+  poolFeeTier: number; // 3000 or 10000 (basis points)
+}
+
+export function buildLadderFromInputs(spot: number, s: LadderInputs): PoolPreset {
+  const tail = Math.max(0, 1 - s.bandSplitCore - s.bandSplitAbsorb);
+  const feeTier: 3000 | 10000 = s.poolFeeTier === 10000 ? 10000 : 3000;
+  return buildAsymmetricLadder(
+    spot,
+    s.poolTVL_USD,
+    { core: s.bandSplitCore, absorb: s.bandSplitAbsorb, tail },
+    feeTier,
+  );
+}
+
+/**
+ * USD-equivalent scalar depth of the ladder: sum of `liquidityUSD` across
+ * positions whose price range covers `spot`. Intended for KPI labels and
+ * heatmap axes; do NOT use for slippage math (use the AMM helpers instead).
+ */
+export function effectiveDepthFromPreset(preset: PoolPreset, spot: number): number {
+  // Tick from spot via the same math as materializePool, but inlined here so
+  // poolPreset stays free of the univ3 swap deps. tick = log(spot)/log(1.0001).
+  const spotTick = Math.log(spot) / Math.log(1.0001);
+  let total = 0;
+  for (const pos of preset.positions) {
+    if (pos.tickLower <= spotTick && spotTick < pos.tickUpper) {
+      total += pos.liquidityUSD;
+    }
+  }
+  return total;
+}

@@ -209,14 +209,30 @@ export function Sidebar() {
 
       <Group title="Section 4 · Liquidation">
         <NumberField
-          label="wiTRY/USDM pool depth (USD)"
-          helpKey="poolDepth_USD"
-          value={s.poolDepth_USD}
-          onChange={(v) => setS({ poolDepth_USD: v })}
+          label="Pool TVL (USD)"
+          helpKey="poolTVL_USD"
+          value={s.poolTVL_USD}
+          onChange={(v) => setS({ poolTVL_USD: v })}
           min={0}
           max={10_000_000}
           step={50_000}
         />
+        <SelectField
+          label="Pool fee tier"
+          helpKey="poolFeeTier"
+          value={String(s.poolFeeTier)}
+          onChange={(v) => setS({ poolFeeTier: parseInt(v, 10) })}
+          options={[
+            { value: '3000', label: '0.30%' },
+            { value: '10000', label: '1.00%' },
+          ]}
+        />
+        <a
+          href="/swapliquidity"
+          className="text-xs text-brix-accent hover:text-brix-accentHover -mt-1 block"
+        >
+          → design pool ladder on /swapliquidity
+        </a>
         <CheckboxField
           label="Pre-liquidation enabled"
           helpKey="preLiquidationEnabled"

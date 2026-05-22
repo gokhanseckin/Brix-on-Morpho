@@ -7,10 +7,6 @@ import type { ChartHelp, KpiHelp, ParamHelp } from '../types';
 // ---------------------------------------------------------------------------
 
 export const LIQUIDATION_PARAMS: Partial<Record<string, ParamHelp>> = {
-  poolDepth_USD: {
-    oneLiner:
-      'One-side USD reserve in the wiTRY/USDM secondary AMM that liquidators dump seized collateral into. Drives slippage = L/(L+D); thinner pool → smaller profitable liquidation window → more bad debt.',
-  },
   safetyMargin: {
     oneLiner:
       'Extra haircut subtracted from the LLTV that the fixed-point derivation lands on, before snapping to a governance tier. Default 5% — bigger margin = more conservative recommended LLTV.',
@@ -27,7 +23,7 @@ export const LIQUIDATION_PARAMS: Partial<Record<string, ParamHelp>> = {
 
 const COMMON_PARAMS: Record<string, KpiHelp['params'][number]> = {
   lltv: { name: 'lltv', source: 'sidebar', ref: 'lltv' },
-  poolDepth: { name: 'poolDepth_USD', source: 'sidebar', ref: 'poolDepth_USD' },
+  poolDepth: { name: 'poolTVL_USD', source: 'sidebar', ref: 'poolTVL_USD' },
   safety: { name: 'safetyMargin', source: 'sidebar', ref: 'safetyMargin' },
   preLiq: { name: 'preLiquidationEnabled', source: 'sidebar', ref: 'preLiquidationEnabled' },
   gas: { name: 'DEFAULT_GAS_COST_USD', source: 'constant', value: '$5', note: 'Nominal gas cushion in useSimulator.ts; MegaETH gas is ≈ 0 in practice.' },
@@ -109,9 +105,9 @@ const recommendedPoolDepth: KpiHelp = {
 };
 
 const badDebtP95USD: KpiHelp = {
-  title: 'P95 bad debt (USD)',
+  title: 'P95 Morpho debt — atomized (USD)',
   oneLiner:
-    'The 95th-percentile USD amount of residual (unliquidatable) debt across Monte-Carlo paths. The tail loss the lender absorbs after liquidators have taken everything they can.',
+    'The 95th-percentile USD amount of residual debt absorbed by the lender (Morpho market) across Monte-Carlo paths, assuming each liquidation hits the AMM as its own independent swap. Lower bound on tail loss — pairs with the coincident-execution viability tile to bracket the real exposure.',
   formula: {
     plain:
       'for each path:\n  residual_i = max(0, debt_i − revenue_i)   if profitable\n             = max(0, debt_i − collAfter_i)  otherwise\n  badDebtPerPath = Σ residual_i across all positions\nbadDebtP95_USD = P95(badDebtPerPath across paths)',
@@ -138,9 +134,9 @@ const badDebtP95USD: KpiHelp = {
 };
 
 const badDebtP95Pct: KpiHelp = {
-  title: 'P95 bad debt (% TVL)',
+  title: 'P95 Morpho debt — atomized (% TVL)',
   oneLiner:
-    'P95 bad debt as a fraction of TVL — the rate-comparable version. Tile coloring: <1% good, 1–5% warn, >5% bad.',
+    'P95 atomized Morpho debt as a fraction of TVL — the rate-comparable version. Tile coloring: <1% good, 1–5% warn, >5% bad. This is the loss the lender (not the AMM) absorbs in the optimistic per-position-swap regime.',
   formula: {
     plain: 'badDebtP95Pct = badDebtP95_USD / TVL',
     latex: 'badDebtP95Pct = \\frac{badDebtP95\\_USD}{TVL}',

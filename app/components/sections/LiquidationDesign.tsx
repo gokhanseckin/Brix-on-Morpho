@@ -13,39 +13,41 @@ import {
   ReferenceLine,
 } from 'recharts';
 import { useMemo } from 'react';
-import { liquidatorProfit } from '@/lib/simulator';
-import { buildAsymmetricLadder, DEFAULT_BAND_SPLIT } from '@/lib/poolPreset';
-import { quoteLiquidatorSell } from '@/lib/univ3/quoteLiquidatorSell';
+import { liquidatorProfitWithPool } from '@/lib/simulator';
+import { quoteLiquidatorSell, materializePool } from '@/lib/univ3/quoteLiquidatorSell';
 import { badDebtFromAMMSale } from '@/lib/badDebtMath';
 import { GOV_LLTVS } from '@/types/simulator';
 import { Kpi, formatPct, formatUSD } from '../Kpi';
 import { HelpPopover } from '../help/HelpPopover';
+import Link from 'next/link';
 
 const POOL_DEPTH_GRID_USD = [100_000, 250_000, 500_000, 1_000_000, 2_500_000];
 const HEATMAP_LLTVS = [0.625, 0.77, 0.86, 0.915] as const;
 
 export function LiquidationDesign() {
-  const { fx, inputs, lltvDerivation } = useSimulator();
+  const { fx, inputs, lltvDerivation, pool } = useSimulator();
+  const { preset, spot, effectiveDepth_USD } = pool;
 
-  // Profit cliff data
+  // Profit cliff data (AMM-accurate sweep using the configured ladder).
   const profitCurve = useMemo(() => {
     const pts: Array<{ debt: number; profit: number }> = [];
     const lo = Math.log10(10);
     const hi = Math.log10(1_000_000);
     const steps = 50;
+    const materialized = materializePool(preset, spot);
     for (let i = 0; i < steps; i++) {
       const d = Math.pow(10, lo + ((hi - lo) * i) / (steps - 1));
-      const { profit_USD } = liquidatorProfit({
+      const { profit_USD } = liquidatorProfitWithPool(materialized, {
         debt_USD: d,
         lltv: inputs.lltv,
-        poolDepth_USD: inputs.poolDepth_USD,
+        spot,
         gasCost_USD: 5,
         holdingRisk_USD: 0,
       });
       pts.push({ debt: d, profit: profit_USD });
     }
     return pts;
-  }, [inputs.lltv, inputs.poolDepth_USD]);
+  }, [inputs.lltv, preset, spot]);
 
   // Bad debt histogram
   const badDebtBins = useMemo(() => {
@@ -70,42 +72,58 @@ export function LiquidationDesign() {
     return out;
   }, [fx]);
 
-  // Heatmap: render placeholder cells highlighting the user's current LLTV × pool depth cell.
-  // We use a heuristic shading derived from (LLTV × 1/(poolDepth+1)) to give a relative sense
-  // without re-running the full bad-debt simulator (per perf guard).
+  // Heatmap: render placeholder cells highlighting the user's current LLTV ×
+  // pool depth cell. Heuristic shading by (LLTV / 1/depth) keeps the sweep
+  // under main-thread budget. The "current" cell is matched against the
+  // ladder-implied effective depth, so it reflects the real pool config.
   const heatmap = useMemo(() => {
     const cur = fx?.badDebt?.badDebtP95Pct ?? 0;
+    // Find the nearest depth bucket to the current effective depth.
+    const nearestDepth = POOL_DEPTH_GRID_USD.reduce((best, d) =>
+      Math.abs(d - effectiveDepth_USD) < Math.abs(best - effectiveDepth_USD) ? d : best,
+    POOL_DEPTH_GRID_USD[0]!);
     const rows = HEATMAP_LLTVS.map((lv) => ({
       lltv: lv,
       cells: POOL_DEPTH_GRID_USD.map((d) => {
-        // heuristic: stress scales with LLTV (higher LLTV = thinner buffer) and inverse depth
         const heur = (lv / 0.77) * (500_000 / d) * cur;
-        const isCurrent = lv === inputs.lltv && d === inputs.poolDepth_USD;
+        const isCurrent = lv === inputs.lltv && d === nearestDepth;
         return { depth: d, value: heur, isCurrent };
       }),
     }));
     return rows;
-  }, [fx, inputs.lltv, inputs.poolDepth_USD]);
+  }, [fx, inputs.lltv, effectiveDepth_USD]);
 
-  // Real bad-debt from AMM sale: at trigger, collateral = debt × LIF(lltv).
-  // Bad debt fires only when AMM slippage+fee exceeds the LIF buffer.
-  const liquidatorRecovery = useMemo(() => {
-    const spot = 1 / inputs.usdtryBaseline;
-    const preset = buildAsymmetricLadder(spot, inputs.poolDepth_USD, DEFAULT_BAND_SPLIT, 3000);
+  // Viability check at P95 coincident liquidation volume.
+  //
+  // In Morpho, liquidate() is one atomic bundle: repay USDM → seize wTRY →
+  // sell on AMM → pocket the difference. If proceeds < debt + gas, the
+  // liquidator simply never broadcasts the bundle. So when the AMM is too
+  // shallow for the aggregated daily volume, no swap happens; the position
+  // sits unliquidated and the shortfall accrues as Morpho market debt as
+  // FX drifts further. The "loss bucket" is the lender, not the AMM.
+  const coincidentViability = useMemo(() => {
     const collateralUSD = fx?.badDebt?.expectedLiquidationVolumeP95_USD ?? 25_000;
     const wTRYwei = BigInt(Math.floor((collateralUSD / spot) * 1e6));
     const q = quoteLiquidatorSell(preset, spot, wTRYwei);
     const ammSale = Number(q.amountOut) / 1e6;
     const bd = badDebtFromAMMSale({ collateral_USD: collateralUSD, lltv: inputs.lltv, ammSale_USDM: ammSale });
+    const gas_USD = 5;
+    const liquidatorPnL_USD = ammSale - bd.debt_USD - gas_USD;
+    const viable = liquidatorPnL_USD >= 0;
+    // If viable: residual Morpho debt = the AMM-shortfall dust.
+    // If not viable: liquidator skips; the full debt remains underwriting
+    // exposure until FX cures or pre-liq fires. Communicate magnitude only.
+    const morphoExposure_USD = viable ? bd.badDebt_USD : bd.debt_USD;
     return {
-      badDebtPct: bd.badDebtPct,
-      recoveryPct: bd.recoveryPct,
+      viable,
+      liquidatorPnL_USD,
       slippagePct: q.slippagePct,
       collateralUSD,
       debtUSD: bd.debt_USD,
-      badDebtUSD: bd.badDebt_USD,
+      ammSale_USD: ammSale,
+      morphoExposure_USD,
     };
-  }, [inputs.usdtryBaseline, inputs.poolDepth_USD, inputs.lltv, fx]);
+  }, [preset, spot, inputs.lltv, fx]);
 
   return (
     <section id="section-liquidation-design" className="space-y-6">
@@ -120,27 +138,36 @@ export function LiquidationDesign() {
 
       <div className="grid grid-cols-4 gap-4">
         <Kpi
-          label="P95 bad debt (USD)"
+          label="P95 Morpho debt — atomized (USD)"
           value={fx?.badDebt ? formatUSD(fx.badDebt.badDebtP95_USD) : '—'}
+          hint="Cascade with each liquidation priced as its own swap. Lower bound — assumes liquidators clear positions one at a time."
           helpKey="badDebtP95USD"
         />
         <Kpi
-          label="P95 bad debt (% TVL)"
+          label="P95 Morpho debt — atomized (% TVL)"
           value={fx?.badDebt ? formatPct(fx.badDebt.badDebtP95Pct, 2) : '—'}
           tone={
-            fx?.badDebt && fx.badDebt.badDebtP95Pct > 0.01
-              ? 'warn'
-              : fx?.badDebt && fx.badDebt.badDebtP95Pct > 0.05
-                ? 'bad'
+            fx?.badDebt && fx.badDebt.badDebtP95Pct > 0.05
+              ? 'bad'
+              : fx?.badDebt && fx.badDebt.badDebtP95Pct > 0.01
+                ? 'warn'
                 : 'good'
           }
           helpKey="badDebtP95Pct"
         />
         <Kpi
-          label="AMM bad debt @ P95 vol"
-          value={formatPct(liquidatorRecovery.badDebtPct, 2)}
-          hint={`debt ${formatUSD(liquidatorRecovery.debtUSD)}, AMM loss ${formatPct(liquidatorRecovery.slippagePct, 3)}, recovery ${formatPct(liquidatorRecovery.recoveryPct, 2)}`}
-          tone={liquidatorRecovery.badDebtPct === 0 ? 'good' : liquidatorRecovery.badDebtPct < 0.01 ? 'warn' : 'bad'}
+          label="Liquidation viability @ P95 coincident vol"
+          value={
+            coincidentViability.viable
+              ? `VIABLE · +${formatUSD(coincidentViability.liquidatorPnL_USD)}`
+              : `NOT VIABLE · −${formatUSD(Math.abs(coincidentViability.liquidatorPnL_USD))}`
+          }
+          hint={
+            coincidentViability.viable
+              ? `If aggregate ${formatUSD(coincidentViability.debtUSD)} debt clears in one tx: AMM proceeds ${formatUSD(coincidentViability.ammSale_USD)} > debt + gas. Residual Morpho debt ≈ ${formatUSD(coincidentViability.morphoExposure_USD)}.`
+              : `Aggregate ${formatUSD(coincidentViability.debtUSD)} debt → AMM proceeds only ${formatUSD(coincidentViability.ammSale_USD)} (slip ${formatPct(coincidentViability.slippagePct, 1)}). Liquidator skips; debt sits as Morpho exposure until FX cures or pre-liq fires.`
+          }
+          tone={coincidentViability.viable ? 'good' : 'bad'}
         />
         <Kpi
           label="Profitable debt range"
@@ -149,14 +176,23 @@ export function LiquidationDesign() {
               ? `${formatUSD(lltvDerivation.minMax.min_USD)} – ${formatUSD(lltvDerivation.minMax.max_USD)}`
               : 'unprofitable at any size'
           }
-          hint={`pool depth ${formatUSD(inputs.poolDepth_USD)}, gas $5`}
+          hint={`pool depth ${formatUSD(effectiveDepth_USD)}, gas $5`}
           helpKey="minProfitableLiquidation"
         />
       </div>
 
+      <PoolSnapshot
+        poolTVL_USD={inputs.poolTVL_USD}
+        feeTier={inputs.poolFeeTier}
+        coreSplit={inputs.bandSplitCore}
+        absorbSplit={inputs.bandSplitAbsorb}
+        effectiveDepth_USD={effectiveDepth_USD}
+        slippagePctAtP95={coincidentViability.slippagePct}
+      />
+
       <div>
         <h3 className="text-sm font-semibold mb-2">
-          Liquidator profit cliff (debt log-scale, pool depth {formatUSD(inputs.poolDepth_USD)})
+          Liquidator profit cliff (debt log-scale, in-range depth {formatUSD(effectiveDepth_USD)})
         </h3>
         <div className="border border-brix-border rounded p-2 bg-brix-card">
           <ResponsiveContainer width="100%" height={260}>
@@ -242,8 +278,8 @@ export function LiquidationDesign() {
         <div className="text-xs text-neutral-500 mt-1">
           Heatmap is a heuristic scaling of the current P95 % bad-debt by LLTV and pool depth (to
           stay under main-thread 100&nbsp;ms budget). The blue-outlined cell reflects the active
-          ({(inputs.lltv * 100).toFixed(1)}%, {formatUSD(inputs.poolDepth_USD)}) configuration.
-          Re-run with different sidebar settings to populate other cells precisely.
+          ({(inputs.lltv * 100).toFixed(1)}%, ladder ≈ {formatUSD(effectiveDepth_USD)} in-range)
+          configuration. Re-run with different sidebar settings to populate other cells precisely.
         </div>
       </div>
 
@@ -273,15 +309,18 @@ export function LiquidationDesign() {
           Recommendation
         </div>
         <div className="text-sm">
-          At LLTV={(inputs.lltv * 100).toFixed(1)}%, P95 bad debt ={' '}
+          At LLTV={(inputs.lltv * 100).toFixed(1)}%, P95 Morpho debt (atomized) ={' '}
           {fx?.badDebt ? formatUSD(fx.badDebt.badDebtP95_USD) : '—'} (
-          {fx?.badDebt ? formatPct(fx.badDebt.badDebtP95Pct, 2) : '—'} of TVL). P95 single-horizon
+          {fx?.badDebt ? formatPct(fx.badDebt.badDebtP95Pct, 2) : '—'} of TVL).
+          Coincident-execution viability at P95 vol:{' '}
+          <strong>{coincidentViability.viable ? 'VIABLE' : 'NOT VIABLE'}</strong>
+          {!coincidentViability.viable && ' — single-tx aggregate dump would lose the liquidator money, so they skip; debt sits as Morpho exposure'}. P95 single-horizon
           liquidation volume ={' '}
           {fx?.badDebt ? formatUSD(fx.badDebt.expectedLiquidationVolumeP95_USD) : '—'}; recommended
           wiTRY/USDM pool depth ≥{' '}
           {fx?.badDebt
             ? formatUSD(Math.max(fx.badDebt.expectedLiquidationVolumeP95_USD / 0.02, 250_000))
-            : formatUSD(Math.max(inputs.poolDepth_USD, 250_000))}{' '}
+            : formatUSD(Math.max(effectiveDepth_USD, 250_000))}{' '}
           (P95 volume ÷ 2% slippage budget; $250k floor). Keep pre-liquidation enabled (preLLTV ={' '}
           {(Math.max(0, inputs.lltv - 0.05) * 100).toFixed(1)}%); governance-snapped LLTV from FX
           P95 drawdown is{' '}
@@ -292,5 +331,49 @@ export function LiquidationDesign() {
         </div>
       </div>
     </section>
+  );
+}
+
+interface PoolSnapshotProps {
+  poolTVL_USD: number;
+  feeTier: number;
+  coreSplit: number;
+  absorbSplit: number;
+  effectiveDepth_USD: number;
+  slippagePctAtP95: number;
+}
+
+function PoolSnapshot(p: PoolSnapshotProps) {
+  const tailSplit = Math.max(0, 1 - p.coreSplit - p.absorbSplit);
+  const feeLabel = p.feeTier === 10000 ? '1.00%' : `${(p.feeTier / 10000).toFixed(2)}%`;
+  return (
+    <div className="p-3 rounded border border-brix-border bg-brix-card flex flex-wrap items-center gap-x-6 gap-y-1 text-xs">
+      <div className="font-semibold text-neutral-300">Pool snapshot</div>
+      <div>
+        TVL <span className="text-neutral-100">{formatUSD(p.poolTVL_USD)}</span>
+      </div>
+      <div>
+        Fee <span className="text-neutral-100">{feeLabel}</span>
+      </div>
+      <div>
+        Splits{' '}
+        <span className="text-neutral-100">
+          core {(p.coreSplit * 100).toFixed(0)}% · absorb {(p.absorbSplit * 100).toFixed(0)}% ·
+          tail {(tailSplit * 100).toFixed(0)}%
+        </span>
+      </div>
+      <div>
+        In-range <span className="text-neutral-100">{formatUSD(p.effectiveDepth_USD)}</span>
+      </div>
+      <div>
+        Slip @ P95 <span className="text-neutral-100">{formatPct(p.slippagePctAtP95, 3)}</span>
+      </div>
+      <Link
+        href="/swapliquidity"
+        className="ml-auto text-brix-accent hover:text-brix-accentHover"
+      >
+        Edit on /swapliquidity →
+      </Link>
+    </div>
   );
 }
