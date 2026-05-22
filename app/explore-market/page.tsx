@@ -12,6 +12,7 @@ import { OracleDetailsCard } from './components/OracleDetailsCard';
 import { IrmCurveCard } from './components/IrmCurveCard';
 import { TokensActivityCard } from './components/TokensActivityCard';
 import { DerivedLiquidationCard } from './components/DerivedLiquidationCard';
+import { BorrowerLtvBetaCard } from './components/BorrowerLtvBetaCard';
 import { HistoryChartCard } from './components/HistoryChartCard';
 import { ExposedVaultsCard } from './components/ExposedVaultsCard';
 
@@ -107,6 +108,11 @@ export default function ExploreMarketPage() {
             preLiquidations={result.data.preLiquidations}
           />
           <DerivedLiquidationCard lltv={result.data.params.lltv} />
+          <BorrowerLtvBetaCard
+            chainId={parsed.chainId}
+            marketId={parsed.marketId}
+            lltv={result.data.params.lltv}
+          />
           <HistoryChartCard
             loading={history.loading}
             error={history.error}

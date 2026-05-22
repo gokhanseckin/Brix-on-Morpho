@@ -118,9 +118,95 @@ const MARKET_QUERY = `
 `;
 
 const cache = new Map<string, MarketView>();
+const positionsCache = new Map<string, BorrowerPosition[]>();
 
 export function _resetMarketCache(): void {
   cache.clear();
+  positionsCache.clear();
+}
+
+export type BorrowerPosition = {
+  user: string;
+  collateralUsd: number;
+  borrowAssetsUsd: number;
+  healthFactor: number | null;
+};
+
+const POSITIONS_QUERY = `
+  query MarketPositions($chainId: Int!, $uniqueKey: String!, $first: Int!, $skip: Int!) {
+    marketPositions(
+      first: $first
+      skip: $skip
+      orderBy: BorrowShares
+      orderDirection: Desc
+      where: { marketUniqueKey_in: [$uniqueKey], chainId_in: [$chainId] }
+    ) {
+      items {
+        user { address }
+        healthFactor
+        state { collateralUsd borrowAssetsUsd borrowShares }
+      }
+    }
+  }
+`;
+
+/**
+ * Fetch top borrower positions for a market, sorted by borrowShares desc.
+ * Pulls up to `maxPositions` (default 500) in pages of 100. Filters out
+ * zero-borrow rows. Cached per (chainId, marketId).
+ */
+export async function fetchMarketPositions(
+  chainId: number,
+  marketId: string,
+  options?: { signal?: AbortSignal; maxPositions?: number }
+): Promise<BorrowerPosition[]> {
+  const key = `${chainId}:${marketId.toLowerCase()}`;
+  const cached = positionsCache.get(key);
+  if (cached) return cached;
+
+  const max = options?.maxPositions ?? 500;
+  const pageSize = 100;
+  const out: BorrowerPosition[] = [];
+
+  for (let skip = 0; skip < max; skip += pageSize) {
+    const res = await fetch(ENDPOINT, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        query: POSITIONS_QUERY,
+        variables: { chainId, uniqueKey: marketId, first: pageSize, skip },
+      }),
+      ...(options?.signal ? { signal: options.signal } : {}),
+    });
+    if (!res.ok) throw new Error(`Morpho API HTTP ${res.status}`);
+    const json = await res.json() as {
+      data?: { marketPositions: { items: Array<{
+        user: { address: string };
+        healthFactor: number | null;
+        state: { collateralUsd: number | null; borrowAssetsUsd: number | null; borrowShares: string };
+      }> } | null };
+      errors?: Array<{ message: string }>;
+    };
+    if (json.errors?.length) throw new Error(json.errors.map(e => e.message).join('; '));
+    const items = json.data?.marketPositions?.items ?? [];
+    let pageNonZero = 0;
+    for (const it of items) {
+      const borrow = it.state.borrowAssetsUsd ?? 0;
+      const coll = it.state.collateralUsd ?? 0;
+      if (borrow <= 0 || coll <= 0) continue;
+      pageNonZero++;
+      out.push({
+        user: it.user.address,
+        collateralUsd: coll,
+        borrowAssetsUsd: borrow,
+        healthFactor: it.healthFactor,
+      });
+    }
+    if (items.length < pageSize || pageNonZero === 0) break;
+  }
+
+  positionsCache.set(key, out);
+  return out;
 }
 
 export async function fetchMarket(

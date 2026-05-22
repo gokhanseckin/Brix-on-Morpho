@@ -90,3 +90,29 @@ export function betaPdf(x: number, alpha: number, beta: number): number {
   return Math.exp(logPdf);
 }
 
+/**
+ * Method-of-moments fit of Beta(α, β) to a sample of fractions in (0, 1).
+ * Returns `null` if the sample is empty, degenerate (zero variance), or the
+ * moments do not yield positive parameters (variance ≥ m(1−m), i.e. wider
+ * than any Beta can be — happens for bimodal extremes).
+ *
+ * Common factor: k = m(1−m)/v − 1, then α = m·k, β = (1−m)·k.
+ */
+export function fitBetaMoM(
+  xs: readonly number[]
+): { alpha: number; beta: number; mean: number; variance: number; n: number } | null {
+  const clean = xs.filter(x => Number.isFinite(x) && x > 0 && x < 1);
+  const n = clean.length;
+  if (n < 2) return null;
+  let sum = 0;
+  for (const x of clean) sum += x;
+  const mean = sum / n;
+  let ss = 0;
+  for (const x of clean) ss += (x - mean) ** 2;
+  const variance = ss / (n - 1);
+  if (variance <= 0) return null;
+  const k = (mean * (1 - mean)) / variance - 1;
+  if (k <= 0) return null;
+  return { alpha: mean * k, beta: (1 - mean) * k, mean, variance, n };
+}
+
