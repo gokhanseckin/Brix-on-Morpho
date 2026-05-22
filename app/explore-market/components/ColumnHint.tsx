@@ -1,10 +1,27 @@
 'use client';
-import { useEffect, useId, useRef, useState } from 'react';
+import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
+
+const TOOLTIP_WIDTH = 288; // tailwind w-72
 
 export function ColumnHint({ label, children }: { label: string; children: React.ReactNode }) {
   const [open, setOpen] = useState(false);
-  const ref = useRef<HTMLSpanElement>(null);
+  const [pos, setPos] = useState<{ top: number; left: number } | null>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const tipRef = useRef<HTMLSpanElement>(null);
   const id = useId();
+
+  useLayoutEffect(() => {
+    if (!open || !triggerRef.current) return;
+    const rect = triggerRef.current.getBoundingClientRect();
+    const margin = 8;
+    let left = rect.right - TOOLTIP_WIDTH;
+    if (left < margin) left = margin;
+    if (left + TOOLTIP_WIDTH > window.innerWidth - margin) {
+      left = window.innerWidth - TOOLTIP_WIDTH - margin;
+    }
+    setPos({ top: rect.bottom + 6, left });
+  }, [open]);
 
   useEffect(() => {
     if (!open) return;
@@ -12,7 +29,8 @@ export function ColumnHint({ label, children }: { label: string; children: React
       if (e.key === 'Escape') setOpen(false);
     };
     const onClick = (e: MouseEvent) => {
-      if (!ref.current?.contains(e.target as Node)) setOpen(false);
+      const t = e.target as Node;
+      if (!triggerRef.current?.contains(t) && !tipRef.current?.contains(t)) setOpen(false);
     };
     document.addEventListener('keydown', onKey);
     document.addEventListener('mousedown', onClick);
@@ -23,9 +41,10 @@ export function ColumnHint({ label, children }: { label: string; children: React
   }, [open]);
 
   return (
-    <span ref={ref} className="relative inline-flex items-center gap-1">
+    <span className="inline-flex items-center gap-1">
       {label}
       <button
+        ref={triggerRef}
         type="button"
         aria-label={`Help for ${label}`}
         aria-expanded={open}
@@ -35,14 +54,17 @@ export function ColumnHint({ label, children }: { label: string; children: React
       >
         ?
       </button>
-      {open && (
+      {open && pos && typeof document !== 'undefined' && createPortal(
         <span
+          ref={tipRef}
           id={id}
           role="tooltip"
-          className="absolute z-30 top-full right-0 mt-2 w-72 rounded-md border border-brix-border bg-brix-bg p-3 text-left text-xs font-normal normal-case tracking-normal text-neutral-300 shadow-lg"
+          style={{ position: 'fixed', top: pos.top, left: pos.left, width: TOOLTIP_WIDTH }}
+          className="z-50 rounded-md border border-brix-border bg-brix-bg p-3 text-left text-xs font-normal normal-case tracking-normal text-neutral-300 shadow-lg"
         >
           {children}
-        </span>
+        </span>,
+        document.body,
       )}
     </span>
   );
