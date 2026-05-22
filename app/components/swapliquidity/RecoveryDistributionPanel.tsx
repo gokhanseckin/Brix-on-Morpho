@@ -9,6 +9,7 @@ import { LIF } from '@/lib/morphoMath';
 import {
   BarChart,
   Bar,
+  Cell,
   XAxis,
   YAxis,
   Tooltip,
@@ -152,7 +153,11 @@ export function RecoveryDistributionPanel() {
               labelFormatter={(v) => `Bad debt ${(Number(v) * 100).toFixed(2)}%`}
               formatter={(v) => [`${v} paths`, 'count']}
             />
-            <Bar dataKey="count" fill="#ef4444" />
+            <Bar dataKey="count">
+              {histogram.map((h, i) => (
+                <Cell key={i} fill={h.bin < 0.001 ? '#22c55e' : '#ef4444'} />
+              ))}
+            </Bar>
           </BarChart>
         </ResponsiveContainer>
       </div>
