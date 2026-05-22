@@ -1,4 +1,4 @@
-import Link from 'next/link';
+import { TopNav } from '@/app/components/TopNav';
 import { dailyLogReturns, windowRows } from '@/lib/fxData';
 import raw from '@/lib/usdtryData.json';
 import { LIF } from '@/lib/morphoMath';
@@ -95,16 +95,12 @@ export default function LLTVPage() {
 
   return (
     <div className="mx-auto max-w-4xl px-6 py-10 bg-brix-bg min-h-screen text-neutral-200">
+      <TopNav />
       <header className="mb-8 border-b border-brix-border pb-6">
         <div className="brix-kicker mb-3">Brix · LLTV analysis</div>
-        <div className="flex items-end justify-between">
-          <h1 className="text-3xl font-semibold tracking-tight">
-            LLTV calibration <span className="text-brix-accent">·</span> 5-year USD/TRY
-          </h1>
-          <Link href="/" className="text-sm text-brix-accent hover:text-brix-accentHover">
-            ← Back to dashboard
-          </Link>
-        </div>
+        <h1 className="text-3xl font-semibold tracking-tight">
+          LLTV calibration <span className="text-brix-accent">·</span> 5-year USD/TRY
+        </h1>
       </header>
 
       <section className="space-y-3">

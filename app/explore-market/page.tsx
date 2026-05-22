@@ -1,8 +1,8 @@
 // app/explore-market/page.tsx
 'use client';
 import { useMemo, useState } from 'react';
-import Link from 'next/link';
 import { useQueryState } from 'nuqs';
+import { TopNav } from '@/app/components/TopNav';
 import { parseMorphoUrl } from '@/lib/morphoApi';
 import { useMorphoMarket } from '@/lib/useMorphoMarket';
 import { useMarketHistory } from '@/lib/useMarketHistory';
@@ -31,14 +31,12 @@ export default function ExploreMarketPage() {
 
   return (
     <div className="mx-auto max-w-6xl p-8 space-y-8 bg-brix-bg min-h-screen text-neutral-200">
+      <TopNav />
       <header className="border-b border-brix-border pb-6">
         <div className="brix-kicker mb-3">Brix · Market explorer</div>
-        <div className="flex items-end justify-between">
-          <h1 className="text-3xl md:text-4xl font-semibold tracking-tight">
-            Explore a <span className="text-brix-accent">Morpho market</span>
-          </h1>
-          <Link href="/" className="text-sm text-brix-accent hover:text-brix-accentHover">← back to sim</Link>
-        </div>
+        <h1 className="text-3xl md:text-4xl font-semibold tracking-tight">
+          Explore a <span className="text-brix-accent">Morpho market</span>
+        </h1>
         <p className="mt-4 text-sm text-neutral-400 max-w-2xl">
           Paste a Morpho Blue market URL to see its creator-set parameters, live state, and the MetaMorpho vaults
           currently supplying it. Read-only reference — does not affect the Brix simulator.

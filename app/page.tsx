@@ -1,4 +1,5 @@
 import { Sidebar } from './components/Sidebar';
+import { TopNav } from './components/TopNav';
 import { LiquidityNeed } from './components/sections/LiquidityNeed';
 import { FXRisk } from './components/sections/FXRisk';
 import { LiquidityStrategy } from './components/sections/LiquidityStrategy';
@@ -12,6 +13,7 @@ export default function Page() {
         <Sidebar />
       </aside>
       <main className="p-8 space-y-16 max-w-5xl">
+        <TopNav />
         <header className="border-b border-brix-border pb-8">
           <div className="brix-kicker mb-4">Brix · Internal · Morpho Launch</div>
           <h1 className="text-4xl md:text-5xl font-semibold tracking-tight leading-[1.05]">
@@ -22,23 +24,6 @@ export default function Page() {
           <p className="mt-6 max-w-2xl text-lg leading-relaxed text-neutral-400">
             Pre-launch parameter calibration for a Morpho Blue market on MegaETH.
           </p>
-          <div className="mt-6 flex gap-6 text-sm">
-            <a href="/utilization" className="text-brix-accent hover:text-brix-accentHover">
-              Target utilization →
-            </a>
-            <a href="/lltv" className="text-brix-accent hover:text-brix-accentHover">
-              LLTV calibration →
-            </a>
-            <a href="/swapliquidity" className="text-brix-accent hover:text-brix-accentHover">
-              Swap liquidity →
-            </a>
-            <a href="/explore-market" className="text-brix-accent hover:text-brix-accentHover">
-              Explore market →
-            </a>
-            <a href="/assignment" className="text-brix-accent hover:text-brix-accentHover">
-              Pitch deck →
-            </a>
-          </div>
         </header>
         <section id="section-liquidity-need-anchor">
           <h2 className="sr-only">1. USDM Liquidity Need</h2>
