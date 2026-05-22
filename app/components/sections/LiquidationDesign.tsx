@@ -138,13 +138,13 @@ export function LiquidationDesign() {
 
       <div className="grid grid-cols-4 gap-4">
         <Kpi
-          label="P95 Morpho debt — atomized (USD)"
+          label="P95 Morpho debt — single (USD)"
           value={fx?.badDebt ? formatUSD(fx.badDebt.badDebtP95_USD) : '—'}
           hint="Cascade with each liquidation priced as its own swap. Lower bound — assumes liquidators clear positions one at a time."
           helpKey="badDebtP95USD"
         />
         <Kpi
-          label="P95 Morpho debt — atomized (% TVL)"
+          label="P95 Morpho debt — single (% TVL)"
           value={fx?.badDebt ? formatPct(fx.badDebt.badDebtP95Pct, 2) : '—'}
           tone={
             fx?.badDebt && fx.badDebt.badDebtP95Pct > 0.05
@@ -258,8 +258,18 @@ export function LiquidationDesign() {
                     {(row.lltv * 100).toFixed(1)}%
                   </td>
                   {row.cells.map((c) => {
-                    const intensity = Math.min(1, c.value * 4);
-                    const bg = `rgba(239, 68, 68, ${(0.1 + intensity * 0.7).toFixed(2)})`;
+                    // <1% good (green), 1-5% warn (amber), >5% bad (red).
+                    let bg: string;
+                    if (c.value < 0.01) {
+                      const intensity = 1 - c.value / 0.01;
+                      bg = `rgba(34, 197, 94, ${(0.15 + intensity * 0.45).toFixed(2)})`;
+                    } else if (c.value < 0.05) {
+                      const intensity = (c.value - 0.01) / 0.04;
+                      bg = `rgba(245, 158, 11, ${(0.2 + intensity * 0.5).toFixed(2)})`;
+                    } else {
+                      const intensity = Math.min(1, (c.value - 0.05) / 0.1);
+                      bg = `rgba(239, 68, 68, ${(0.35 + intensity * 0.5).toFixed(2)})`;
+                    }
                     return (
                       <td
                         key={c.depth}
@@ -309,7 +319,7 @@ export function LiquidationDesign() {
           Recommendation
         </div>
         <div className="text-sm">
-          At LLTV={(inputs.lltv * 100).toFixed(1)}%, P95 Morpho debt (atomized) ={' '}
+          At LLTV={(inputs.lltv * 100).toFixed(1)}%, P95 Morpho debt (single) ={' '}
           {fx?.badDebt ? formatUSD(fx.badDebt.badDebtP95_USD) : '—'} (
           {fx?.badDebt ? formatPct(fx.badDebt.badDebtP95Pct, 2) : '—'} of TVL).
           Coincident-execution viability at P95 vol:{' '}
