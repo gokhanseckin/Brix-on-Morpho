@@ -313,4 +313,43 @@ const positionsUnderwater: ChartHelp = {
   },
 };
 
-export const FX_RISK_CHARTS = { fxBands, netWitryUsdPaths, positionsUnderwater };
+const drawdownDistribution: ChartHelp = {
+  title: '3-day max drawdown distribution',
+  oneLiner: 'A histogram showing how often each crash size appeared across all 1000 simulated futures. Each bar answers: "in how many of our simulated futures did the worst 3-day TRY crash fall in this range?"',
+  axes: {
+    x: 'Crash size bucket — how much TRY dropped in its single worst 3-day window within that path (0–2%, 2–5%, … 30%+)',
+    y: 'Count — number of simulated paths (out of 1000) whose worst 3-day crash landed in that bucket',
+  },
+  definitions: [
+    {
+      term: 'What one bar means',
+      definition:
+        'A bar of height 320 in the "5–10%" bucket means 320 of the 1000 simulated futures had their single worst 3-day TRY crash somewhere between 5% and 10%. The other 680 paths had a worst crash either smaller or larger.',
+    },
+    {
+      term: 'How to read the shape',
+      definition:
+        'Bars clustered on the left = most futures have small crashes, tail risk is low. Bars spread or piled on the right = many futures contain severe crashes, tail risk is high. A long right tail (big bars at 20–30%+) is the danger zone for the vault.',
+    },
+    {
+      term: 'Connection to P95 KPI',
+      definition:
+        'The P95 drawdown KPI shown above is the x-value where 95% of the histogram area sits to the LEFT. Visually: find the bar where the running total of counts hits 950 out of 1000 — that bucket\'s right edge is roughly the P95. The LLTV recommendation is calibrated to survive that number.',
+    },
+    {
+      term: 'Why 3 days specifically',
+      definition:
+        'Liquidators receive seized wiTRY and need time to sell it on secondary markets. 3 days is the assumed exit window. A crash that happens faster than liquidators can act means they absorb a loss — which is the bad debt the vault must budget for.',
+    },
+  ],
+  impact: {
+    health:
+      'Bars shifting right (larger crashes becoming common) means the P95 drawdown widens → recommended LLTV drops → the vault becomes more conservative to stay solvent.',
+    sustainability:
+      'A fat right tail means even at P95 sizing there are occasional paths that blow past the threshold. Combine with Scenario mode to stress-test specific historical crisis magnitudes.',
+    profitability:
+      'A wider distribution forces a lower LLTV recommendation → smaller borrow base → less yield for suppliers. Tighter crash distributions allow more aggressive LLTVs and higher capital efficiency.',
+  },
+};
+
+export const FX_RISK_CHARTS = { fxBands, netWitryUsdPaths, positionsUnderwater, drawdownDistribution };

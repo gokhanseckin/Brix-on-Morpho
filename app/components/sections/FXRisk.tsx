@@ -186,7 +186,10 @@ export function FXRisk() {
 
       <div className="grid grid-cols-2 gap-4">
         <div>
-          <h3 className="text-sm font-semibold mb-2">3-day max drawdown distribution</h3>
+          <div className="flex items-center gap-1 mb-2">
+            <h3 className="text-sm font-semibold">3-day max drawdown distribution</h3>
+            <HelpPopover chartKey="drawdownDistribution" />
+          </div>
           <div className="border border-brix-border rounded p-2 bg-brix-card">
             <ResponsiveContainer width="100%" height={240}>
               <BarChart data={drawdownBins} margin={{ top: 8, right: 16, bottom: 8, left: 8 }}>
