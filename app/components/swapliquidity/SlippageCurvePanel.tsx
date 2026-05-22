@@ -52,7 +52,7 @@ export function SlippageCurvePanel() {
       const effective = Math.max(0, Math.min(1, 1 - usdmOut / sellUSD));
       pts.push({ sell: sellUSD, priceSlip: q.slippagePct, effective });
       if (b2 == null && effective >= 0.02) b2 = sellUSD;
-      if (b5 == null && effective >= 0.05) b5 = sellUSD;
+      if (b5 == null && effective >= 0.0438) b5 = sellUSD;
     }
     return { data: pts, breakeven2pct: b2, breakeven5pct: b5 };
   }, [
@@ -67,11 +67,11 @@ export function SlippageCurvePanel() {
     <section id="section-slippage-curve" className="space-y-3">
       <h2 className="text-lg font-semibold flex items-center gap-1">
         <span>3. Slippage curve</span>
-        <InfoTooltip text="Slippage as a function of single-trade sell size against the current ladder. Two curves: marginal price slip (Uniswap math) and effective proceeds shortfall (1 − amountOut/sellUSD, includes fee). The effective curve is what determines liquidator profitability — when it exceeds LIF − 1 ≈ 5% at the LLTV cliff, the liquidator loses money and skips." />
+        <InfoTooltip text="Slippage as a function of single-trade sell size against the current ladder. Two curves: marginal price slip (Uniswap math) and effective proceeds shortfall (1 − amountOut/sellUSD, includes fee). The effective curve is what determines liquidator profitability — when it exceeds LIF − 1 = 4.38% at the 86% LLTV cliff, the liquidator loses money and skips." />
       </h2>
       <p className="text-xs text-neutral-500 max-w-2xl">
         Sweep of slippage vs. trade size on the current ladder. The horizontal lines mark the
-        2% operating target and the ~5% LIF cliff — trade sizes above the 5% crossing produce
+        2% operating target and the 4.38% LIF cliff — trade sizes above the 4.38% crossing produce
         liquidations that lose the liquidator money. Y-axis capped at 10% to focus on the
         actionable range.
       </p>
@@ -117,11 +117,11 @@ export function SlippageCurvePanel() {
               }}
             />
             <ReferenceLine
-              y={0.05}
+              y={0.0438}
               stroke="#f59e0b"
               strokeDasharray="3 3"
               label={{
-                value: '5% LIF cliff',
+                value: '4.38% LIF cliff',
                 position: 'right',
                 fill: '#f59e0b',
                 fontSize: 10,
@@ -160,7 +160,7 @@ export function SlippageCurvePanel() {
         </div>
         <div className="p-3 border border-brix-border rounded bg-brix-card">
           <div className="text-neutral-500 uppercase tracking-wide text-[10px]">
-            Max sell before LIF cliff (5% effective)
+            Max sell before LIF cliff (4.38% effective)
           </div>
           <div className="text-base font-mono mt-1 text-amber-300">
             {breakeven5pct ? fmtUSD(breakeven5pct) : '> sweep max'}
