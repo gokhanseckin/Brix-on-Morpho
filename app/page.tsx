@@ -32,6 +32,9 @@ export default function Page() {
             <a href="/swapliquidity" className="text-brix-accent hover:text-brix-accentHover">
               Swap liquidity →
             </a>
+            <a href="/explore-market" className="text-brix-accent hover:text-brix-accentHover">
+              Explore market →
+            </a>
             <a href="/assignment" className="text-brix-accent hover:text-brix-accentHover">
               Pitch deck →
             </a>
