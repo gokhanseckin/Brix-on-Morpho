@@ -68,6 +68,9 @@ export default function UtilizationPage() {
           format={v => v.toFixed(2) + '×'}
           onChange={setHfBuffer}
         />
+        <div className="text-xs text-brix-muted -mt-1">
+          Borrows {(100 / hfBuffer).toFixed(1)}% of LLTV cap
+        </div>
         <Slider
           label="r_target override"
           helpKey="rTargetOverrideInput"
