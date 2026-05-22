@@ -2,6 +2,7 @@
 'use client';
 import type { AssetMeta, MarketActivity, PreLiquidationContract } from '@/types/morphoMarket';
 import { formatUSD, formatPct } from '@/app/components/Kpi';
+import { ColumnHint } from './ColumnHint';
 
 const ETHERSCAN_BASE: Record<number, string> = {
   1: 'https://etherscan.io',
@@ -125,12 +126,53 @@ export function TokensActivityCard({
             <table className="w-full text-sm">
               <thead className="text-xs uppercase tracking-wide text-neutral-500">
                 <tr className="border-b border-brix-border">
-                  <th className="text-left py-2 pr-4">Address</th>
-                  <th className="text-right py-2 pr-4">preLLTV</th>
-                  <th className="text-right py-2 pr-4">CF₁</th>
-                  <th className="text-right py-2 pr-4">CF₂</th>
-                  <th className="text-right py-2 pr-4">IF₁</th>
-                  <th className="text-right py-2">IF₂</th>
+                  <th className="text-left py-2 pr-4">
+                    <ColumnHint label="Address">
+                      On-chain address of the pre-liquidation contract. Click to view it on the
+                      block explorer. Each pre-liquidation contract is a small standalone contract
+                      attached to a Morpho market that auto-closes risky positions before they hit
+                      the hard liquidation limit (LLTV).
+                    </ColumnHint>
+                  </th>
+                  <th className="text-right py-2 pr-4">
+                    <ColumnHint label="preLLTV">
+                      Pre-Liquidation LTV. The early trigger — once a borrower&apos;s
+                      loan-to-value rises above this, the auto-deleverage rule kicks in. Set below
+                      LLTV (the hard limit) so positions are nudged down before they would actually
+                      get liquidated. Shown as a % of the borrower&apos;s collateral value.
+                    </ColumnHint>
+                  </th>
+                  <th className="text-right py-2 pr-4">
+                    <ColumnHint label="CF₁">
+                      Close Factor at the start of the trigger zone (when LTV just crossed preLLTV).
+                      Think of it as &quot;what fraction of the position to close on the first
+                      trigger.&quot; Example: CF₁ = 20% → close 20% of the debt the first time.
+                      Lower CF₁ = gentler intervention.
+                    </ColumnHint>
+                  </th>
+                  <th className="text-right py-2 pr-4">
+                    <ColumnHint label="CF₂">
+                      Close Factor at the end of the trigger zone (when LTV approaches LLTV).
+                      The fraction closed scales linearly from CF₁ up to CF₂ as LTV rises through
+                      the zone. Higher CF₂ = more aggressive cleanup when the position is close to
+                      getting hard-liquidated.
+                    </ColumnHint>
+                  </th>
+                  <th className="text-right py-2 pr-4">
+                    <ColumnHint label="IF₁">
+                      Incentive Factor at the start of the zone — the bonus paid to whoever runs
+                      the pre-liquidation. IF₁ = 101% means the closer receives 1% extra collateral
+                      as their fee. Has to be high enough to cover gas, low enough that borrowers
+                      don&apos;t get rekt.
+                    </ColumnHint>
+                  </th>
+                  <th className="text-right py-2">
+                    <ColumnHint label="IF₂">
+                      Incentive Factor at the end of the zone. Like IF₁ but at the upper edge.
+                      Usually higher than IF₁ so liquidators are paid more for closing the riskier
+                      positions. Scales linearly between IF₁ and IF₂ across the zone.
+                    </ColumnHint>
+                  </th>
                 </tr>
               </thead>
               <tbody>
