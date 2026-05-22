@@ -1,6 +1,6 @@
 // app/explore-market/components/MarketParamsCard.tsx
 'use client';
-import type { MarketParams } from '@/types/morphoMarket';
+import type { MarketParams, AssetMeta } from '@/types/morphoMarket';
 import { GOV_LLTVS } from '@/types/simulator';
 
 const ETHERSCAN_BASE: Record<number, string> = {
@@ -29,10 +29,14 @@ export function MarketParamsCard({
   chainId,
   marketId,
   params,
+  collateral,
+  loan,
 }: {
   chainId: number;
   marketId: string;
   params: MarketParams;
+  collateral: AssetMeta;
+  loan: AssetMeta;
 }) {
   const base = ETHERSCAN_BASE[chainId] ?? '';
   const lltv = lltvPct(params.lltv);
@@ -42,8 +46,8 @@ export function MarketParamsCard({
     <section className="rounded-lg border border-brix-border bg-brix-card p-6 space-y-4">
       <h2 className="text-lg font-semibold text-neutral-200">Market parameters</h2>
       <dl className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-3 text-sm">
-        <Row label="Collateral" value={`${params.collateralAsset.symbol} (${shorten(params.collateralAsset.address)})`} href={base + params.collateralAsset.address} />
-        <Row label="Loan" value={`${params.loanAsset.symbol} (${shorten(params.loanAsset.address)})`} href={base + params.loanAsset.address} />
+        <Row label="Collateral" value={`${collateral.symbol} (${shorten(collateral.address)})`} href={base + collateral.address} />
+        <Row label="Loan" value={`${loan.symbol} (${shorten(loan.address)})`} href={base + loan.address} />
         <Row
           label="LLTV"
           value={
