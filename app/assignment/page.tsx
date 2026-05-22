@@ -347,7 +347,7 @@ const slides: Slide[] = [
                 ['1', 'Re7 Labs', 'Most chain-agnostic curator (14 chains). Most likely first-mover on MegaETH.', '$14.65M Stream / xUSD exposure (Nov 2025).'],
                 ['2', 'Gauntlet', '~$2B Morpho TVL. Brings pre-arranged MM liquidator networks — see ACRED precedent.', 'Premium fees. May want a bigger market.'],
                 ['3', 'Steakhouse', 'French co-founder, Coinbase brand, conservative. Clean Stream record.', 'Selective on new chains; wants an institutional anchor.'],
-                ['4', 'MEV Capital', 'French CEO, SG-FORGE rails. Explicit liquidation mandate (EURCV/USDCV).', '$25.42M Stream exposure — reputational rebuild ongoing.'],
+                ['4', 'KPK.io', 'Non-custodial treasury manager for DAOs. Charges no performance or management fee.', 'Newer curator; smaller Morpho footprint than the top 3.'],
                 ['5', 'Wintermute / Armitage', 'Curator + in-house liquidator in one. Built for collateral others can\'t take.', 'Launched May 19, 2026 — track record is days old.'],
               ].map(([n, name, fit, risk]) => (
                 <tr key={name as string} className="hover:bg-neutral-900/40">
