@@ -9,6 +9,7 @@ export const CHART_KEYS = [
   'positionsUnderwater',   // FXRisk
   'drawdownDistribution',  // FXRisk: 3-day max drawdown histogram
   'badDebtHistogram',      // LiquidationDesign
+  'competitiveBenchmark',  // LiquidityStrategy
   // Utilization (section 6)
   'looperViabilityCurve',
   'liquidityStressTable',
@@ -32,6 +33,7 @@ export const CHART_SECTION: Record<ChartKey, HelpSection> = {
   positionsUnderwater: 'fx-risk',
   drawdownDistribution: 'fx-risk',
   badDebtHistogram: 'liquidation',
+  competitiveBenchmark: 'strategy',
   looperViabilityCurve: 'utilization',
   liquidityStressTable: 'utilization',
   loopEconomicsWaterfall: 'utilization',
