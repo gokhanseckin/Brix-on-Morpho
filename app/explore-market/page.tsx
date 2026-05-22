@@ -5,8 +5,14 @@ import Link from 'next/link';
 import { useQueryState } from 'nuqs';
 import { parseMorphoUrl } from '@/lib/morphoApi';
 import { useMorphoMarket } from '@/lib/useMorphoMarket';
+import { useMarketHistory } from '@/lib/useMarketHistory';
 import { MarketParamsCard } from './components/MarketParamsCard';
 import { MarketStateCard } from './components/MarketStateCard';
+import { OracleDetailsCard } from './components/OracleDetailsCard';
+import { IrmCurveCard } from './components/IrmCurveCard';
+import { TokensActivityCard } from './components/TokensActivityCard';
+import { DerivedLiquidationCard } from './components/DerivedLiquidationCard';
+import { HistoryChartCard } from './components/HistoryChartCard';
 import { ExposedVaultsCard } from './components/ExposedVaultsCard';
 
 export default function ExploreMarketPage() {
@@ -16,6 +22,7 @@ export default function ExploreMarketPage() {
   const parsed = useMemo(() => (url ? parseMorphoUrl(url) : null), [url]);
   const ok = parsed?.ok === true;
   const result = useMorphoMarket(ok ? parsed.chainId : null, ok ? parsed.marketId : null);
+  const history = useMarketHistory(ok ? parsed.chainId : null, ok ? parsed.marketId : null, 30);
 
   function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -73,8 +80,40 @@ export default function ExploreMarketPage() {
       )}
       {result.data && ok && (
         <>
-          <MarketParamsCard chainId={parsed.chainId} marketId={parsed.marketId} params={result.data.params} />
+          <MarketParamsCard
+            chainId={parsed.chainId}
+            marketId={parsed.marketId}
+            params={result.data.params}
+            collateral={result.data.collateral}
+            loan={result.data.loan}
+          />
           <MarketStateCard state={result.data.state} />
+          <OracleDetailsCard
+            chainId={parsed.chainId}
+            oracle={result.data.oracle}
+            collateralPriceUsd={result.data.collateral.priceUsd}
+            collateralPriceTimestamp={result.data.collateral.priceTimestamp}
+          />
+          <IrmCurveCard
+            irmAddress={result.data.params.irmAddress}
+            curve={result.data.irmCurve}
+            currentUtilization={result.data.state.utilization}
+            rateAtTarget={result.data.state.rateAtUTarget}
+            apyAtTarget={result.data.state.apyAtTarget}
+          />
+          <TokensActivityCard
+            chainId={parsed.chainId}
+            collateral={result.data.collateral}
+            loan={result.data.loan}
+            activity={result.data.activity}
+            preLiquidations={result.data.preLiquidations}
+          />
+          <DerivedLiquidationCard lltv={result.data.params.lltv} />
+          <HistoryChartCard
+            loading={history.loading}
+            error={history.error}
+            data={history.data}
+          />
           <ExposedVaultsCard vaults={result.data.vaults} />
         </>
       )}

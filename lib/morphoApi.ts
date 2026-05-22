@@ -175,6 +175,7 @@ export async function fetchMarket(
       borrowApy: m.state.borrowApy ?? 0,
       liquidityAssetsUsd: m.state.liquidityAssetsUsd ?? 0,
       rateAtUTarget: m.state.rateAtUTarget ?? 0,
+      apyAtTarget: m.state.apyAtTarget ?? 0,
     },
     collateral: mapAsset(m.collateralAsset),
     loan: mapAsset(m.loanAsset),

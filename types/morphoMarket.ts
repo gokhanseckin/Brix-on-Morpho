@@ -14,6 +14,7 @@ export type MarketState = {
   borrowApy: number;       // 0..1
   liquidityAssetsUsd: number;
   rateAtUTarget: number;   // 0..1
+  apyAtTarget: number;     // 0..1
 };
 
 export type VaultAllocation = {
