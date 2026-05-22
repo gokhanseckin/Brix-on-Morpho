@@ -489,8 +489,11 @@ const slides: Slide[] = [
       <div className="flex h-full flex-col">
         <Kicker>09 · The constraint that runs the market</Kicker>
         <H2>
-          Borrow cap <Accent>≤</Accent> one-sided depth <Accent>÷</Accent> 5
+          Per-wallet debt <Accent>≤</Accent> AMM one-sided depth <Accent>÷</Accent> 5
         </H2>
+        <div className="mt-1 text-[13px] uppercase tracking-[0.18em] text-neutral-500">
+          Monitored, not enforced on Morpho Blue
+        </div>
         <div className="mt-6 grid grid-cols-[1.1fr_1fr] gap-6">
           <Card>
             <div className="text-[13px] uppercase tracking-[0.18em] text-neutral-500">
