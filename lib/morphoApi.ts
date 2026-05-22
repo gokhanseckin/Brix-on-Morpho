@@ -63,13 +63,14 @@ const MARKET_QUERY = `
         rateAtUTarget
       }
       supplyingVaults {
-        address
-        name
-        symbol
-        state { totalAssetsUsd }
-        allocation: marketAllocation {
-          supplyAssetsUsd
-          supplyCapUsd
+        address name symbol
+        state {
+          totalAssetsUsd
+          allocation {
+            supplyAssetsUsd
+            supplyCapUsd
+            market { uniqueKey }
+          }
         }
       }
     }
@@ -137,7 +138,7 @@ export async function fetchMarket(
       liquidityAssetsUsd: m.state.liquidityAssetsUsd ?? 0,
       rateAtUTarget: m.state.rateAtUTarget ?? 0,
     },
-    vaults: mapVaults(m.supplyingVaults ?? []),
+    vaults: mapVaults(m.supplyingVaults ?? [], marketId),
   };
 
   cache.set(key, view);
@@ -149,8 +150,14 @@ type RawVault = {
   address: string;
   name: string;
   symbol: string;
-  state: { totalAssetsUsd: number | null };
-  allocation: { supplyAssetsUsd: number | null; supplyCapUsd: number | null } | null;
+  state: {
+    totalAssetsUsd: number | null;
+    allocation: Array<{
+      supplyAssetsUsd: number | null;
+      supplyCapUsd: number | null;
+      market: { uniqueKey: string };
+    }> | null;
+  };
 };
 type RawMarket = {
   uniqueKey: string;
@@ -171,11 +178,14 @@ type RawMarket = {
   supplyingVaults: RawVault[] | null;
 };
 
-function mapVaults(raw: RawVault[]): VaultAllocation[] {
+function mapVaults(raw: RawVault[], marketId: string): VaultAllocation[] {
   return raw
     .map(v => {
       const totalAssetsUsd = v.state.totalAssetsUsd ?? 0;
-      const allocationUsd = v.allocation?.supplyAssetsUsd ?? 0;
+      const entry = (v.state.allocation ?? []).find(
+        a => a.market.uniqueKey.toLowerCase() === marketId.toLowerCase()
+      );
+      const allocationUsd = entry?.supplyAssetsUsd ?? 0;
       return {
         address: v.address,
         name: v.name,
@@ -183,7 +193,7 @@ function mapVaults(raw: RawVault[]): VaultAllocation[] {
         totalAssetsUsd,
         allocationUsd,
         allocationPctOfVault: totalAssetsUsd > 0 ? allocationUsd / totalAssetsUsd : 0,
-        supplyCapUsd: v.allocation?.supplyCapUsd ?? null,
+        supplyCapUsd: entry?.supplyCapUsd ?? null,
       };
     })
     .sort((a, b) => b.allocationUsd - a.allocationUsd);

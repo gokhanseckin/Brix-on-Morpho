@@ -79,15 +79,36 @@ const SAMPLE_RESPONSE = {
           address: '0xVaultA',
           name: 'Steakhouse USDC',
           symbol: 'steakUSDC',
-          state: { totalAssetsUsd: 50_000_000 },
-          allocation: { supplyAssetsUsd: 800_000, supplyCapUsd: 2_000_000 },
+          state: {
+            totalAssetsUsd: 50_000_000,
+            allocation: [
+              {
+                supplyAssetsUsd: 800_000,
+                supplyCapUsd: 2_000_000,
+                market: { uniqueKey: '0xe07d416323a1afbfe0bf2fe27ffb549ff565cf5c86d21b79fc60664038e597c9' },
+              },
+              {
+                supplyAssetsUsd: 999_999,
+                supplyCapUsd: 1_000_000_000,
+                market: { uniqueKey: '0xdead0000000000000000000000000000000000000000000000000000000000ad' },
+              },
+            ],
+          },
         },
         {
           address: '0xVaultB',
           name: 'Gauntlet USDC',
           symbol: 'gtUSDC',
-          state: { totalAssetsUsd: 30_000_000 },
-          allocation: { supplyAssetsUsd: 200_000, supplyCapUsd: null },
+          state: {
+            totalAssetsUsd: 30_000_000,
+            allocation: [
+              {
+                supplyAssetsUsd: 200_000,
+                supplyCapUsd: null,
+                market: { uniqueKey: '0xe07d416323a1afbfe0bf2fe27ffb549ff565cf5c86d21b79fc60664038e597c9' },
+              },
+            ],
+          },
         },
       ],
     },
@@ -185,5 +206,45 @@ describe('fetchMarket', () => {
     }));
     const view = await fetchMarket(1, '0xe07d416323a1afbfe0bf2fe27ffb549ff565cf5c86d21b79fc60664038e597c9');
     expect(view.vaults).toEqual([]);
+  });
+
+  it('filters allocation array by marketId', async () => {
+    // VaultA has two allocation entries; only the one matching the queried marketId should be used.
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => SAMPLE_RESPONSE,
+    }));
+    const id = '0xe07d416323a1afbfe0bf2fe27ffb549ff565cf5c86d21b79fc60664038e597c9';
+    const view = await fetchMarket(1, id);
+    const vaultA = view.vaults.find(v => v.address === '0xVaultA');
+    // Should use the 800_000 entry, NOT the 999_999 unrelated-market entry
+    expect(vaultA?.allocationUsd).toBe(800_000);
+    expect(vaultA?.supplyCapUsd).toBe(2_000_000);
+  });
+
+  it('treats null state.allocation as zero allocation', async () => {
+    const responseWithNullAlloc = {
+      data: {
+        marketByUniqueKey: {
+          ...SAMPLE_RESPONSE.data.marketByUniqueKey,
+          supplyingVaults: [
+            {
+              address: '0xVaultC',
+              name: 'Null Alloc Vault',
+              symbol: 'nullVault',
+              state: { totalAssetsUsd: 10_000_000, allocation: null },
+            },
+          ],
+        },
+      },
+    };
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => responseWithNullAlloc,
+    }));
+    const view = await fetchMarket(1, '0xe07d416323a1afbfe0bf2fe27ffb549ff565cf5c86d21b79fc60664038e597c9');
+    expect(view.vaults).toHaveLength(1);
+    expect(view.vaults[0]!.allocationUsd).toBe(0);
+    expect(view.vaults[0]!.supplyCapUsd).toBeNull();
   });
 });
