@@ -1,6 +1,9 @@
 import { adaptiveCurveIRM, healthFactor, LIF } from './morphoMath';
 import { createRng, gauss, type Rng } from './rng';
 import { GOV_LLTVS, type LLTV } from '@/types/simulator';
+import type { PoolPreset } from './poolPreset';
+import { materializePool } from './univ3/quoteLiquidatorSell';
+import { swapExactIn, type PoolState } from './univ3/swap';
 
 export interface LiqNeedArgs {
   witryTVL_USD: number;
@@ -143,16 +146,51 @@ export function pctUnderwaterAtT(a: PctUnderwaterArgs): number {
   return underwater / a.ltvFractions.length;
 }
 
-/** AMM slippage for selling L USD-worth into one-side reserve D (USD). */
+/**
+ * Legacy heuristic AMM slippage for selling L USD-worth into a one-side
+ * scalar reserve D (USD). Retained for the heatmap and unit tests; the
+ * preset-based path below is the primary slippage source.
+ */
 export function slippage(L_USD: number, D_USD: number): number {
   if (D_USD <= 0) return 1;
   return L_USD / (L_USD + D_USD);
 }
 
+/**
+ * AMM-accurate sell quote: returns USDM proceeds and a fully-loaded slippage
+ * fraction (includes fee + price impact). `spot` is USD per TRY (= 1 /
+ * usdtryBaseline). `sellUSD` is the USD-notional of wTRY collateral the
+ * liquidator dumps. If the pool can't absorb the sell, slippagePct→1.
+ */
+export function quoteSellUSD(
+  pool: PoolState,
+  spot: number,
+  sellUSD: number,
+): { revenue_USD: number; slippagePct: number } {
+  if (sellUSD <= 0) return { revenue_USD: 0, slippagePct: 0 };
+  const wTRYwei = BigInt(Math.floor((sellUSD / spot) * 1e6));
+  if (wTRYwei <= 0n) return { revenue_USD: 0, slippagePct: 0 };
+  const { quote } = swapExactIn(pool, wTRYwei, true /* sell wTRY */);
+  const revenue_USD = Number(quote.amountOut) / 1e6;
+  const slippagePct = Math.max(0, Math.min(1, 1 - revenue_USD / sellUSD));
+  return { revenue_USD, slippagePct };
+}
+
+/** Convenience: combined slippage fraction for a single sell on a preset. */
+export function slippageFromPreset(
+  preset: PoolPreset,
+  spot: number,
+  sellUSD: number,
+): number {
+  const pool = materializePool(preset, spot);
+  return quoteSellUSD(pool, spot, sellUSD).slippagePct;
+}
+
 export interface LiquidatorArgs {
   debt_USD: number;
   lltv: number;
-  poolDepth_USD: number;
+  preset: PoolPreset;
+  spot: number;            // USD per TRY (= 1 / usdtryBaseline)
   gasCost_USD: number;
   holdingRisk_USD: number;
 }
@@ -165,23 +203,40 @@ export interface LiquidatorOut {
 }
 
 export function liquidatorProfit(a: LiquidatorArgs): LiquidatorOut {
+  return liquidatorProfitWithPool(materializePool(a.preset, a.spot), a);
+}
+
+/** Variant that reuses a materialized pool — for tight inner loops. */
+export function liquidatorProfitWithPool(
+  pool: PoolState,
+  a: Omit<LiquidatorArgs, 'preset'>,
+): LiquidatorOut {
   const lif = LIF(a.lltv);
   const collateralSeized_USD = a.debt_USD * lif;
-  const slippagePct = slippage(collateralSeized_USD, a.poolDepth_USD);
-  const revenue_USD = collateralSeized_USD * (1 - slippagePct);
+  const { revenue_USD, slippagePct } = quoteSellUSD(pool, a.spot, collateralSeized_USD);
   const profit_USD = revenue_USD - a.debt_USD - a.gasCost_USD - a.holdingRisk_USD;
   return { collateralSeized_USD, slippagePct, revenue_USD, profit_USD };
 }
 
 export interface MinMaxArgs {
   lltv: number;
-  poolDepth_USD: number;
+  preset: PoolPreset;
+  spot: number;
   gasCost_USD: number;
 }
 
 export function minMaxProfitableLiquidation(a: MinMaxArgs): { min_USD: number; max_USD: number } {
+  // Materialize the pool once and reuse for every probe. swapExactIn clones
+  // the ticks map internally so the pool isn't mutated across calls.
+  const pool = materializePool(a.preset, a.spot);
   const profitAt = (debt: number): number =>
-    liquidatorProfit({ ...a, debt_USD: debt, holdingRisk_USD: 0 }).profit_USD;
+    liquidatorProfitWithPool(pool, {
+      debt_USD: debt,
+      lltv: a.lltv,
+      spot: a.spot,
+      gasCost_USD: a.gasCost_USD,
+      holdingRisk_USD: 0,
+    }).profit_USD;
   // Coarse scan to locate a profitable peak (profit is non-monotonic: gas dominates small,
   // slippage dominates large). Then binary-search the two zero-crossings.
   let peak = 1;
@@ -230,7 +285,8 @@ export interface BadDebtArgs {
   ltvFractions: number[];
   lltv: number;
   tvl_USD: number;
-  poolDepth_USD: number;
+  preset: PoolPreset;
+  spot: number; // USD per TRY (= 1 / usdtryBaseline)
   gasCost_USD: number;
   witryYieldAnnual: number;
   preLiquidationEnabled: boolean;
@@ -259,6 +315,9 @@ export function simulateBadDebt(a: BadDebtArgs): BadDebtOut {
     };
   }
   const S0 = firstPath[0]!;
+  // Materialize the AMM pool once — slippage math is path-time independent
+  // (the ladder is denominated in USD and lives in price-band space).
+  const pool = materializePool(a.preset, a.spot);
 
   // Pre-liquidation parameters per spec §4D.
   const preLLTV = Math.max(0, a.lltv - PRE_LIQUIDATION_LLTV_OFFSET);
@@ -301,7 +360,7 @@ export function simulateBadDebt(a: BadDebtArgs): BadDebtOut {
           const closeDebt = pos.debt_USD * preLCF2;
           const seized = closeDebt * preLIF1;
           pathSeizedVolume_USD += seized;
-          const slipPct = slippage(seized, a.poolDepth_USD);
+          const { slippagePct: slipPct } = quoteSellUSD(pool, a.spot, seized);
           // Auto-deleverage routes through the same AMM; collateral seized
           // and debt repaid are removed from the position pro-rata.
           const repaid = Math.min(closeDebt, seized * (1 - slipPct));
@@ -321,10 +380,10 @@ export function simulateBadDebt(a: BadDebtArgs): BadDebtOut {
         const collAfter = pos.collateralBaseUSD * rel;
         const hf = healthFactor({ collateralUSD: collAfter, debtUSD: pos.debt_USD, lltv: a.lltv });
         if (hf <= 1) {
-          const { revenue_USD } = liquidatorProfit({
+          const { revenue_USD } = liquidatorProfitWithPool(pool, {
             debt_USD: pos.debt_USD,
             lltv: a.lltv,
-            poolDepth_USD: a.poolDepth_USD,
+            spot: a.spot,
             gasCost_USD: a.gasCost_USD,
             holdingRisk_USD: 0,
           });

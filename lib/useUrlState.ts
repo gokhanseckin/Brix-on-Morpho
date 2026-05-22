@@ -39,7 +39,6 @@ export function useUrlState() {
     incentiveBudgetMonthly_USD: parseAsFloat.withDefault(0),
     attractionRate: parseAsFloat.withDefault(5),
     lockPeriodDays: parseAsInteger.withDefault(90),
-    poolDepth_USD: parseAsFloat.withDefault(500_000),
     performanceFee: parseAsFloat.withDefault(0.1),
     managementFee: parseAsFloat.withDefault(0),
     safetyMargin: parseAsFloat.withDefault(0.02),

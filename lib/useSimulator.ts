@@ -12,12 +12,13 @@ import {
   classifyRiskTier,
   buildVaultConfigJson,
   minMaxProfitableLiquidation,
-  slippage,
+  slippageFromPreset,
   betaMean,
   PRE_LIQUIDATION_LLTV_OFFSET,
   PRE_LIQUIDATION_LCF,
   PRE_LIQUIDATION_LIF_MIN,
 } from './simulator';
+import { buildLadderFromInputs, effectiveDepthFromPreset } from './poolPreset';
 import { LIF, adaptiveCurveIRM } from './morphoMath';
 import { quantile } from './stats';
 import { GOV_LLTVS, type SidebarInputs } from '@/types/simulator';
@@ -111,11 +112,30 @@ export function useSimulator() {
     return { ...out, irmCurve, sensitivity };
   }, [s, strategy.incentiveAPY, strategy.netSupplyAPY]);
 
+  // Build the AMM ladder once per parameter change. Reused by minMax, the
+  // slippage estimator below, the worker payload, and LiquidationDesign.
+  const spot = 1 / s.usdtryBaseline;
+  const preset = useMemo(
+    () =>
+      buildLadderFromInputs(spot, {
+        poolTVL_USD: s.poolTVL_USD,
+        bandSplitCore: s.bandSplitCore,
+        bandSplitAbsorb: s.bandSplitAbsorb,
+        poolFeeTier: s.poolFeeTier,
+      }),
+    [spot, s.poolTVL_USD, s.bandSplitCore, s.bandSplitAbsorb, s.poolFeeTier],
+  );
+  const effectivePoolDepth_USD = useMemo(
+    () => effectiveDepthFromPreset(preset, spot),
+    [preset, spot],
+  );
+
   const lltvDerivation = useMemo(() => {
     const p95dd = result?.threeDayDD ? quantile(result.threeDayDD, 0.95) : DEFAULT_P95_3D_DRAWDOWN;
     const minMax = minMaxProfitableLiquidation({
       lltv: s.lltv,
-      poolDepth_USD: s.poolDepth_USD,
+      preset,
+      spot,
       gasCost_USD: DEFAULT_GAS_COST_USD,
     });
     // Heuristic single-event liquidation size: P95_LIQUIDATION_FRACTION_OF_BORROWS
@@ -124,7 +144,7 @@ export function useSimulator() {
     const meanLTVFrac = betaMean(s.borrowerLTVAlpha, s.borrowerLTVBeta);
     const p95LiquidationSize_USD =
       s.witryTVL_USD * s.lltv * meanLTVFrac * P95_LIQUIDATION_FRACTION_OF_BORROWS * LIF(s.lltv);
-    const rawSlip = slippage(p95LiquidationSize_USD, s.poolDepth_USD);
+    const rawSlip = slippageFromPreset(preset, spot, p95LiquidationSize_USD);
     const slippageEstimate = Math.max(0, Math.min(SLIPPAGE_ESTIMATE_CAP, rawSlip));
     const derived = deriveRecommendedLLTV({
       p95Drawdown: p95dd,
@@ -136,7 +156,8 @@ export function useSimulator() {
   }, [
     result,
     s.lltv,
-    s.poolDepth_USD,
+    preset,
+    spot,
     s.safetyMargin,
     s.witryTVL_USD,
     s.borrowerLTVAlpha,
@@ -169,5 +190,6 @@ export function useSimulator() {
     lltvDerivation,
     riskTier: classifyRiskTier(s.lltv, lltvDerivation.snapped || 0),
     vaultJson,
+    pool: { preset, spot, effectiveDepth_USD: effectivePoolDepth_USD },
   };
 }

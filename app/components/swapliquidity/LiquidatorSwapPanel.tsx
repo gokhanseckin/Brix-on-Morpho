@@ -42,9 +42,9 @@ export function LiquidatorSwapPanel() {
         </span>
         <input
           type="range"
-          min={50_000}
+          min={5_000}
           max={Math.max(5_000_000, state.poolTVL_USD)}
-          step={50_000}
+          step={5_000}
           value={sellUSD}
           onChange={(e) => setSellUSD(parseFloat(e.target.value))}
           className="block w-full mt-1"

@@ -211,7 +211,8 @@ export default function LLTVPage() {
           <li>
             <strong>USDM/TRY-stable pool slippage = {pct(slippage)}.</strong> Liquidators acquire
             USDM (or sell seized wiTRY into a TRY-stable pool) and lose ~1% to AMM depth at expected
-            P95 liquidation volume. Driven by the <code>poolDepth_USD</code> sidebar input.
+            P95 liquidation volume. Driven by the <code>poolTVL_USD</code> + ladder splits configured
+            in the sidebar (or on <a href="/swapliquidity" className="underline">/swapliquidity</a>).
           </li>
           <li>
             <strong>Safety margin = {pct(safetyMargin)}.</strong> Explicit cushion on top of LIF +
@@ -308,7 +309,7 @@ LIF(${recommended})              = ${lifAtRecommended.toFixed(4)}`}
               <strong>Slippage ceiling ({pct(slipCeilingForNext!, 2)}).</strong> Achieved by
               deepening the USDM↔TRY-stable pool so that the P95 expected liquidation volume costs
               under {pct(slipCeilingForNext!, 2)} round-trip. The sidebar&apos;s{' '}
-              <code>poolDepth_USD</code> input drives this directly.
+              <code>poolTVL_USD</code> input (and the ladder splits on /swapliquidity) drives this directly.
             </li>
             <li>
               <strong>Safety margin ({pct(safetyCeilingForNext!, 2)}).</strong> Tightening this is

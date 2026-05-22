@@ -25,7 +25,6 @@ const EXPECTED_PARAM_KEYS = [
   'incentiveBudgetMonthly_USD',
   'attractionRate',
   'lockPeriodDays',
-  'poolDepth_USD',
   'performanceFee',
   'managementFee',
   'safetyMargin',
@@ -212,7 +211,6 @@ describe('help registry', () => {
     ] as const;
     const SECTION_4_CHARTS = ['badDebtHistogram'] as const;
     const SECTION_4_PARAMS = [
-      'poolDepth_USD',
       'safetyMargin',
       'preLiquidationEnabled',
     ] as const;

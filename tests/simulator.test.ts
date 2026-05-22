@@ -17,7 +17,16 @@ import {
   BUFFER_PCT_BASE,
   BUFFER_PCT_INCENTIVE_SLOPE,
 } from '@/lib/simulator';
+import { buildAsymmetricLadder, DEFAULT_BAND_SPLIT } from '@/lib/poolPreset';
 import { LIF } from '@/lib/morphoMath';
+
+// Convenience: build a ladder preset of the requested USD TVL, centered at
+// a provided spot. Default spot matches the standard sim (USD per TRY =
+// 1/45). The simulateBadDebt tests use abstract path units (S0=1) and pass
+// spot=1 to keep the ladder centered around their paths.
+const SPOT = 1 / 45;
+const presetWithTVL = (tvl_USD: number, spot: number = SPOT) =>
+  buildAsymmetricLadder(spot, tvl_USD, DEFAULT_BAND_SPLIT, 3000);
 
 describe('liquidity need', () => {
   it('verification anchor: 5M × 0.77 × 0.6 / 0.7 ≈ 3.3M', () => {
@@ -79,28 +88,42 @@ describe('liquidator economics', () => {
     expect(slippage(2, 98)).toBeCloseTo(0.02, 4);
   });
 
-  it('profit cliff: profit ≈ 0 at exact break-even slippage', () => {
+  it('profit cliff: deep pool → profit ≈ LIF·(1-fee)·debt - debt for sub-tail debts', () => {
+    // With a $50M ladder and a small debt the AMM behaves nearly linearly:
+    // revenue ≈ collateralSeized × (1 - feeRate). Profit ≈ debt × (LIF·(1-fee) - 1) - gas.
     const lltv = 0.86;
     const lif = LIF(lltv);
     const debt = 1000;
-    const seized = debt * lif;
-    // exact cliff: revenue = debt ⇔ (1 − slip)·LIF = 1 ⇔ slip = 1 − 1/LIF.
-    const slip = 1 - 1 / lif;
-    const D = (seized * (1 - slip)) / slip;
     const p = liquidatorProfit({
       debt_USD: debt,
       lltv,
-      poolDepth_USD: D,
+      preset: presetWithTVL(50_000_000),
+      spot: SPOT,
       gasCost_USD: 0,
       holdingRisk_USD: 0,
     });
-    expect(Math.abs(p.profit_USD)).toBeLessThan(1);
+    const feeRate = 30 / 10000; // 0.30% fee tier
+    const expected = debt * lif * (1 - feeRate) - debt;
+    expect(p.profit_USD).toBeCloseTo(expected, -1); // within ~$1
   });
 
-  it('minMaxProfitableLiquidation returns sane bounds', () => {
+  it('profit cliff: thin pool → profit negative for whale debts', () => {
+    const p = liquidatorProfit({
+      debt_USD: 5_000_000,
+      lltv: 0.86,
+      preset: presetWithTVL(100_000),
+      spot: SPOT,
+      gasCost_USD: 5,
+      holdingRisk_USD: 0,
+    });
+    expect(p.profit_USD).toBeLessThan(0);
+  });
+
+  it('minMaxProfitableLiquidation returns sane bounds with a real ladder', () => {
     const r = minMaxProfitableLiquidation({
       lltv: 0.86,
-      poolDepth_USD: 500_000,
+      preset: presetWithTVL(500_000),
+      spot: SPOT,
       gasCost_USD: 5,
     });
     expect(r.min_USD).toBeGreaterThan(0);
@@ -115,7 +138,8 @@ describe('bad debt cascade', () => {
       ltvFractions: [0.5, 0.7],
       lltv: 0.86,
       tvl_USD: 1_000_000,
-      poolDepth_USD: 500_000,
+      preset: presetWithTVL(500_000, 1),
+      spot: 1,
       gasCost_USD: 5,
       witryYieldAnnual: 0.38,
       preLiquidationEnabled: false,
@@ -129,7 +153,8 @@ describe('bad debt cascade', () => {
       ltvFractions: [0.9, 0.95],
       lltv: 0.86,
       tvl_USD: 1_000_000,
-      poolDepth_USD: 1000,
+      preset: presetWithTVL(1_000, 1),
+      spot: 1,
       gasCost_USD: 5,
       witryYieldAnnual: 0,
       preLiquidationEnabled: false,
@@ -150,7 +175,8 @@ describe('bad debt cascade', () => {
       ltvFractions: [0.85],
       lltv: 0.86,
       tvl_USD: 1_000_000,
-      poolDepth_USD: 800_000,
+      preset: presetWithTVL(800_000, 1),
+      spot: 1,
       gasCost_USD: 5,
       witryYieldAnnual: 0,
     };
@@ -171,7 +197,8 @@ describe('bad debt cascade', () => {
       ltvFractions: [0.5, 0.7],
       lltv: 0.86,
       tvl_USD: 1_000_000,
-      poolDepth_USD: 500_000,
+      preset: presetWithTVL(500_000, 1),
+      spot: 1,
       gasCost_USD: 5,
       witryYieldAnnual: 0.38,
       preLiquidationEnabled: false,
@@ -189,7 +216,8 @@ describe('bad debt cascade', () => {
       ltvFractions: [0.95],
       lltv: 0.86,
       tvl_USD: 1_000_000,
-      poolDepth_USD: 50_000_000, // deep pool ⇒ near-zero slippage ⇒ profitable
+      preset: presetWithTVL(50_000_000, 1), // deep pool ⇒ near-zero slippage ⇒ profitable
+      spot: 1,
       gasCost_USD: 5,
       witryYieldAnnual: 0,
       preLiquidationEnabled: false,
@@ -209,7 +237,8 @@ describe('bad debt cascade', () => {
       ltvFractions: [0.85],
       lltv: 0.86,
       tvl_USD: 1_000_000,
-      poolDepth_USD: 5_000_000,
+      preset: presetWithTVL(5_000_000, 1),
+      spot: 1,
       gasCost_USD: 5,
       witryYieldAnnual: 0,
     };
