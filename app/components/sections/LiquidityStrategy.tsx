@@ -14,6 +14,7 @@ import {
 } from 'recharts';
 import { useMemo } from 'react';
 import { Kpi, formatPct, formatUSD } from '../Kpi';
+import { HelpPopover } from '../help/HelpPopover';
 
 const COMPETING_BENCHMARKS: Array<{ name: string; apy: number }> = [
   { name: 'Aave USDC', apy: 0.055 },
@@ -147,7 +148,10 @@ export function LiquidityStrategy() {
         </div>
 
         <div>
-          <h3 className="text-sm font-semibold mb-2">Competitive benchmark</h3>
+          <div className="flex items-center gap-1 mb-2">
+            <h3 className="text-sm font-semibold">Competitive benchmark</h3>
+            <HelpPopover chartKey="competitiveBenchmark" />
+          </div>
           <div className="border border-brix-border rounded p-2 bg-brix-card">
             <ResponsiveContainer width="100%" height={180}>
               <BarChart data={apyComparison}>

@@ -301,7 +301,71 @@ export const STRATEGY_KPIS = {
 };
 
 // ---------------------------------------------------------------------------
-// Chart help (section 3) — none today.
+// Chart help (section 3)
 // ---------------------------------------------------------------------------
 
-export const STRATEGY_CHARTS: Partial<Record<string, ChartHelp>> = {};
+const competitiveBenchmark: ChartHelp = {
+  title: 'Competitive benchmark (supplier APY vs other USD-stable markets)',
+  oneLiner:
+    "How Brix's supplier APY stacks up against where the same dollars could go instead (Aave USDC, other Morpho USDC vaults). If Brix is below the competition, suppliers leave — required USDM never gets met, and the market under-funds itself.",
+  axes: {
+    x: 'Source of yield (one bar per option a supplier could pick today)',
+    y: 'Annualized supply APY (%)',
+  },
+  definitions: [
+    {
+      term: 'Brix net',
+      definition:
+        'What a Brix supplier earns after the protocol takes its performance fee and management fee — i.e. the steady-state yield once incentives end. Formula: borrowAPY × targetUtilization × (1 − perfFee) − mgmtFee. This is the number that has to compete on its own merits long-term.',
+    },
+    {
+      term: 'Brix + incentives',
+      definition:
+        'Brix net plus the bonus rate paid out of the monthly incentive budget (incentiveAPY = budget × 12 / requiredUSDM). This is the headline launch rate suppliers actually see, but it expires when the budget runs out — so a market that only wins on this bar is fragile.',
+    },
+    {
+      term: 'Aave USDC',
+      definition:
+        "Reference yield for USDC supplied to Aave's base markets — roughly 5.5% in this build (hard-coded benchmark, not live). Represents the safest, deepest, most-liquid alternative; if Brix net can't beat it, suppliers parking USDM here are getting paid less for taking more (TRY collateral) risk.",
+    },
+    {
+      term: 'Morpho USDC vaults',
+      definition:
+        'Yield on curated USDC vaults in the broader Morpho ecosystem — roughly 6.5% in this build (hard-coded benchmark, not live). Closer competitor since suppliers comparing Morpho-on-Morpho assume similar smart-contract risk; if Brix net is below this, the right call is to redeploy into another Morpho vault.',
+    },
+    {
+      term: 'Why competition matters',
+      definition:
+        'Capital chases yield. If Brix net is below the alternatives, the market either never attracts requiredUSDM, or attracts it temporarily on incentives and then bleeds out when they end. That weakens utilization, borrow APY, and the loop that sustains supplier yield in the first place — a self-reinforcing collapse.',
+    },
+  ],
+  bands: [
+    {
+      name: 'Brix net ≥ Morpho vaults',
+      meaning:
+        "Strong position. The market is structurally competitive without subsidies. Incentives just accelerate ramp; they're not load-bearing.",
+    },
+    {
+      name: 'Brix net < Morpho vaults, Brix + incentives ≥ Morpho vaults',
+      meaning:
+        'Incentive-dependent. Launch works because the bonus carries it, but retention after the budget runs out is a question — see "Retention after incentives end" KPI for the projected drop.',
+    },
+    {
+      name: 'Brix net < Aave USDC',
+      meaning:
+        "Red flag. Suppliers earn less and take more risk than the safest alternative. Either targetUtilization or the fee schedule needs to change, or the market shouldn't launch.",
+    },
+  ],
+  impact: {
+    health:
+      'Below-benchmark net APY guarantees TVL outflow once incentives expire. Above-benchmark net APY means the market can run on its own economics.',
+    sustainability:
+      'The gap between "Brix net" and "Brix + incentives" is the monthly incentive bill in disguise. A small gap = cheap to ramp; a huge gap = expensive subsidy until borrow APY catches up.',
+    profitability:
+      'Suppliers being underwater vs. alternatives shows up as bad-debt risk too — they leave faster on stress, accelerating cascades.',
+  },
+};
+
+export const STRATEGY_CHARTS: Partial<Record<string, ChartHelp>> = {
+  competitiveBenchmark,
+};
