@@ -47,6 +47,7 @@ export function Kpi({
 
 export function formatUSD(v: number): string {
   if (!Number.isFinite(v)) return '—';
+  if (Math.abs(v) >= 1_000_000_000) return `$${(v / 1_000_000_000).toFixed(2)}B`;
   if (Math.abs(v) >= 1_000_000) return `$${(v / 1_000_000).toFixed(2)}M`;
   if (Math.abs(v) >= 1_000) return `$${(v / 1_000).toFixed(1)}k`;
   return `$${v.toFixed(0)}`;
