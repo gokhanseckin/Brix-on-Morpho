@@ -1,17 +1,7 @@
 // app/explore-market/components/ExposedVaultsCard.tsx
 'use client';
 import type { VaultAllocation } from '@/types/morphoMarket';
-
-function fmtUsd(n: number): string {
-  if (n >= 1e9) return `$${(n / 1e9).toFixed(2)}B`;
-  if (n >= 1e6) return `$${(n / 1e6).toFixed(2)}M`;
-  if (n >= 1e3) return `$${(n / 1e3).toFixed(2)}K`;
-  return `$${n.toFixed(0)}`;
-}
-
-function fmtPct(n: number, digits = 2): string {
-  return `${(n * 100).toFixed(digits)}%`;
-}
+import { formatUSD, formatPct } from '@/app/components/Kpi';
 
 export function ExposedVaultsCard({ vaults }: { vaults: VaultAllocation[] }) {
   return (
@@ -40,11 +30,11 @@ export function ExposedVaultsCard({ vaults }: { vaults: VaultAllocation[] }) {
                     <div className="text-neutral-200">{v.name}</div>
                     <div className="text-xs text-neutral-500 font-mono">{v.symbol}</div>
                   </td>
-                  <td className="py-2 pr-4 text-right tabular-nums">{fmtUsd(v.totalAssetsUsd)}</td>
-                  <td className="py-2 pr-4 text-right tabular-nums">{fmtUsd(v.allocationUsd)}</td>
-                  <td className="py-2 pr-4 text-right tabular-nums">{fmtPct(v.allocationPctOfVault)}</td>
+                  <td className="py-2 pr-4 text-right tabular-nums">{formatUSD(v.totalAssetsUsd)}</td>
+                  <td className="py-2 pr-4 text-right tabular-nums">{formatUSD(v.allocationUsd)}</td>
+                  <td className="py-2 pr-4 text-right tabular-nums">{formatPct(v.allocationPctOfVault)}</td>
                   <td className="py-2 text-right tabular-nums">
-                    {v.supplyCapUsd == null ? <span className="text-neutral-500">uncapped</span> : fmtUsd(v.supplyCapUsd)}
+                    {v.supplyCapUsd == null ? <span className="text-neutral-500">uncapped</span> : formatUSD(v.supplyCapUsd)}
                   </td>
                 </tr>
               ))}
