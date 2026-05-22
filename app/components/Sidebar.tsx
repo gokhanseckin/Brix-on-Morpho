@@ -98,6 +98,9 @@ export function Sidebar() {
         <div className="text-xs text-brix-muted -mt-1">
           Mean of Beta distr: {((s.borrowerLTVAlpha / (s.borrowerLTVAlpha + s.borrowerLTVBeta)) * 100).toFixed(1)}%
         </div>
+        <div className="text-xs text-brix-muted -mt-1">
+          Average LTV: {((s.borrowerLTVAlpha / (s.borrowerLTVAlpha + s.borrowerLTVBeta)) * s.lltv * 100).toFixed(1)}%
+        </div>
       </Group>
 
       <Group title="Section 2 · FX Risk">
