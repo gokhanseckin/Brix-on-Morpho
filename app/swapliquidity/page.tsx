@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { SwapliquiditySidebar } from './SwapliquiditySidebar';
+import { TopNav } from '@/app/components/TopNav';
 import { PoolStatePanel } from '@/app/components/swapliquidity/PoolStatePanel';
 import { LiquidatorSwapPanel } from '@/app/components/swapliquidity/LiquidatorSwapPanel';
 import { SlippageCurvePanel } from '@/app/components/swapliquidity/SlippageCurvePanel';
@@ -13,6 +14,7 @@ export default function SwapLiquidityPage() {
     <main className="flex bg-brix-bg min-h-screen text-neutral-200">
       <SwapliquiditySidebar />
       <div className="flex-1 p-8 space-y-10">
+        <TopNav />
         <header className="border-b border-brix-border pb-6">
           <div className="flex items-center justify-between">
             <div className="brix-kicker mb-3">Brix · Swap liquidity lab</div>

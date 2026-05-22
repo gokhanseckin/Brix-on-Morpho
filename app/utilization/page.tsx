@@ -1,6 +1,6 @@
 'use client';
 import { useState, useEffect } from 'react';
-import Link from 'next/link';
+import { TopNav } from '@/app/components/TopNav';
 import { useUtilizationAnalysis } from '@/lib/useUtilizationAnalysis';
 import { RecommendationCard } from './components/RecommendationCard';
 import { LooperViabilityCurve } from './components/LooperViabilityCurve';
@@ -26,14 +26,12 @@ export default function UtilizationPage() {
 
   return (
     <div className="mx-auto max-w-6xl p-8 space-y-8 bg-brix-bg min-h-screen text-neutral-200">
+      <TopNav />
       <header className="border-b border-brix-border pb-6">
         <div className="brix-kicker mb-3">Brix · Calibration tool</div>
-        <div className="flex items-end justify-between">
-          <h1 className="text-3xl md:text-4xl font-semibold tracking-tight">
-            Target utilization <span className="text-brix-accent">calibration</span>
-          </h1>
-          <Link href="/" className="text-sm text-brix-accent hover:text-brix-accentHover">← back to sim</Link>
-        </div>
+        <h1 className="text-3xl md:text-4xl font-semibold tracking-tight">
+          Target utilization <span className="text-brix-accent">calibration</span>
+        </h1>
       </header>
 
       <section className="space-y-4 rounded-lg border border-brix-border bg-brix-card p-6">
