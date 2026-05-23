@@ -142,9 +142,13 @@ export function RecoveryDistributionPanel() {
       }
       prev = { probe_USD: probeUSD, effectiveSlip };
     }
-    // Trim leading points where both curves are zero so the chart starts
-    // at the first probe size with any signal.
-    const firstNonZero = raw.findIndex((p) => p.effectiveSlip > 0 || p.badDebtPct > 0);
+    // Trim leading points where both curves are visually flat (≤0.5% on the
+    // 0–100% y-axis looks like zero; AMM fee keeps effective slip >0 from
+    // the first sample, so a strict ==0 test never trims anything).
+    const VISIBLE_FLOOR = 0.005;
+    const firstNonZero = raw.findIndex(
+      (p) => p.effectiveSlip > VISIBLE_FLOOR || p.badDebtPct > VISIBLE_FLOOR,
+    );
     const trimmed = firstNonZero <= 0 ? raw : raw.slice(firstNonZero);
     return { deterministicSweep: trimmed, breakevenLIFbuffer: breakeven };
   }, [poolTVL_USD, lltv, quoteFixed, bufferPct]);
