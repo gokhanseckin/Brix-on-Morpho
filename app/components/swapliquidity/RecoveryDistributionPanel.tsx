@@ -113,20 +113,29 @@ export function RecoveryDistributionPanel() {
   // No Monte Carlo. Sweep probe size against the deployed pool at initial
   // spot. Answers: "as the single-trade liquidation grows, when does the AMM
   // slip eat through the LIF buffer?"
-  const deterministicSweep = useMemo(() => {
-    if (poolTVL_USD <= 0) return [];
+  const { deterministicSweep, breakevenLIFbuffer } = useMemo<{
+    deterministicSweep: Array<{ probe_USD: number; badDebtPct: number; effectiveSlip: number }>;
+    breakevenLIFbuffer: number | null;
+  }>(() => {
+    if (poolTVL_USD <= 0) return { deterministicSweep: [], breakevenLIFbuffer: null };
     const hi = Math.log10(Math.max(poolTVL_USD * 3, 5_000_000));
     const lo = Math.log10(SWEEP_MIN_USD);
-    const out: Array<{ probe_USD: number; badDebtPct: number; effectiveSlip: number }> = [];
+    const raw: Array<{ probe_USD: number; badDebtPct: number; effectiveSlip: number }> = [];
+    let breakeven: number | null = null;
     for (let i = 0; i < SWEEP_STEPS; i++) {
       const probeUSD = Math.pow(10, lo + ((hi - lo) * i) / (SWEEP_STEPS - 1));
       const ammSale = quoteFixed(probeUSD);
       const bd = badDebtFromAMMSale({ collateral_USD: probeUSD, lltv, ammSale_USDM: ammSale });
       const effectiveSlip = probeUSD > 0 ? Math.max(0, 1 - ammSale / probeUSD) : 0;
-      out.push({ probe_USD: probeUSD, badDebtPct: bd.badDebtPct, effectiveSlip });
+      raw.push({ probe_USD: probeUSD, badDebtPct: bd.badDebtPct, effectiveSlip });
+      if (breakeven == null && effectiveSlip >= bufferPct) breakeven = probeUSD;
     }
-    return out;
-  }, [poolTVL_USD, lltv, quoteFixed]);
+    // Trim leading points where both curves are zero so the chart starts
+    // at the first probe size with any signal.
+    const firstNonZero = raw.findIndex((p) => p.effectiveSlip > 0 || p.badDebtPct > 0);
+    const trimmed = firstNonZero <= 0 ? raw : raw.slice(firstNonZero);
+    return { deterministicSweep: trimmed, breakevenLIFbuffer: breakeven };
+  }, [poolTVL_USD, lltv, quoteFixed, bufferPct]);
 
   // ─── Chart B: MC distribution at the slider's probe size ────────────────
   // FX shifts spot away from the pool center. The pool stays put. Dump the
@@ -312,6 +321,15 @@ export function RecoveryDistributionPanel() {
                 strokeWidth={1.5}
                 label={{ value: `slider ${fmtUSD(probeCollateral_USD)}`, position: 'top', fill: '#facc15', fontSize: 10 }}
               />
+              {breakevenLIFbuffer != null && (
+                <ReferenceLine
+                  x={breakevenLIFbuffer}
+                  stroke="#ef4444"
+                  strokeWidth={1.5}
+                  strokeDasharray="4 3"
+                  label={{ value: `break-even ${fmtUSD(breakevenLIFbuffer)}`, position: 'insideTopRight', fill: '#ef4444', fontSize: 10 }}
+                />
+              )}
               <Line type="monotone" dataKey="effectiveSlip" name="Effective slip" stroke="#3b82f6" strokeWidth={1.5} strokeDasharray="4 3" dot={false} isAnimationActive={false} />
               <Line type="monotone" dataKey="badDebtPct" name="Bad debt %" stroke="#ef4444" strokeWidth={2} dot={false} isAnimationActive={false} />
             </LineChart>
