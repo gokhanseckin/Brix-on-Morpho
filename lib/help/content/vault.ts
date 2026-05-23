@@ -57,20 +57,21 @@ const recommendedLLTV: KpiHelp = {
 const riskTier: KpiHelp = {
   title: 'Risk tier',
   oneLiner:
-    'Classification of the user-chosen LLTV vs the recommended LLTV. Conservative (at or below), Moderate (within +5pp), Aggressive (more than +5pp above) — drives the tile color and a deploy-time governance warning.',
+    'Classification of the user-chosen LLTV vs the recommended LLTV. Conservative (at or below), Moderate (within +5pp), Aggressive (more than +5pp above), or Indeterminate when no governance tier qualifies — drives the tile color and a deploy-time governance warning.',
   formula: {
     plain:
-      'if chosen ≤ recommended      → "Conservative"\nelif chosen ≤ recommended + 0.05 → "Moderate"\nelse                            → "Aggressive"',
+      'if recommended ≤ 0           → "Indeterminate"\nelif chosen ≤ recommended      → "Conservative"\nelif chosen ≤ recommended + 0.05 → "Moderate"\nelse                            → "Aggressive"',
     latex:
-      '\\text{tier}(c, r) = \\begin{cases} \\text{Conservative} & c \\leq r \\\\ \\text{Moderate} & c \\leq r + 0.05 \\\\ \\text{Aggressive} & c > r + 0.05 \\end{cases}',
+      '\\text{tier}(c, r) = \\begin{cases} \\text{Indeterminate} & r \\leq 0 \\\\ \\text{Conservative} & c \\leq r \\\\ \\text{Moderate} & c \\leq r + 0.05 \\\\ \\text{Aggressive} & c > r + 0.05 \\end{cases}',
   },
   params: [
     { name: 'chosen', source: 'sidebar', ref: 'lltv', note: 'User-selected LLTV from the sidebar.' },
-    { name: 'recommended', source: 'derived', note: 'Snapped recommendedLLTV from above (0 if no governance tier qualifies).' },
+    { name: 'recommended', source: 'derived', note: 'Snapped recommendedLLTV from above. When 0 (no governance tier qualifies), the tier is reported as Indeterminate rather than Aggressive.' },
     { name: 'RISK_TIER_MODERATE_BAND_LLTV', source: 'constant', value: '0.05', note: 'Width of the Moderate band above the recommendation. Policy dial; exported from lib/simulator.ts.' },
   ],
   definitions: [
     { term: 'Boundary inclusion', definition: 'Both boundaries are inclusive on the lower side: chosen == recommended → Conservative; chosen == recommended + 0.05 → Moderate. Strict greater-than tips into the next tier.' },
+    { term: 'Indeterminate state', definition: 'When the raw fixed-point recommendation falls below the smallest non-zero governance tier (0.385), the snap returns 0 and the comparison degenerates. Reporting "Aggressive" in that state would be misleading — the system has no opinion, not a negative one. Tighten pool depth or lower safetyMargin to bring the recommendation back into the governance band.' },
     { term: 'Aggressive flag is a warning, not a block', definition: 'The UI tile turns red but the JSON still exports. Governance review is the gating step at deploy time — the simulator is a calibration tool, not an admission controller.' },
     { term: 'Why 5pp', definition: 'Empirical Morpho practice: a 5pp band roughly matches the spacing between adjacent governance tiers in the live range (e.g. 0.77 → 0.86 is 9pp; 0.86 → 0.915 is 5.5pp). Spec §5 codifies it as the Moderate breakpoint.' },
   ],
@@ -87,7 +88,7 @@ const vaultConfigJson: KpiHelp = {
     'The deploy-ready blob of market + vault + pre-liquidation parameters, serialized in the exact shape MetaMorpho deploy scripts expect. Copy-paste straight into the deployment runner.',
   formula: {
     plain:
-      '{\n  market: { lltv: to18Decimal(lltv), irm, oracle },\n  vault: {\n    performanceFee,\n    managementFee,\n    timelock: 604_800,             // 7 days\n    caps: { absoluteUSD: requiredUSDM + withdrawalBuffer, relative: 1.0 },\n  },\n  preLiquidation: {\n    preLLTV: to18Decimal(lltv − 0.05),\n    preLCF: [0.05, 0.5],\n    preLIF: [1.01, LIF(lltv)],\n  },\n}',
+      '{\n  market: { lltv: to18Decimal(lltv), irm, oracle },\n  vault: {\n    performanceFee,\n    managementFee,\n    timelock: 604_800,             // 7 days\n    caps: { absoluteUSD_human: requiredUSDM + withdrawalBuffer, relative: 1.0 },\n  },\n  preLiquidation: {\n    preLLTV: to18Decimal(lltv − 0.05),\n    preLCF: [0.05, 0.5],\n    preLIF: [1.01, LIF(lltv)],\n  },\n}',
     latex:
       '\\text{vaultJson} = \\{ market,\\; vault,\\; preLiquidation \\}',
   },
@@ -95,7 +96,7 @@ const vaultConfigJson: KpiHelp = {
     { name: 'lltv', source: 'sidebar', ref: 'lltv', note: 'Encoded as 18-decimal fixed-point integer string (e.g. 0.77 → "770000000000000000").' },
     { name: 'performanceFee', source: 'sidebar', ref: 'performanceFee' },
     { name: 'managementFee', source: 'sidebar', ref: 'managementFee' },
-    { name: 'caps.absoluteUSD', source: 'derived', note: 'From Section 1: requiredUSDM + withdrawalBuffer. Above this the vault stops accepting deposits.' },
+    { name: 'caps.absoluteUSD_human', source: 'derived', note: 'From Section 1: requiredUSDM + withdrawalBuffer. Expressed in plain dollars (NOT contract-ready wei) — the deploy script must convert to 18-decimal before submission. The "_human" suffix is the signal that this field needs hand-conversion, unlike `market.lltv` which is already wei-scaled.' },
     { name: 'timelock', source: 'constant', value: '604800', note: 'DEFAULT_VAULT_TIMELOCK_SECONDS = 7 days, spec §5 incident-response window.' },
     { name: 'preLLTV / preLCF / preLIF', source: 'derived', note: 'Pre-liquidation block from Section 4 — see preLiquidationParams help.' },
   ],

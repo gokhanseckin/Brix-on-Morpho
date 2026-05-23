@@ -413,6 +413,14 @@ describe('bufferPctFromIncentive (report #2 entry 7)', () => {
   it('returns BUFFER_PCT_BASE when baseSupplyAPY ≤ 0 (degenerate)', () => {
     expect(bufferPctFromIncentive(0.1, 0)).toBeCloseTo(BUFFER_PCT_BASE, 10);
   });
+  it('floors at BUFFER_PCT_BASE when net supply APY is negative', () => {
+    // Negative baseSupplyAPY would make the ratio negative; clamp to BASE.
+    expect(bufferPctFromIncentive(0.10, -0.02)).toBeCloseTo(BUFFER_PCT_BASE, 10);
+  });
+  it('caps at 0.50 when incentive dwarfs base APY', () => {
+    // Huge incentive vs tiny positive base would otherwise push buffer past 100%.
+    expect(bufferPctFromIncentive(10, 0.001)).toBeCloseTo(0.50, 10);
+  });
 });
 
 describe('irmCurvePoints (report #2 entry 9)', () => {
@@ -445,9 +453,30 @@ describe('vault json', () => {
     expect(j.preLiquidation.preLCF).toEqual([0.05, 0.5]);
   });
 
+  it('cap is emitted as absoluteUSD_human (plain dollars, not contract-ready wei)', () => {
+    const j = buildVaultConfigJson({
+      lltv: 0.77,
+      oracle: '0xORACLE',
+      irm: '0xIRM',
+      performanceFee: 0.1,
+      managementFee: 0.01,
+      timelockSeconds: 604800,
+      cap_USD: 4_000_000,
+      preLLTV: 0.72,
+      preLCF: [0.05, 0.5],
+      preLIF: [1.01, 1.0837],
+    });
+    expect(j.vault.caps.absoluteUSD_human).toBe(4_000_000);
+  });
+
   it('classifyRiskTier: chosen=recommended → Conservative', () => {
     expect(classifyRiskTier(0.77, 0.77)).toBe('Conservative');
     expect(classifyRiskTier(0.82, 0.77)).toBe('Moderate');
     expect(classifyRiskTier(0.86, 0.77)).toBe('Aggressive');
+  });
+
+  it('classifyRiskTier: recommended=0 → Indeterminate (no governance tier qualifies)', () => {
+    expect(classifyRiskTier(0.77, 0)).toBe('Indeterminate');
+    expect(classifyRiskTier(0.86, 0)).toBe('Indeterminate');
   });
 });

@@ -91,7 +91,7 @@ export interface LiquidationOutput {
 
 export interface VaultRecommendation {
   recommendedLLTV: LLTV;
-  riskTier: 'Conservative' | 'Moderate' | 'Aggressive';
+  riskTier: 'Conservative' | 'Moderate' | 'Aggressive' | 'Indeterminate';
   configJson: Record<string, unknown>;
 }
 
