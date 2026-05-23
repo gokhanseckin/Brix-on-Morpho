@@ -67,6 +67,11 @@ export function SlippageCurvePanel() {
     const steps = 70;
     let b1: number | null = null;
     let bLif: number | null = null;
+    let prev: { sell: number; effective: number } | null = null;
+    const interp = (target: number, a: { sell: number; effective: number }, b: { sell: number; effective: number }) => {
+      const t = (target - a.effective) / (b.effective - a.effective);
+      return Math.exp(Math.log(a.sell) + t * (Math.log(b.sell) - Math.log(a.sell)));
+    };
     for (let i = 0; i < steps; i++) {
       const sellUSD = Math.pow(10, lo + ((hi - lo) * i) / (steps - 1));
       const wTRYwei = BigInt(Math.floor((sellUSD / spot) * 1e6));
@@ -75,8 +80,12 @@ export function SlippageCurvePanel() {
       // Effective slippage = total proceeds shortfall (includes fee + price impact).
       const effective = Math.max(0, Math.min(1, 1 - usdmOut / sellUSD));
       pts.push({ sell: sellUSD, priceSlip: q.slippagePct, effective });
-      if (b1 == null && effective >= 0.01) b1 = sellUSD;
-      if (bLif == null && effective >= lifBuffer) bLif = sellUSD;
+      const cur = { sell: sellUSD, effective };
+      // Log-x linear interp between bracketing samples so the breakeven is the
+      // actual crossing, not the next coarse bucket.
+      if (b1 == null && prev && prev.effective < 0.01 && effective >= 0.01) b1 = interp(0.01, prev, cur);
+      if (bLif == null && prev && prev.effective < lifBuffer && effective >= lifBuffer) bLif = interp(lifBuffer, prev, cur);
+      prev = cur;
     }
     return { data: pts, breakeven1pct: b1, breakevenLIFbuffer: bLif };
   }, [
