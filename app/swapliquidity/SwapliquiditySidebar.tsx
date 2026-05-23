@@ -17,6 +17,43 @@ function paramTooltip(helpKey: keyof typeof PARAM_HELP) {
   return <InfoTooltip text={help.oneLiner} />;
 }
 
+function BandRangeFields(props: {
+  label: string;
+  lower: number;
+  upper: number;
+  onLower: (v: number) => void;
+  onUpper: (v: number) => void;
+}) {
+  const toPct = (v: number) => (v * 100).toFixed(1);
+  const fromPct = (s: string) => {
+    const n = parseFloat(s);
+    return Number.isFinite(n) ? n / 100 : 0;
+  };
+  return (
+    <label className="block">
+      <span className="text-xs text-neutral-600 dark:text-neutral-400">{props.label}</span>
+      <div className="mt-1 flex items-center gap-2">
+        <input
+          type="number"
+          step="0.5"
+          className="w-full rounded border px-2 py-1 bg-brix-card"
+          value={toPct(props.lower)}
+          onChange={(e) => props.onLower(fromPct(e.target.value))}
+        />
+        <span className="text-xs text-neutral-500">to</span>
+        <input
+          type="number"
+          step="0.5"
+          className="w-full rounded border px-2 py-1 bg-brix-card"
+          value={toPct(props.upper)}
+          onChange={(e) => props.onUpper(fromPct(e.target.value))}
+        />
+        <span className="text-xs text-neutral-500">%</span>
+      </div>
+    </label>
+  );
+}
+
 export function SwapliquiditySidebar() {
   const [state, setState] = useUrlState();
   const tailShare = Math.max(0, 1 - state.bandSplitCore - state.bandSplitAbsorb);
@@ -120,6 +157,28 @@ export function SwapliquiditySidebar() {
           <span className="inline-flex items-center justify-center w-4 h-4 rounded-full border border-neutral-400 text-[10px] text-neutral-400 ml-1 align-text-bottom">?</span>
         </span>
       </p>
+
+      <BandRangeFields
+        label="Core band range (% of spot)"
+        lower={state.bandCoreLowerPct}
+        upper={state.bandCoreUpperPct}
+        onLower={(v) => setState({ bandCoreLowerPct: v })}
+        onUpper={(v) => setState({ bandCoreUpperPct: v })}
+      />
+      <BandRangeFields
+        label="Absorb band range (% of spot)"
+        lower={state.bandAbsorbLowerPct}
+        upper={state.bandAbsorbUpperPct}
+        onLower={(v) => setState({ bandAbsorbLowerPct: v })}
+        onUpper={(v) => setState({ bandAbsorbUpperPct: v })}
+      />
+      <BandRangeFields
+        label="Tail band range (% of spot)"
+        lower={state.bandTailLowerPct}
+        upper={state.bandTailUpperPct}
+        onLower={(v) => setState({ bandTailLowerPct: v })}
+        onUpper={(v) => setState({ bandTailUpperPct: v })}
+      />
 
       <a href="/help/swap-liquidity" className="text-brix-accent hover:underline text-xs block pt-2">
         Help · Read the swap-liquidity guide →

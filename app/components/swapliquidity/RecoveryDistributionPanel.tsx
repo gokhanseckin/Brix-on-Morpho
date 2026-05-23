@@ -2,7 +2,7 @@
 import { useMemo } from 'react';
 import { useUrlState } from '@/lib/useUrlState';
 import { useSimulator } from '@/lib/useSimulator';
-import { buildAsymmetricLadder } from '@/lib/poolPreset';
+import { buildAsymmetricLadder, ladderRangesFromInputs } from '@/lib/poolPreset';
 import { quoteLiquidatorSell } from '@/lib/univ3/quoteLiquidatorSell';
 import { badDebtFromAMMSale } from '@/lib/badDebtMath';
 import { LIF } from '@/lib/morphoMath';
@@ -58,11 +58,12 @@ export function RecoveryDistributionPanel() {
       absorb: state.bandSplitAbsorb,
       tail: Math.max(0, 1 - state.bandSplitCore - state.bandSplitAbsorb),
     };
+    const ranges = ladderRangesFromInputs(state);
     const fee = state.poolFeeTier === 10000 ? 10000 : 3000;
     const out: PathResult[] = [];
     for (const spot of terminalSpots) {
       try {
-        const preset = buildAsymmetricLadder(spot, state.poolTVL_USD, split, fee);
+        const preset = buildAsymmetricLadder(spot, state.poolTVL_USD, split, fee, ranges);
         const wTRYwei = BigInt(Math.floor((PROBE_COLLATERAL_USD / spot) * 1e6));
         const q = quoteLiquidatorSell(preset, spot, wTRYwei);
         const ammSale = Number(q.amountOut) / 1e6;
@@ -77,7 +78,20 @@ export function RecoveryDistributionPanel() {
       }
     }
     return out;
-  }, [terminalSpots, state.poolTVL_USD, state.bandSplitCore, state.bandSplitAbsorb, state.poolFeeTier, lltv]);
+  }, [
+    terminalSpots,
+    state.poolTVL_USD,
+    state.bandSplitCore,
+    state.bandSplitAbsorb,
+    state.poolFeeTier,
+    state.bandCoreLowerPct,
+    state.bandCoreUpperPct,
+    state.bandAbsorbLowerPct,
+    state.bandAbsorbUpperPct,
+    state.bandTailLowerPct,
+    state.bandTailUpperPct,
+    lltv,
+  ]);
 
   const { histogram, p95BadDebt, medianBadDebt, zeroBadDebtPct } = useMemo<{
     histogram: Array<{ bin: number; count: number }>;

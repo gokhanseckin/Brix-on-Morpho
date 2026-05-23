@@ -706,6 +706,12 @@ export const PARAM_HELP: Record<keyof SidebarInputs, ParamHelp> = {
   poolTVL_USD: sectionParam('poolTVL_USD'),
   bandSplitCore: sectionParam('bandSplitCore'),
   bandSplitAbsorb: sectionParam('bandSplitAbsorb'),
+  bandCoreLowerPct: sectionParam('bandCoreLowerPct'),
+  bandCoreUpperPct: sectionParam('bandCoreUpperPct'),
+  bandAbsorbLowerPct: sectionParam('bandAbsorbLowerPct'),
+  bandAbsorbUpperPct: sectionParam('bandAbsorbUpperPct'),
+  bandTailLowerPct: sectionParam('bandTailLowerPct'),
+  bandTailUpperPct: sectionParam('bandTailUpperPct'),
 };
 
 export const KPI_HELP: Record<KpiKey, KpiHelp> = Object.fromEntries(
@@ -748,4 +754,10 @@ export const PARAM_SECTION: Record<keyof SidebarInputs, HelpSection> = {
   poolTVL_USD: 'swap-liquidity',
   bandSplitCore: 'swap-liquidity',
   bandSplitAbsorb: 'swap-liquidity',
+  bandCoreLowerPct: 'swap-liquidity',
+  bandCoreUpperPct: 'swap-liquidity',
+  bandAbsorbLowerPct: 'swap-liquidity',
+  bandAbsorbUpperPct: 'swap-liquidity',
+  bandTailLowerPct: 'swap-liquidity',
+  bandTailUpperPct: 'swap-liquidity',
 };

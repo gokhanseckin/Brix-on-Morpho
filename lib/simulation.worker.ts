@@ -107,12 +107,7 @@ const api = {
       seed: inputs.seed,
     });
     const spot = 1 / inputs.usdtryBaseline;
-    const preset = buildLadderFromInputs(spot, {
-      poolTVL_USD: inputs.poolTVL_USD,
-      bandSplitCore: inputs.bandSplitCore,
-      bandSplitAbsorb: inputs.bandSplitAbsorb,
-      poolFeeTier: inputs.poolFeeTier,
-    });
+    const preset = buildLadderFromInputs(spot, inputs);
     const badDebtOut = simulateBadDebt({
       paths,
       ltvFractions,

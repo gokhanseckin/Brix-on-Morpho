@@ -1,7 +1,7 @@
 'use client';
 import { useMemo } from 'react';
 import { useUrlState } from '@/lib/useUrlState';
-import { buildAsymmetricLadder } from '@/lib/poolPreset';
+import { buildLadderFromInputs } from '@/lib/poolPreset';
 import { materializePool } from '@/lib/univ3/quoteLiquidatorSell';
 import { sqrtPriceX96ToPrice, tickToPrice } from '@/lib/univ3/tickMath';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, ReferenceLine } from 'recharts';
@@ -18,28 +18,37 @@ export function PoolStatePanel() {
     [state.usdtryBaseline],
   );
   const preset = useMemo(
-    () =>
-      buildAsymmetricLadder(
-        spot,
-        state.poolTVL_USD,
-        {
-          core: state.bandSplitCore,
-          absorb: state.bandSplitAbsorb,
-          tail: Math.max(0, 1 - state.bandSplitCore - state.bandSplitAbsorb),
-        },
-        state.poolFeeTier === 10000 ? 10000 : 3000,
-      ),
-    [spot, state.poolTVL_USD, state.bandSplitCore, state.bandSplitAbsorb, state.poolFeeTier],
+    () => buildLadderFromInputs(spot, state),
+    [
+      spot,
+      state.poolTVL_USD,
+      state.bandSplitCore,
+      state.bandSplitAbsorb,
+      state.poolFeeTier,
+      state.bandCoreLowerPct,
+      state.bandCoreUpperPct,
+      state.bandAbsorbLowerPct,
+      state.bandAbsorbUpperPct,
+      state.bandTailLowerPct,
+      state.bandTailUpperPct,
+    ],
   );
   const pool = useMemo(() => materializePool(preset, spot), [preset, spot]);
+  const spotPrice = useMemo(() => sqrtPriceX96ToPrice(pool.sqrtPriceX96), [pool.sqrtPriceX96]);
   const ticksChart = useMemo(() => {
     const arr = [...pool.ticks.entries()].map(([t, info]) => ({
       price: tickToPrice(t),
       liquidityNet: Number(info.liquidityNet) / 1e12,
     }));
+    // Insert a zero-height synthetic point at spot so the category axis has a
+    // bucket the spot ReferenceLine can lock onto (Recharts category axis
+    // silently drops ReferenceLines that don't match a known tick).
+    if (!arr.some((p) => Math.abs(p.price - spotPrice) < 1e-12)) {
+      arr.push({ price: spotPrice, liquidityNet: 0 });
+    }
     arr.sort((a, b) => a.price - b.price);
     return arr;
-  }, [pool]);
+  }, [pool, spotPrice]);
 
   return (
     <section id="section-pool-state" className="space-y-3">
@@ -47,7 +56,7 @@ export function PoolStatePanel() {
       <div className="grid grid-cols-3 gap-4">
         <Kpi
           label="Spot wTRY/USDM"
-          value={fmt6(sqrtPriceX96ToPrice(pool.sqrtPriceX96))}
+          value={fmt6(spotPrice)}
           helpKey="spotWtryUsdm"
         />
         <Kpi
@@ -79,7 +88,19 @@ export function PoolStatePanel() {
               itemStyle={{ color: '#e5e5e5' }}
             />
             <Bar dataKey="liquidityNet" fill="#3b82f6" />
-            <ReferenceLine x={sqrtPriceX96ToPrice(pool.sqrtPriceX96)} stroke="#ef4444" strokeDasharray="4 3" label={{ value: 'spot', position: 'top', fill: '#ef4444', fontSize: 11 }} />
+            <ReferenceLine
+              x={spotPrice}
+              stroke="#facc15"
+              strokeWidth={2}
+              ifOverflow="extendDomain"
+              label={{
+                value: `spot ${fmt6(spotPrice)}`,
+                position: 'top',
+                fill: '#facc15',
+                fontSize: 11,
+                fontWeight: 600,
+              }}
+            />
           </BarChart>
         </ResponsiveContainer>
       </div>

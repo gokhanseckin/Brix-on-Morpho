@@ -35,6 +35,12 @@ const EXPECTED_PARAM_KEYS = [
   'poolTVL_USD',
   'bandSplitCore',
   'bandSplitAbsorb',
+  'bandCoreLowerPct',
+  'bandCoreUpperPct',
+  'bandAbsorbLowerPct',
+  'bandAbsorbUpperPct',
+  'bandTailLowerPct',
+  'bandTailUpperPct',
 ] as const;
 
 describe('help registry', () => {

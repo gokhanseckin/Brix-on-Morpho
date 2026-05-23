@@ -50,5 +50,14 @@ export function useUrlState() {
     poolTVL_USD: parseAsFloat.withDefault(500_000),
     bandSplitCore: parseAsFloat.withDefault(0.3),
     bandSplitAbsorb: parseAsFloat.withDefault(0.5),
+    // Band price ranges (signed fractions of spot). New defaults close the
+    // −10..−5 gap (absorb starts at −5) and extend the tail to −90% so
+    // catastrophic crashes still have some recovery liquidity.
+    bandCoreLowerPct: parseAsFloat.withDefault(-0.05),
+    bandCoreUpperPct: parseAsFloat.withDefault(+0.05),
+    bandAbsorbLowerPct: parseAsFloat.withDefault(-0.15),
+    bandAbsorbUpperPct: parseAsFloat.withDefault(-0.05),
+    bandTailLowerPct: parseAsFloat.withDefault(-0.90),
+    bandTailUpperPct: parseAsFloat.withDefault(+0.30),
   });
 }

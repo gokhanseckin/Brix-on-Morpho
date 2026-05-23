@@ -20,6 +20,25 @@ export interface BandSplit {
 
 export const DEFAULT_BAND_SPLIT: BandSplit = { core: 0.3, absorb: 0.5, tail: 0.2 };
 
+export interface BandRange {
+  lowerPct: number; // e.g. -0.05 = 5% below spot
+  upperPct: number; // e.g. +0.05 = 5% above spot
+}
+
+export interface BandRanges {
+  core: BandRange;
+  absorb: BandRange;
+  tail: BandRange;
+}
+
+// New defaults close the −10%..−5% gap (absorb now starts at −5%) and extend
+// the tail down to −90% so catastrophic crashes still see some recovery.
+export const DEFAULT_BAND_RANGES: BandRanges = {
+  core: { lowerPct: -0.05, upperPct: +0.05 },
+  absorb: { lowerPct: -0.15, upperPct: -0.05 },
+  tail: { lowerPct: -0.90, upperPct: +0.30 },
+};
+
 const SPACING: Record<500 | 3000 | 10000, number> = {
   500: 10,
   3000: 60,
@@ -37,11 +56,12 @@ export function buildAsymmetricLadder(
   totalTVL_USD: number,
   split: BandSplit,
   feeTier: 3000 | 10000,
+  ranges: BandRanges = DEFAULT_BAND_RANGES,
 ): PoolPreset {
   const spacing = SPACING[feeTier];
-  const core = bandTicks(spot, -0.05, +0.05, spacing);
-  const absorb = bandTicks(spot, -0.25, -0.10, spacing);
-  const tail = bandTicks(spot, -0.50, +0.15, spacing);
+  const core = bandTicks(spot, ranges.core.lowerPct, ranges.core.upperPct, spacing);
+  const absorb = bandTicks(spot, ranges.absorb.lowerPct, ranges.absorb.upperPct, spacing);
+  const tail = bandTicks(spot, ranges.tail.lowerPct, ranges.tail.upperPct, spacing);
   return {
     feeTier,
     tickSpacing: spacing,
@@ -65,6 +85,29 @@ export interface LadderInputs {
   bandSplitCore: number;
   bandSplitAbsorb: number;
   poolFeeTier: number; // 3000 or 10000 (basis points)
+  bandCoreLowerPct?: number;
+  bandCoreUpperPct?: number;
+  bandAbsorbLowerPct?: number;
+  bandAbsorbUpperPct?: number;
+  bandTailLowerPct?: number;
+  bandTailUpperPct?: number;
+}
+
+export function ladderRangesFromInputs(s: LadderInputs): BandRanges {
+  return {
+    core: {
+      lowerPct: s.bandCoreLowerPct ?? DEFAULT_BAND_RANGES.core.lowerPct,
+      upperPct: s.bandCoreUpperPct ?? DEFAULT_BAND_RANGES.core.upperPct,
+    },
+    absorb: {
+      lowerPct: s.bandAbsorbLowerPct ?? DEFAULT_BAND_RANGES.absorb.lowerPct,
+      upperPct: s.bandAbsorbUpperPct ?? DEFAULT_BAND_RANGES.absorb.upperPct,
+    },
+    tail: {
+      lowerPct: s.bandTailLowerPct ?? DEFAULT_BAND_RANGES.tail.lowerPct,
+      upperPct: s.bandTailUpperPct ?? DEFAULT_BAND_RANGES.tail.upperPct,
+    },
+  };
 }
 
 export function buildLadderFromInputs(spot: number, s: LadderInputs): PoolPreset {
@@ -75,6 +118,7 @@ export function buildLadderFromInputs(spot: number, s: LadderInputs): PoolPreset
     s.poolTVL_USD,
     { core: s.bandSplitCore, absorb: s.bandSplitAbsorb, tail },
     feeTier,
+    ladderRangesFromInputs(s),
   );
 }
 

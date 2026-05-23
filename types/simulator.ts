@@ -33,6 +33,13 @@ export interface SidebarInputs {
   poolTVL_USD: number;
   bandSplitCore: number;        // fraction 0..1
   bandSplitAbsorb: number;      // fraction 0..1
+  // Band price ranges as signed fractions of spot (e.g. -0.05 = 5% below).
+  bandCoreLowerPct: number;
+  bandCoreUpperPct: number;
+  bandAbsorbLowerPct: number;
+  bandAbsorbUpperPct: number;
+  bandTailLowerPct: number;
+  bandTailUpperPct: number;
 }
 
 export interface LiquidityNeedOutput {

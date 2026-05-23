@@ -29,12 +29,7 @@ export function SlippageCurvePanel() {
   const spot = 1 / state.usdtryBaseline;
 
   const { data, breakeven2pct, breakeven5pct } = useMemo(() => {
-    const preset = buildLadderFromInputs(spot, {
-      poolTVL_USD: state.poolTVL_USD,
-      bandSplitCore: state.bandSplitCore,
-      bandSplitAbsorb: state.bandSplitAbsorb,
-      poolFeeTier: state.poolFeeTier,
-    });
+    const preset = buildLadderFromInputs(spot, state);
     const pts: Array<{ sell: number; priceSlip: number; effective: number }> = [];
     // Log sweep from $1k to max($5M, 5× pool TVL) so we see both the flat
     // small-trade regime and the steep tail.
@@ -61,6 +56,12 @@ export function SlippageCurvePanel() {
     state.bandSplitCore,
     state.bandSplitAbsorb,
     state.poolFeeTier,
+    state.bandCoreLowerPct,
+    state.bandCoreUpperPct,
+    state.bandAbsorbLowerPct,
+    state.bandAbsorbUpperPct,
+    state.bandTailLowerPct,
+    state.bandTailUpperPct,
   ]);
 
   return (

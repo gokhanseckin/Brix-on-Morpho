@@ -1,25 +1,27 @@
 'use client';
 import { useMemo } from 'react';
 import { useUrlState } from '@/lib/useUrlState';
-import { buildAsymmetricLadder } from '@/lib/poolPreset';
+import { buildLadderFromInputs } from '@/lib/poolPreset';
 import { HelpPopover } from '@/app/components/help/HelpPopover';
 
 export function PresetExportPanel() {
   const [state] = useUrlState();
   const spot = 1 / state.usdtryBaseline;
   const preset = useMemo(
-    () =>
-      buildAsymmetricLadder(
-        spot,
-        state.poolTVL_USD,
-        {
-          core: state.bandSplitCore,
-          absorb: state.bandSplitAbsorb,
-          tail: Math.max(0, 1 - state.bandSplitCore - state.bandSplitAbsorb),
-        },
-        state.poolFeeTier === 10000 ? 10000 : 3000,
-      ),
-    [spot, state.poolTVL_USD, state.bandSplitCore, state.bandSplitAbsorb, state.poolFeeTier],
+    () => buildLadderFromInputs(spot, state),
+    [
+      spot,
+      state.poolTVL_USD,
+      state.bandSplitCore,
+      state.bandSplitAbsorb,
+      state.poolFeeTier,
+      state.bandCoreLowerPct,
+      state.bandCoreUpperPct,
+      state.bandAbsorbLowerPct,
+      state.bandAbsorbUpperPct,
+      state.bandTailLowerPct,
+      state.bandTailUpperPct,
+    ],
   );
   const json = JSON.stringify(preset, null, 2);
 
