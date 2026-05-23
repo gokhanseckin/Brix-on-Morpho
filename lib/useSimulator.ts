@@ -170,7 +170,7 @@ export function useSimulator() {
       safetyMargin: s.safetyMargin,
     });
     const snapped = snapToGovernanceLLTV(derived.raw);
-    return { ...derived, snapped, minMax, slippageEstimate };
+    return { ...derived, snapped, minMax, slippageEstimate, p95Drawdown: p95dd };
   }, [
     result,
     s.lltv,
