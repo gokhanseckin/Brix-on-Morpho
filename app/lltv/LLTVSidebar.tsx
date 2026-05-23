@@ -37,7 +37,6 @@ export function LLTVSidebar() {
           <ReadOnlyRow label="wiTRY TVL" value={`$${s.witryTVL_USD.toLocaleString()}`} />
           <ReadOnlyRow label="Target utilization" value={pct(s.targetUtilization, 1)} />
           <ReadOnlyRow label="Borrower LTV α / β" value={`${s.borrowerLTVAlpha} / ${s.borrowerLTVBeta}`} />
-          <ReadOnlyRow label="Pre-liquidation" value={s.preLiquidationEnabled ? 'on' : 'off'} />
         </div>
       </div>
 
@@ -47,7 +46,7 @@ export function LLTVSidebar() {
           Read-only. Edit on the{' '}
           <a href="/" className="text-brix-accent underline">
             Market Simulator
-          </a>. Drives the p95 3-day drawdown that feeds the LLTV formula.
+          </a>. Drives the p95 1-day drawdown that feeds the LLTV formula.
         </p>
         <div className="space-y-1.5">
           <ReadOnlyRow label="Mode" value={s.simulationMode} />

@@ -146,24 +146,14 @@ export function useSimulator() {
   );
 
   const lltvDerivation = useMemo(() => {
-    // Drawdown source: worker's per-path max over the selected horizon, taken
-    // at p95 across paths. Default horizon is 1 day — realistic execution
-    // latency between liquidation eligibility and a MEV bot's confirmation.
-    // 3-day was a holdover that described secondary-market exit risk, not
-    // liquidation; using it here triple-counts the same risk (formula + pool
-    // slippage + safetyMargin).
-    const horizonDays = s.lltvDrawdownHorizonDays;
-    const ddSeries =
-      horizonDays >= 3 ? result?.threeDayDD : result?.oneDayDD;
-    const p95dd_raw = ddSeries ? quantile(ddSeries, 0.95) : DEFAULT_P95_1D_DRAWDOWN;
-
-    // Pre-liquidation cap: when pre-liq is on, the position is auto-closed
-    // before drifting more than (LLTV − preLLTV) below the LLTV boundary,
-    // so the drawdown the LLTV formula must absorb is bounded by that offset.
-    const preLiqCap = s.preLLTVOffset;
-    const p95dd = s.preLiquidationEnabled
-      ? Math.min(p95dd_raw, preLiqCap)
-      : p95dd_raw;
+    // Drawdown source: worker's per-path max 1-day move, p95 across paths.
+    // 1 day is the realistic execution window between liquidation eligibility
+    // and a MEV bot's tx confirming on MegaETH. Pre-liquidation is opt-in
+    // per borrower (Morpho spec) so it cannot be assumed market-wide; LLTV
+    // calibration must reflect the worst case — no pre-liq cap.
+    const p95dd = result?.oneDayDD
+      ? quantile(result.oneDayDD, 0.95)
+      : DEFAULT_P95_1D_DRAWDOWN;
 
     const minMax = minMaxProfitableLiquidation({
       lltv: s.lltv,
@@ -191,9 +181,6 @@ export function useSimulator() {
       minMax,
       slippageEstimate,
       p95Drawdown: p95dd,
-      p95DrawdownRaw: p95dd_raw,
-      preLiqCapApplied: s.preLiquidationEnabled && p95dd_raw > preLiqCap,
-      horizonDays,
     };
   }, [
     result,
@@ -204,9 +191,6 @@ export function useSimulator() {
     s.witryTVL_USD,
     s.borrowerLTVAlpha,
     s.borrowerLTVBeta,
-    s.preLiquidationEnabled,
-    s.preLLTVOffset,
-    s.lltvDrawdownHorizonDays,
   ]);
 
   const vaultJson = useMemo(

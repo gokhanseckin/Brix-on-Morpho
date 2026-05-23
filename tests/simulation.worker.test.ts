@@ -38,7 +38,6 @@ const baseInputs: SidebarInputs = {
   preLCF1: 0.05,
   preLCF2: 0.5,
   preLIF1: 1.01,
-  lltvDrawdownHorizonDays: 1,
   blockBootstrap: true,
   seed: 123,
   poolFeeTier: 3000,

@@ -12,7 +12,6 @@ import { type SidebarInputs } from '@/types/simulator';
 import { LLTVSidebar } from './LLTVSidebar';
 
 const TIGHT_SAFETY_MARGIN = 0.01;
-const PRELIQ_OPERATIVE_DRAWDOWN = 0.02;
 const MAX_POOL_TVL_SEARCH = 100_000_000;
 
 function findPoolTVLForSlippage(args: {
@@ -140,7 +139,7 @@ export default function LLTVPage() {
   const riskTier = sim.riskTier;
   const lifAtRecommended = recommended > 0 ? LIF(recommended) : 0;
 
-  const fxSource = sim.fx?.threeDayDD ? 'Monte Carlo worker' : '5-year empirical fallback';
+  const fxSource = sim.fx?.oneDayDD ? 'Monte Carlo worker' : '5-year empirical fallback';
 
   // ----- Path to the user's chosen LLTV ------------------------------------
   // The "Bumping one step" view was hardcoded to oneStepLarger; here we target
@@ -156,24 +155,14 @@ export default function LLTVPage() {
   const slipCeilingForTarget = (1 - p95Drawdown) / ((targetLLTV + safetyMargin) * lifTarget) - 1;
   const safetyCeilingForTarget = (1 - p95Drawdown) / (lifTarget * (1 + slippage)) - targetLLTV;
 
-  // Combined ceilings — relax safety to TIGHT, or use pre-liq operative dd.
+  // Combined ceiling — relax safety to TIGHT.
   const slipCeilingTightSafety =
     (1 - p95Drawdown) / ((targetLLTV + TIGHT_SAFETY_MARGIN) * lifTarget) - 1;
-  const slipCeilingPreLiq =
-    (1 - PRELIQ_OPERATIVE_DRAWDOWN) / ((targetLLTV + safetyMargin) * lifTarget) - 1;
 
   // Numerical pool-TVL recipes.
   const recipePoolOnly = !targetIsSupported && slipCeilingForTarget > 0
     ? findPoolTVLForSlippage({
         targetSlippage: slipCeilingForTarget,
-        targetLLTV,
-        s: sim.inputs as unknown as SidebarInputs,
-        spot: sim.pool.spot,
-      })
-    : null;
-  const recipePreLiq = !targetIsSupported && !sim.inputs.preLiquidationEnabled && slipCeilingPreLiq > 0
-    ? findPoolTVLForSlippage({
-        targetSlippage: slipCeilingPreLiq,
         targetLLTV,
         s: sim.inputs as unknown as SidebarInputs,
         spot: sim.pool.spot,
@@ -257,194 +246,6 @@ export default function LLTVPage() {
           </div>
         </section>
 
-        {/* ----- Drawdown horizon (calibration-only) ----- */}
-        <section className="space-y-3 mt-4">
-          <div className="rounded border border-brix-border bg-brix-surface p-4">
-            <div className="flex items-baseline justify-between">
-              <h3 className="text-sm font-semibold">Drawdown horizon (calibration only)</h3>
-              <span className="text-[11px] text-neutral-500">not deployed on-chain</span>
-            </div>
-            <p className="text-xs text-neutral-400 mt-1 max-w-2xl">
-              The collateral move the LLTV formula must absorb between liquidation
-              eligibility and the liquidator&apos;s tx confirming. <strong>1 day</strong>{' '}
-              is the operationally realistic choice on MegaETH with on-chain oracles
-              (covers normal MEV latency + brief oracle hiccups). The legacy 3-day
-              setting describes secondary-market exit risk, not liquidation latency,
-              and triple-counts risk that already sits in slippage and safety margin.
-            </p>
-            <div className="mt-3 flex gap-2">
-              {[
-                { v: 1, label: '1 day (default · realistic)' },
-                { v: 3, label: '3 days (legacy · conservative)' },
-              ].map((opt) => (
-                <button
-                  key={opt.v}
-                  type="button"
-                  onClick={() => setUrlState({ lltvDrawdownHorizonDays: opt.v })}
-                  className={`px-3 py-1.5 rounded border text-xs ${
-                    sim.inputs.lltvDrawdownHorizonDays === opt.v
-                      ? 'border-brix-accent text-brix-accent'
-                      : 'border-brix-border text-neutral-400 hover:border-brix-accent hover:text-brix-accent'
-                  }`}
-                >
-                  {opt.label}
-                </button>
-              ))}
-            </div>
-          </div>
-        </section>
-
-        {/* ----- Pre-liquidation parameters (Morpho spec §4D) ----- */}
-        <section className="space-y-3 mt-4">
-          <div className="rounded border border-brix-border bg-brix-surface p-4">
-            <div className="flex items-baseline justify-between">
-              <h3 className="text-sm font-semibold">
-                Pre-liquidation (Morpho spec §4D)
-              </h3>
-              <span className="text-[11px] text-emerald-300">deployed on-chain</span>
-            </div>
-            <p className="text-xs text-neutral-400 mt-1 max-w-2xl">
-              Pre-liquidation soft-closes positions before they reach the hard LLTV.
-              When enabled, the LLTV formula&apos;s effective drawdown is capped at the
-              preLLTV offset — positions can never drift more than that before being
-              auto-closed.
-            </p>
-
-            <div className="mt-3">
-              <label className="inline-flex items-center gap-2 text-sm">
-                <input
-                  type="checkbox"
-                  checked={sim.inputs.preLiquidationEnabled}
-                  onChange={(e) => setUrlState({ preLiquidationEnabled: e.target.checked })}
-                  className="accent-brix-accent"
-                />
-                <span>Pre-liquidation enabled</span>
-              </label>
-            </div>
-
-            {sim.inputs.preLiquidationEnabled && (
-              <div className="mt-4 space-y-3">
-                {/* preLLTV offset */}
-                <div>
-                  <div className="flex items-baseline justify-between">
-                    <label className="text-xs text-neutral-300">
-                      preLLTV offset (pp below LLTV)
-                    </label>
-                    <span className="text-xs font-mono text-neutral-400">
-                      preLLTV = {pct(Math.max(0, sim.inputs.lltv - sim.inputs.preLLTVOffset), 1)}
-                    </span>
-                  </div>
-                  <div className="mt-1 flex items-center gap-3">
-                    <input
-                      type="range"
-                      min={0.01}
-                      max={0.15}
-                      step={0.005}
-                      value={sim.inputs.preLLTVOffset}
-                      onChange={(e) => setUrlState({ preLLTVOffset: parseFloat(e.target.value) })}
-                      className="flex-1 accent-brix-accent"
-                    />
-                    <span className="text-sm font-mono w-16 text-right">
-                      {pct(sim.inputs.preLLTVOffset, 1)}
-                    </span>
-                  </div>
-                  <p className="text-[11px] text-neutral-500 mt-1">
-                    Morpho recommended: 5pp. Tighter = pre-liq fires sooner =
-                    operative drawdown is smaller = higher LLTV becomes feasible.
-                  </p>
-                </div>
-
-                {/* preLCF1 */}
-                <div>
-                  <div className="flex items-baseline justify-between">
-                    <label className="text-xs text-neutral-300">
-                      preLCF1 (close factor at preLLTV boundary)
-                    </label>
-                  </div>
-                  <div className="mt-1 flex items-center gap-3">
-                    <input
-                      type="range"
-                      min={0}
-                      max={0.5}
-                      step={0.005}
-                      value={sim.inputs.preLCF1}
-                      onChange={(e) => setUrlState({ preLCF1: parseFloat(e.target.value) })}
-                      className="flex-1 accent-brix-accent"
-                    />
-                    <span className="text-sm font-mono w-16 text-right">
-                      {pct(sim.inputs.preLCF1, 1)}
-                    </span>
-                  </div>
-                  <p className="text-[11px] text-neutral-500 mt-1">
-                    Fraction of debt the keeper can close at the preLLTV boundary.
-                    Linear-interpolated up to preLCF2 at the LLTV boundary.
-                  </p>
-                </div>
-
-                {/* preLCF2 */}
-                <div>
-                  <div className="flex items-baseline justify-between">
-                    <label className="text-xs text-neutral-300">
-                      preLCF2 (close factor at LLTV boundary)
-                    </label>
-                  </div>
-                  <div className="mt-1 flex items-center gap-3">
-                    <input
-                      type="range"
-                      min={Math.max(sim.inputs.preLCF1, 0.01)}
-                      max={1.0}
-                      step={0.01}
-                      value={sim.inputs.preLCF2}
-                      onChange={(e) => setUrlState({ preLCF2: parseFloat(e.target.value) })}
-                      className="flex-1 accent-brix-accent"
-                    />
-                    <span className="text-sm font-mono w-16 text-right">
-                      {pct(sim.inputs.preLCF2, 1)}
-                    </span>
-                  </div>
-                  <p className="text-[11px] text-neutral-500 mt-1">
-                    Larger = pre-liq closes a bigger chunk by the time the
-                    position is at the hard LLTV. Must be ≥ preLCF1.
-                  </p>
-                </div>
-
-                {/* preLIF1 */}
-                <div>
-                  <div className="flex items-baseline justify-between">
-                    <label className="text-xs text-neutral-300">
-                      preLIF1 (incentive at preLLTV)
-                    </label>
-                    <span className="text-xs font-mono text-neutral-500">
-                      preLIF2 = LIF({sim.inputs.lltv}) ={' '}
-                      <span className="text-neutral-300">{LIF(sim.inputs.lltv).toFixed(4)}</span>{' '}
-                      (auto)
-                    </span>
-                  </div>
-                  <div className="mt-1 flex items-center gap-3">
-                    <input
-                      type="range"
-                      min={1.0}
-                      max={Math.min(1.15, LIF(sim.inputs.lltv))}
-                      step={0.001}
-                      value={sim.inputs.preLIF1}
-                      onChange={(e) => setUrlState({ preLIF1: parseFloat(e.target.value) })}
-                      className="flex-1 accent-brix-accent"
-                    />
-                    <span className="text-sm font-mono w-16 text-right">
-                      {sim.inputs.preLIF1.toFixed(3)}×
-                    </span>
-                  </div>
-                  <p className="text-[11px] text-neutral-500 mt-1">
-                    Liquidation incentive (multiplier on seized collateral) at
-                    the preLLTV boundary. Ramps linearly to LIF(LLTV) at the
-                    hard boundary. Morpho caps preLIF2 at LIF(LLTV).
-                  </p>
-                </div>
-              </div>
-            )}
-          </div>
-        </section>
-
         <section className="space-y-3 mt-8">
           <h2 className="text-xl font-semibold">Live calculation inputs</h2>
           <p className="text-sm text-neutral-300">
@@ -459,38 +260,11 @@ export default function LLTVPage() {
               </tr>
             </thead>
             <tbody className="font-mono">
-              <tr className="border-b border-brix-border">
-                <td className="py-1 font-sans">Drawdown horizon</td>
-                <td className="text-right">{sim.lltvDerivation.horizonDays}d</td>
-                <td className="font-sans pl-4 text-neutral-400">Calibration only · selector above</td>
-              </tr>
-              <tr className="border-b border-brix-border">
-                <td className="py-1 font-sans">
-                  p95 drawdown @ {sim.lltvDerivation.horizonDays}d (raw)
-                </td>
-                <td className="text-right">{pct(sim.lltvDerivation.p95DrawdownRaw, 3)}</td>
-                <td className="font-sans pl-4 text-neutral-400">{fxSource}</td>
-              </tr>
-              <tr className="border-b border-brix-border">
-                <td className="py-1 font-sans">Pre-liquidation cap</td>
-                <td className="text-right">
-                  {sim.inputs.preLiquidationEnabled
-                    ? pct(sim.inputs.preLLTVOffset, 1)
-                    : 'off'}
-                </td>
-                <td className="font-sans pl-4 text-neutral-400">
-                  {sim.inputs.preLiquidationEnabled
-                    ? `LLTV − preLLTV = ${pct(sim.inputs.preLLTVOffset, 1)}`
-                    : 'No cap; full drawdown applies'}
-                </td>
-              </tr>
               <tr className="border-b border-brix-border bg-brix-bg/40">
-                <td className="py-1 font-sans font-semibold">Effective drawdown (used in formula)</td>
+                <td className="py-1 font-sans font-semibold">p95 1-day drawdown</td>
                 <td className="text-right font-semibold">{pct(p95Drawdown, 3)}</td>
                 <td className="font-sans pl-4 text-neutral-400">
-                  {sim.lltvDerivation.preLiqCapApplied
-                    ? <span className="text-emerald-300">capped by pre-liq</span>
-                    : 'raw applies'}
+                  {fxSource} · worst-case (no pre-liq cap)
                 </td>
               </tr>
               <tr className="border-b border-brix-border">
@@ -534,9 +308,7 @@ export default function LLTVPage() {
         <section className="space-y-3 mt-8">
           <h2 className="text-xl font-semibold">Walk-through (live)</h2>
           <pre className="rounded bg-brix-surface p-3 text-sm overflow-x-auto">
-{`p95 drawdown @ ${sim.lltvDerivation.horizonDays}d (raw)   = ${pct(sim.lltvDerivation.p95DrawdownRaw, 4)}   (${fxSource})
-pre-liq cap                = ${sim.inputs.preLiquidationEnabled ? pct(sim.inputs.preLLTVOffset, 1) + ' (LLTV − preLLTV)' : 'off'}
-effective drawdown         = ${pct(p95Drawdown, 4)}   ${sim.lltvDerivation.preLiqCapApplied ? '(capped by pre-liq)' : '(raw applies)'}
+{`p95 1-day drawdown         = ${pct(p95Drawdown, 4)}   (${fxSource}; worst-case, no pre-liq cap)
 slippage                   = ${pct(slippage, 3)}   (pool TVL $${sim.inputs.poolTVL_USD.toLocaleString()} + bands)
 safety margin              = ${pct(safetyMargin, 2)}   (slider above)
 
@@ -591,7 +363,7 @@ snap to GOV_LLTVS     → ${recommended}  (= ${recommended > 0 ? pct(recommended
                 </thead>
                 <tbody className="font-mono">
                   <tr className="border-b border-brix-border">
-                    <td className="py-1 font-sans">p95 3-day drawdown</td>
+                    <td className="py-1 font-sans">p95 1-day drawdown</td>
                     <td className="text-right">{pct(p95Drawdown, 3)}</td>
                     <td className="text-right">
                       {ddCeilingForTarget > 0
@@ -637,8 +409,7 @@ snap to GOV_LLTVS     → ${recommended}  (= ${recommended > 0 ? pct(recommended
                   </span>
                 </div>
                 <p className="text-xs text-neutral-400 mt-1">
-                  Keep safety margin at <code>{pct(safetyMargin, 2)}</code>; keep pre-liquidation
-                  setting as-is.
+                  Keep safety margin at <code>{pct(safetyMargin, 2)}</code>.
                 </p>
                 {recipePoolOnly ? (
                   <ul className="text-sm mt-2 space-y-1 list-disc pl-5 text-neutral-200">
@@ -664,78 +435,16 @@ snap to GOV_LLTVS     → ${recommended}  (= ${recommended > 0 ? pct(recommended
                     Even at the search ceiling of{' '}
                     <code>${(MAX_POOL_TVL_SEARCH / 1_000_000).toFixed(0)}M</code> pool TVL, slippage
                     cannot fall low enough to satisfy the constraint at safety{' '}
-                    {pct(safetyMargin, 2)} and dd {pct(p95Drawdown, 2)}. Use Recipe B or C below.
+                    {pct(safetyMargin, 2)} and dd {pct(p95Drawdown, 2)}. Use Recipe B below.
                   </p>
                 )}
               </div>
 
-              {/* Recipe B — pool + pre-liquidation */}
+              {/* Recipe B — pool + tighter safety */}
               <div className="rounded border border-brix-border bg-brix-surface p-4 mt-2">
                 <div className="flex items-center justify-between">
                   <h4 className="font-semibold">
-                    Recipe B · Pool deepening + pre-liquidation
-                    {sim.inputs.preLiquidationEnabled && (
-                      <span className="text-xs ml-2 text-neutral-500">(pre-liq already on)</span>
-                    )}
-                  </h4>
-                  <span className={`text-xs font-mono ${recipePreLiq ? 'text-emerald-300' : 'text-amber-400'}`}>
-                    {sim.inputs.preLiquidationEnabled
-                      ? 'pre-liq already on — see Recipe A'
-                      : recipePreLiq
-                        ? 'feasible'
-                        : 'infeasible'}
-                  </span>
-                </div>
-                <p className="text-xs text-neutral-400 mt-1">
-                  Enable pre-liquidation so positions auto-deleverage at a ~
-                  <code>{pct(PRELIQ_OPERATIVE_DRAWDOWN, 0)}</code> loss, effectively capping the
-                  operative drawdown the LLTV must cover at <code>{pct(PRELIQ_OPERATIVE_DRAWDOWN, 0)}</code>{' '}
-                  instead of the full p95 <code>{pct(p95Drawdown, 1)}</code>.
-                </p>
-                {!sim.inputs.preLiquidationEnabled && recipePreLiq ? (
-                  <ul className="text-sm mt-2 space-y-1 list-disc pl-5 text-neutral-200">
-                    <li>
-                      Enable <code>preLiquidationEnabled</code> on the sidebar (Section 4 ·
-                      Liquidation).
-                    </li>
-                    <li>
-                      Pool TVL needed: from{' '}
-                      <code>{formatUSDshort(sim.inputs.poolTVL_USD)}</code> to{' '}
-                      <code className="text-emerald-300">{formatUSDshort(recipePreLiq.tvl)}</code>{' '}
-                      (≈ {(recipePreLiq.tvl / Math.max(1, sim.inputs.poolTVL_USD)).toFixed(1)}×
-                      current — usually smaller than Recipe A).
-                    </li>
-                    <li>
-                      Slippage falls to <code>{pct(recipePreLiq.achieved, 2)}</code> (≤ target{' '}
-                      <code>{pct(slipCeilingPreLiq, 2)}</code> with the reduced operative dd).
-                    </li>
-                    <li>
-                      <strong>Trade-off:</strong> borrowers get auto-closed on smaller losses
-                      (~2%) — softer than full liquidation but still an unwanted exit. This is a
-                      product decision, not a formula tweak.
-                    </li>
-                  </ul>
-                ) : sim.inputs.preLiquidationEnabled ? (
-                  <p className="text-sm mt-2 text-neutral-300">
-                    Pre-liquidation is already enabled. The recommendation pipeline currently uses
-                    raw p95 drawdown regardless — to actually benefit from pre-liq in the formula,
-                    the simulator would need to expose the pre-liq trigger as the operative dd. For
-                    now, use Recipe A or C.
-                  </p>
-                ) : (
-                  <p className="text-sm mt-2 text-neutral-300">
-                    Even with pre-liquidation enabled and pool deepened to{' '}
-                    <code>${(MAX_POOL_TVL_SEARCH / 1_000_000).toFixed(0)}M</code>, constraint cannot
-                    be met — try Recipe C.
-                  </p>
-                )}
-              </div>
-
-              {/* Recipe C — pool + tighter safety */}
-              <div className="rounded border border-brix-border bg-brix-surface p-4 mt-2">
-                <div className="flex items-center justify-between">
-                  <h4 className="font-semibold">
-                    Recipe C · Pool deepening + tighter safety margin
+                    Recipe B · Pool deepening + tighter safety margin
                   </h4>
                   <span className={`text-xs font-mono ${recipeTightSafety ? 'text-emerald-300' : 'text-amber-400'}`}>
                     {recipeTightSafety ? 'feasible' : 'infeasible'}
@@ -770,19 +479,19 @@ snap to GOV_LLTVS     → ${recommended}  (= ${recommended > 0 ? pct(recommended
                   <p className="text-sm mt-2 text-neutral-300">
                     Even with safety at <code>{pct(TIGHT_SAFETY_MARGIN, 0)}</code> and pool deepened
                     to <code>${(MAX_POOL_TVL_SEARCH / 1_000_000).toFixed(0)}M</code>, constraint is
-                    unsatisfied. The chosen LLTV is incompatible with current FX drawdown — only
-                    pre-liquidation (Recipe B) or a lower LLTV target can resolve it.
+                    unsatisfied. The chosen LLTV is incompatible with current FX drawdown — pick a
+                    lower LLTV target.
                   </p>
                 )}
               </div>
 
               <h3 className="text-base font-semibold mt-6">Tail check</h3>
               <p className="text-sm text-neutral-300">
-                The empirical p99 3-day drawdown is {pct(historical.dd3.p99, 2)} and the worst
-                observed is {pct(historical.dd3.max, 2)}. At {pct(targetLLTV, 1)} a p99 event would
-                still produce bad debt — any recipe above is only defensible if pre-liquidation
-                P95 bad-debt output stays under the vault&apos;s tolerance after re-running the
-                simulator with the new LLTV.
+                The empirical p99 1-day drawdown is {pct(historical.dd1.p99, 2)} and the worst
+                observed is {pct(historical.dd1.max, 2)}. At {pct(targetLLTV, 1)} a p99 event would
+                still produce bad debt — any recipe above is only defensible if the Section 4
+                bad-debt P95 (with cascade simulation) stays under the vault&apos;s tolerance after
+                re-running with the new LLTV.
               </p>
             </>
           )}

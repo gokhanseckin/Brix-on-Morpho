@@ -36,10 +36,6 @@ export interface SidebarInputs {
   preLCF1: number;
   preLCF2: number;
   preLIF1: number;
-  // Execution horizon for LLTV-formula drawdown. Operationally realistic
-  // window between liquidation eligibility and execution; default 1 day.
-  // Not a Morpho parameter — calibration-only, like safetyMargin.
-  lltvDrawdownHorizonDays: number;
   blockBootstrap: boolean;
   seed: number;
   // /swapliquidity page state (mirrored in URL via useUrlState).
