@@ -208,31 +208,26 @@ export function Sidebar() {
       </Group>
 
       <Group title="Section 4 · Liquidation">
-        <NumberField
-          label="Single-side AMM TVL"
-          helpKey="poolTVL_USD"
-          value={s.poolTVL_USD}
-          onChange={(v) => setS({ poolTVL_USD: v })}
-          min={0}
-          max={10_000_000}
-          step={50_000}
-        />
-        <SelectField
-          label="Pool fee tier"
-          helpKey="poolFeeTier"
-          value={String(s.poolFeeTier)}
-          onChange={(v) => setS({ poolFeeTier: parseInt(v, 10) })}
-          options={[
-            { value: '3000', label: '0.30%' },
-            { value: '10000', label: '1.00%' },
-          ]}
-        />
-        <a
-          href="/swapliquidity"
-          className="text-xs text-brix-accent hover:text-brix-accentHover -mt-1 block"
-        >
-          → design pool ladder on /swapliquidity
-        </a>
+        <div className="space-y-1.5 pb-2 border-b border-neutral-800">
+          <p className="text-[11px] text-neutral-500 leading-snug">
+            Pool config is read-only here. Tune it on the{' '}
+            <a href="/swapliquidity" className="text-brix-accent underline">
+              swap-liquidity page
+            </a>.
+          </p>
+          <div className="flex items-center justify-between text-xs">
+            <span className="text-neutral-500">Single-side AMM TVL</span>
+            <span className="font-mono text-neutral-300">
+              ${s.poolTVL_USD.toLocaleString()}
+            </span>
+          </div>
+          <div className="flex items-center justify-between text-xs">
+            <span className="text-neutral-500">Pool fee tier</span>
+            <span className="font-mono text-neutral-300">
+              {(s.poolFeeTier / 10000).toFixed(2)}%
+            </span>
+          </div>
+        </div>
         <CheckboxField
           label="Pre-liquidation enabled"
           helpKey="preLiquidationEnabled"

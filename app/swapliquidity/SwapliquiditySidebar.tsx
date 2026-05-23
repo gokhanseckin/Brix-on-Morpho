@@ -1,6 +1,5 @@
 'use client';
 import { useUrlState } from '@/lib/useUrlState';
-import { GOV_LLTVS, type LLTV } from '@/types/simulator';
 import { InfoTooltip } from '@/app/components/help/InfoTooltip';
 import { PARAM_HELP, PARAM_SECTION } from '@/lib/help/registry';
 
@@ -54,46 +53,38 @@ function BandRangeFields(props: {
   );
 }
 
+function ReadOnlyRow({ label, value }: { label: string; value: string | number }) {
+  return (
+    <div className="flex items-center justify-between text-xs">
+      <span className="text-neutral-500">{label}</span>
+      <span className="font-mono text-neutral-300">{value}</span>
+    </div>
+  );
+}
+
 export function SwapliquiditySidebar() {
   const [state, setState] = useUrlState();
   const tailShare = Math.max(0, 1 - state.bandSplitCore - state.bandSplitAbsorb);
   return (
     <aside className="sticky top-0 h-screen w-72 border-r border-neutral-200 dark:border-neutral-800 p-4 overflow-y-auto text-sm space-y-4">
+      <div className="space-y-2 pb-3 border-b border-neutral-800">
+        <h2 className="font-semibold text-base">Market &amp; Simulation</h2>
+        <p className="text-[11px] text-neutral-500 leading-snug">
+          Read-only. Edit on the{' '}
+          <a href="/" className="text-brix-accent underline">
+            Market Simulator
+          </a>.
+        </p>
+        <div className="space-y-1.5">
+          <ReadOnlyRow label="USD/TRY baseline" value={state.usdtryBaseline} />
+          <ReadOnlyRow label="LLTV" value={`${(state.lltv * 100).toFixed(1)}%`} />
+          <ReadOnlyRow label="Simulation mode" value={state.simulationMode} />
+          <ReadOnlyRow label="Horizon (days)" value={state.simulationHorizonDays} />
+          <ReadOnlyRow label="Path count" value={state.pathCount.toLocaleString()} />
+        </div>
+      </div>
+
       <h2 className="font-semibold text-base">Pool Config</h2>
-
-      <label className="block">
-        <span className="text-xs text-neutral-600 dark:text-neutral-400">
-          USD/TRY baseline{paramTooltip('usdtryBaseline')}
-        </span>
-        <input
-          type="number"
-          step="0.5"
-          min={1}
-          className="mt-1 w-full rounded border px-2 py-1 bg-brix-card"
-          value={state.usdtryBaseline}
-          onChange={(e) => setState({ usdtryBaseline: parseFloat(e.target.value) || 0 })}
-        />
-        <span className="block text-[10px] text-neutral-500 mt-1">
-          Spot wTRY/USDM = 1 / this. Shared with homepage via URL.
-        </span>
-      </label>
-
-      <label className="block">
-        <span className="text-xs text-neutral-600 dark:text-neutral-400">
-          LLTV{paramTooltip('lltv')}
-        </span>
-        <select
-          className="mt-1 w-full rounded border px-2 py-1 bg-brix-card"
-          value={String(state.lltv)}
-          onChange={(e) => setState({ lltv: parseFloat(e.target.value) as LLTV })}
-        >
-          {GOV_LLTVS.map((lv) => (
-            <option key={lv} value={String(lv)}>
-              {lv === 0.86 ? `${(lv * 100).toFixed(1)}% (recommended)` : `${(lv * 100).toFixed(1)}%`}
-            </option>
-          ))}
-        </select>
-      </label>
 
       <label className="block">
         <span className="text-xs text-neutral-600 dark:text-neutral-400">
