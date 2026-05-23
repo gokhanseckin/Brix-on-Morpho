@@ -44,7 +44,7 @@ export function useUrlState() {
     lockPeriodDays: parseAsInteger.withDefault(90),
     performanceFee: parseAsFloat.withDefault(0.1),
     managementFee: parseAsFloat.withDefault(0),
-    safetyMargin: parseAsFloat.withDefault(0.02),
+    safetyMargin: parseAsFloat.withDefault(0.01),
     preLiquidationEnabled: parseAsBoolean.withDefault(true),
     // Morpho pre-liquidation parameters (spec §4D). preLIF2 auto = LIF(LLTV).
     preLLTVOffset: parseAsFloat.withDefault(0.05),

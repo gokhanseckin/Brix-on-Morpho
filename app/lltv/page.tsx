@@ -237,47 +237,22 @@ export default function LLTVPage() {
               recommends — but is never written to the vault contract. Lives here, not on the
               home sidebar, because it is a calibration knob, not a deployed parameter.
             </p>
-            <div className="mt-3 flex items-center gap-4">
+            <div className="mt-3 flex items-center gap-3">
+              <label className="text-xs text-neutral-400">Value</label>
               <input
-                type="range"
-                min={0}
-                max={0.10}
-                step={0.005}
-                value={safetyMargin}
-                onChange={(e) => setUrlState({ safetyMargin: parseFloat(e.target.value) })}
-                className="flex-1 accent-brix-accent"
-                aria-label="Safety margin"
-              />
-              <input
-                type="number"
-                min={0}
-                max={0.10}
-                step={0.005}
-                value={safetyMargin.toFixed(3)}
+                type="text"
+                inputMode="decimal"
+                value={(safetyMargin * 100).toFixed(2)}
                 onChange={(e) => {
                   const v = parseFloat(e.target.value);
-                  if (Number.isFinite(v)) setUrlState({ safetyMargin: Math.max(0, Math.min(0.10, v)) });
+                  if (Number.isFinite(v)) {
+                    setUrlState({ safetyMargin: Math.max(0, Math.min(0.10, v / 100)) });
+                  }
                 }}
-                className="w-20 rounded border border-brix-border bg-brix-bg px-2 py-1 text-sm font-mono text-right"
+                className="w-24 rounded border border-brix-border bg-brix-bg px-2 py-1 text-sm font-mono text-right"
+                aria-label="Safety margin (percent)"
               />
-              <span className="text-sm font-mono w-12 text-right">{pct(safetyMargin, 1)}</span>
-            </div>
-            <div className="mt-2 flex items-center gap-2 text-[11px] text-neutral-500">
-              <span>Common values:</span>
-              {[0.01, 0.02, 0.03, 0.05].map((preset) => (
-                <button
-                  key={preset}
-                  type="button"
-                  onClick={() => setUrlState({ safetyMargin: preset })}
-                  className={`px-2 py-0.5 rounded border ${
-                    Math.abs(safetyMargin - preset) < 1e-6
-                      ? 'border-brix-accent text-brix-accent'
-                      : 'border-brix-border text-neutral-400 hover:border-brix-accent hover:text-brix-accent'
-                  }`}
-                >
-                  {(preset * 100).toFixed(0)}%
-                </button>
-              ))}
+              <span className="text-sm text-neutral-400">%</span>
             </div>
           </div>
         </section>
