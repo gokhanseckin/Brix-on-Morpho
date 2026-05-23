@@ -1,7 +1,11 @@
 'use client';
 import { useSimulator } from '@/lib/useSimulator';
+import { PRE_LIQUIDATION_LLTV_OFFSET } from '@/lib/simulator';
+import { GOV_LLTVS } from '@/types/simulator';
 import { useState } from 'react';
 import { Kpi, formatPct, formatUSD } from '../Kpi';
+
+const SMALLEST_GOV_LLTV = GOV_LLTVS.filter((lv) => lv > 0).sort((a, b) => a - b)[0]!;
 
 export function VaultRecommendations() {
   const { riskTier, lltvDerivation, vaultJson, liquidity, inputs } = useSimulator();
@@ -15,11 +19,31 @@ export function VaultRecommendations() {
     });
   };
 
-  const tierTone = riskTier === 'Conservative' ? 'good' : riskTier === 'Moderate' ? 'warn' : 'bad';
+  const tierTone =
+    riskTier === 'Conservative'
+      ? 'good'
+      : riskTier === 'Moderate'
+        ? 'warn'
+        : riskTier === 'Aggressive'
+          ? 'bad'
+          : 'default';
+
+  const tierHint =
+    riskTier === 'Indeterminate'
+      ? 'Drawdown + slippage + safety margin exceed what any governance LLTV can absorb. Tighten pool depth or lower safety margin.'
+      : undefined;
 
   const recommendedLLTVPct = lltvDerivation.snapped
     ? `${(lltvDerivation.snapped * 100).toFixed(1)}%`
     : '—';
+
+  const preLLTV = Math.max(0, inputs.lltv - PRE_LIQUIDATION_LLTV_OFFSET);
+  const preLiqDegenerate = inputs.preLiquidationEnabled && preLLTV < SMALLEST_GOV_LLTV;
+  const preLiqValue = !inputs.preLiquidationEnabled
+    ? 'Disabled'
+    : preLiqDegenerate
+      ? `Enabled, but pre-liq zone [${formatPct(preLLTV, 1)}, ${formatPct(inputs.lltv, 1)}] is below the smallest governance LLTV (${formatPct(SMALLEST_GOV_LLTV, 1)}) — review §4D`
+      : 'Enabled, params per §4D';
 
   const rows: Array<{ param: string; value: string; source: string }> = [
     {
@@ -32,16 +56,6 @@ export function VaultRecommendations() {
       param: 'Oracle',
       value: 'Manual NAV pusher (today) → Redstone (when live)',
       source: '§5 Oracle Configuration',
-    },
-    {
-      param: 'Performance fee',
-      value: formatPct(inputs.performanceFee, 1),
-      source: 'Industry standard; well under 50% cap',
-    },
-    {
-      param: 'Management fee',
-      value: formatPct(inputs.managementFee, 2) + ' APR',
-      source: 'Well under 5% cap',
     },
     {
       param: 'Timelock',
@@ -82,7 +96,7 @@ export function VaultRecommendations() {
     },
     {
       param: 'Pre-liquidation',
-      value: inputs.preLiquidationEnabled ? 'Enabled, params per §4D' : 'Disabled',
+      value: preLiqValue,
       source: 'Cuts bad debt',
     },
     {
@@ -114,12 +128,14 @@ export function VaultRecommendations() {
       </div>
 
       <div className="grid grid-cols-3 gap-4">
-        <Kpi label="Risk tier" value={riskTier} tone={tierTone} helpKey="riskTier" />
         <Kpi
-          label="User LLTV"
-          value={formatPct(inputs.lltv, 1)}
-          hint={`recommended ${recommendedLLTVPct}`}
+          label="Risk tier"
+          value={riskTier}
+          tone={tierTone}
+          helpKey="riskTier"
+          {...(tierHint ? { hint: tierHint } : {})}
         />
+        <Kpi label="User LLTV" value={formatPct(inputs.lltv, 1)} />
         <Kpi
           label="Computed (snapped) LLTV"
           value={recommendedLLTVPct}

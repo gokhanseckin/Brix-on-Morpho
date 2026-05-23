@@ -50,6 +50,7 @@ export const LIQUIDITY_FLOOR_FRACTION = 0.20;
 export const DEAD_DEPOSIT_MULTIPLIER = 100;
 export const BUFFER_PCT_BASE = 0.15;
 export const BUFFER_PCT_INCENTIVE_SLOPE = 0.10;
+export const BUFFER_PCT_CEILING = 0.50;
 
 // PRE_LIQUIDATION_LLTV_OFFSET: distance below hard LLTV at which the
 //   pre-liquidation zone begins. Spec §4D recommends 5pp.
@@ -63,7 +64,8 @@ export const PRE_LIQUIDATION_LIF_MIN = 1.01;
 
 export function bufferPctFromIncentive(incentiveAPY: number, baseSupplyAPY: number): number {
   const ratio = baseSupplyAPY > 0 ? incentiveAPY / baseSupplyAPY : 0;
-  return BUFFER_PCT_BASE + BUFFER_PCT_INCENTIVE_SLOPE * ratio;
+  const raw = BUFFER_PCT_BASE + BUFFER_PCT_INCENTIVE_SLOPE * ratio;
+  return Math.max(BUFFER_PCT_BASE, Math.min(BUFFER_PCT_CEILING, raw));
 }
 
 export function computeLiquidityNeed(a: LiqNeedArgs): LiqNeedOut {
@@ -573,7 +575,7 @@ export interface VaultConfigJson {
     performanceFee: number;
     managementFee: number;
     timelock: number;
-    caps: { absoluteUSD: number; relative: number };
+    caps: { absoluteUSD_human: number; relative: number };
   };
   preLiquidation: { preLLTV: string; preLCF: [number, number]; preLIF: [number, number] };
 }
@@ -585,16 +587,16 @@ export function buildVaultConfigJson(a: VaultJsonArgs): VaultConfigJson {
       performanceFee: a.performanceFee,
       managementFee: a.managementFee,
       timelock: a.timelockSeconds,
-      caps: { absoluteUSD: a.cap_USD, relative: 1.0 },
+      caps: { absoluteUSD_human: a.cap_USD, relative: 1.0 },
     },
     preLiquidation: { preLLTV: to18Decimal(a.preLLTV), preLCF: a.preLCF, preLIF: a.preLIF },
   };
 }
 
-export function classifyRiskTier(
-  chosen: number,
-  recommended: number
-): 'Conservative' | 'Moderate' | 'Aggressive' {
+export type RiskTier = 'Conservative' | 'Moderate' | 'Aggressive' | 'Indeterminate';
+
+export function classifyRiskTier(chosen: number, recommended: number): RiskTier {
+  if (recommended <= 0) return 'Indeterminate';
   if (chosen <= recommended) return 'Conservative';
   if (chosen <= recommended + RISK_TIER_MODERATE_BAND_LLTV) return 'Moderate';
   return 'Aggressive';
