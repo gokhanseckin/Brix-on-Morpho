@@ -71,8 +71,8 @@ export function SwapliquiditySidebar() {
         <h2 className="font-semibold text-base">Market &amp; Simulation</h2>
         <p className="text-[11px] text-neutral-500 leading-snug">
           Read-only. Edit on the{' '}
-          <a href="/market-analysis" className="text-brix-accent underline">
-            Market Analysis page
+          <a href="/" className="text-brix-accent underline">
+            Market Simulator
           </a>.
         </p>
         <div className="space-y-1.5">
