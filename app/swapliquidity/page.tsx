@@ -5,7 +5,6 @@ import { PoolStatePanel } from '@/app/components/swapliquidity/PoolStatePanel';
 import { LiquidatorSwapPanel } from '@/app/components/swapliquidity/LiquidatorSwapPanel';
 import { SlippageCurvePanel } from '@/app/components/swapliquidity/SlippageCurvePanel';
 import { RecoveryDistributionPanel } from '@/app/components/swapliquidity/RecoveryDistributionPanel';
-import { PresetExportPanel } from '@/app/components/swapliquidity/PresetExportPanel';
 
 export const metadata = { title: 'Brix — Swap Liquidity Lab' };
 
@@ -35,10 +34,9 @@ export default function SwapLiquidityPage() {
           </p>
         </header>
         <PoolStatePanel />
-        <LiquidatorSwapPanel />
         <SlippageCurvePanel />
+        <LiquidatorSwapPanel />
         <RecoveryDistributionPanel />
-        <PresetExportPanel />
       </div>
     </main>
   );
