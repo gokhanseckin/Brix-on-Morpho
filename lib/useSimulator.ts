@@ -14,9 +14,6 @@ import {
   minMaxProfitableLiquidation,
   slippageFromPreset,
   betaMean,
-  PRE_LIQUIDATION_LLTV_OFFSET,
-  PRE_LIQUIDATION_LCF,
-  PRE_LIQUIDATION_LIF_MIN,
 } from './simulator';
 import { buildLadderFromInputs, effectiveDepthFromPreset } from './poolPreset';
 import { LIF, adaptiveCurveIRM } from './morphoMath';
@@ -33,9 +30,9 @@ const MORPHO_IRM_RTARGET = 0.04;                  // 4% APR @ u=90% target
 const DEFAULT_TRY_DEPRECIATION_ANNUAL = 0.30;     // rough estimate, out of scope
 const COMPETING_STABLECOIN_APY = 0.05;            // typical USDC supply APY
 const DEFAULT_DEAD_DEPOSIT_COST_USD = 1;          // gas-cost proxy for one dead deposit
-const DEFAULT_P95_3D_DRAWDOWN = 0.15;             // first-render fallback before worker
+const DEFAULT_P95_1D_DRAWDOWN = 0.05;             // first-render fallback before worker
 const DEFAULT_GAS_COST_USD = 5;                   // nominal cushion (MegaETH gas ≈ 0)
-const P95_LIQUIDATION_FRACTION_OF_BORROWS = 0.01; // 1% of expected borrows
+export const P95_LIQUIDATION_FRACTION_OF_BORROWS = 0.01; // 1% of expected borrows
 const SLIPPAGE_ESTIMATE_CAP = 0.5;                // hard ceiling on derived slippage
 const DEFAULT_VAULT_TIMELOCK_SECONDS = 604_800;   // 7 days, spec §5
 
@@ -149,7 +146,17 @@ export function useSimulator() {
   );
 
   const lltvDerivation = useMemo(() => {
-    const p95dd = result?.threeDayDD ? quantile(result.threeDayDD, 0.95) : DEFAULT_P95_3D_DRAWDOWN;
+    // Drawdown source: worker's per-path max 1-day move, taken at the
+    // operator's chosen percentile (default p95). 1 day is the realistic
+    // execution window between liquidation eligibility and a MEV bot's
+    // tx confirming on MegaETH. Pre-liquidation is opt-in per borrower
+    // (Morpho spec) so it cannot be assumed market-wide; LLTV calibration
+    // must reflect the worst case — no pre-liq cap.
+    const percentileFrac = Math.max(0, Math.min(1, s.lltvDrawdownPercentile / 100));
+    const p95dd = result?.oneDayDD
+      ? quantile(result.oneDayDD, percentileFrac)
+      : DEFAULT_P95_1D_DRAWDOWN;
+
     const minMax = minMaxProfitableLiquidation({
       lltv: s.lltv,
       preset,
@@ -170,7 +177,14 @@ export function useSimulator() {
       safetyMargin: s.safetyMargin,
     });
     const snapped = snapToGovernanceLLTV(derived.raw);
-    return { ...derived, snapped, minMax, slippageEstimate };
+    return {
+      ...derived,
+      snapped,
+      minMax,
+      slippageEstimate,
+      p95Drawdown: p95dd,
+      drawdownPercentile: s.lltvDrawdownPercentile,
+    };
   }, [
     result,
     s.lltv,
@@ -180,6 +194,7 @@ export function useSimulator() {
     s.witryTVL_USD,
     s.borrowerLTVAlpha,
     s.borrowerLTVBeta,
+    s.lltvDrawdownPercentile,
   ]);
 
   const vaultJson = useMemo(
@@ -192,9 +207,10 @@ export function useSimulator() {
         managementFee: s.managementFee,
         timelockSeconds: DEFAULT_VAULT_TIMELOCK_SECONDS,
         cap_USD: liquidity.requiredUSDM + liquidity.withdrawalBuffer_USD,
-        preLLTV: Math.max(0, s.lltv - PRE_LIQUIDATION_LLTV_OFFSET),
-        preLCF: PRE_LIQUIDATION_LCF,
-        preLIF: [PRE_LIQUIDATION_LIF_MIN, LIF(s.lltv)],
+        // Editable on /lltv. preLIF2 stays capped at LIF(LLTV) per Morpho.
+        preLLTV: Math.max(0, s.lltv - s.preLLTVOffset),
+        preLCF: [s.preLCF1, s.preLCF2],
+        preLIF: [s.preLIF1, LIF(s.lltv)],
       }),
     [s, liquidity],
   );

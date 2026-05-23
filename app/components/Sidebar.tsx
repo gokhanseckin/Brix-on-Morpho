@@ -228,12 +228,11 @@ export function Sidebar() {
             </span>
           </div>
         </div>
-        <CheckboxField
-          label="Pre-liquidation enabled"
-          helpKey="preLiquidationEnabled"
-          checked={s.preLiquidationEnabled}
-          onChange={(v) => setS({ preLiquidationEnabled: v })}
-        />
+        <div className="text-[11px] text-neutral-500 leading-snug">
+          Pre-liquidation parameters (toggle, preLLTV offset, preLCF, preLIF)
+          edited on the{' '}
+          <a href="/lltv" className="text-brix-accent underline">LLTV page</a>.
+        </div>
       </Group>
 
       <Group title="Section 5 · Vault Params">
@@ -257,16 +256,10 @@ export function Sidebar() {
           step={0.001}
           format={(v) => `${(v * 100).toFixed(2)}%`}
         />
-        <RangeField
-          label="Safety margin (LLTV)"
-          helpKey="safetyMargin"
-          value={s.safetyMargin}
-          onChange={(v) => setS({ safetyMargin: v })}
-          min={0}
-          max={0.1}
-          step={0.005}
-          format={(v) => `${(v * 100).toFixed(1)}%`}
-        />
+        <div className="text-[11px] text-neutral-500 leading-snug pt-2">
+          Safety margin (calibration only) edited on the{' '}
+          <a href="/lltv" className="text-brix-accent underline">LLTV page</a>.
+        </div>
       </Group>
 
       <button

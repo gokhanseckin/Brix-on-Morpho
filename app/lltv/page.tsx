@@ -1,9 +1,73 @@
+'use client';
+import { useMemo } from 'react';
 import { TopNav } from '@/app/components/TopNav';
 import { dailyLogReturns, windowRows } from '@/lib/fxData';
 import raw from '@/lib/usdtryData.json';
 import { LIF } from '@/lib/morphoMath';
-import { deriveRecommendedLLTV, snapToGovernanceLLTV } from '@/lib/simulator';
-import { GOV_LLTVS, type LLTV } from '@/types/simulator';
+import { useSimulator, P95_LIQUIDATION_FRACTION_OF_BORROWS } from '@/lib/useSimulator';
+import { useUrlState } from '@/lib/useUrlState';
+import {
+  betaMean,
+  slippageFromPreset,
+  deriveRecommendedLLTV,
+  snapToGovernanceLLTV,
+} from '@/lib/simulator';
+import { quantileSorted } from '@/lib/stats';
+import { buildLadderFromInputs } from '@/lib/poolPreset';
+import { type SidebarInputs } from '@/types/simulator';
+import { LLTVSidebar } from './LLTVSidebar';
+
+const TIGHT_SAFETY_MARGIN = 0.01;
+const MAX_POOL_TVL_SEARCH = 100_000_000;
+
+function findPoolTVLForSlippage(args: {
+  targetSlippage: number;
+  targetLLTV: number;
+  s: SidebarInputs;
+  spot: number;
+}): { tvl: number; achieved: number } | null {
+  if (args.targetSlippage <= 0) return null;
+  const meanLTVFrac = betaMean(args.s.borrowerLTVAlpha, args.s.borrowerLTVBeta);
+  const p95LiqSize =
+    args.s.witryTVL_USD *
+    args.targetLLTV *
+    meanLTVFrac *
+    P95_LIQUIDATION_FRACTION_OF_BORROWS *
+    LIF(args.targetLLTV);
+  const bandInputs = {
+    bandSplitCore: args.s.bandSplitCore,
+    bandSplitAbsorb: args.s.bandSplitAbsorb,
+    poolFeeTier: args.s.poolFeeTier,
+    bandCoreLowerPct: args.s.bandCoreLowerPct,
+    bandCoreUpperPct: args.s.bandCoreUpperPct,
+    bandAbsorbLowerPct: args.s.bandAbsorbLowerPct,
+    bandAbsorbUpperPct: args.s.bandAbsorbUpperPct,
+    bandTailLowerPct: args.s.bandTailLowerPct,
+    bandTailUpperPct: args.s.bandTailUpperPct,
+  };
+  // Feasibility: even at MAX_POOL_TVL_SEARCH, slippage may exceed target.
+  const presetMax = buildLadderFromInputs(args.spot, { ...bandInputs, poolTVL_USD: MAX_POOL_TVL_SEARCH });
+  const slipMax = slippageFromPreset(presetMax, args.spot, p95LiqSize);
+  if (slipMax > args.targetSlippage) return null;
+  // Binary search the smallest pool TVL that hits the target slippage.
+  let lo = 10_000;
+  let hi = MAX_POOL_TVL_SEARCH;
+  for (let i = 0; i < 40; i++) {
+    const mid = (lo + hi) / 2;
+    const preset = buildLadderFromInputs(args.spot, { ...bandInputs, poolTVL_USD: mid });
+    const slip = slippageFromPreset(preset, args.spot, p95LiqSize);
+    if (slip > args.targetSlippage) lo = mid;
+    else hi = mid;
+  }
+  const finalPreset = buildLadderFromInputs(args.spot, { ...bandInputs, poolTVL_USD: hi });
+  return { tvl: Math.round(hi), achieved: slippageFromPreset(finalPreset, args.spot, p95LiqSize) };
+}
+
+function formatUSDshort(usd: number): string {
+  if (usd >= 1_000_000) return `$${(usd / 1_000_000).toFixed(2)}M`;
+  if (usd >= 1_000) return `$${(usd / 1_000).toFixed(0)}k`;
+  return `$${Math.round(usd)}`;
+}
 
 type Row = { date: string; rate: number };
 
@@ -34,316 +98,636 @@ function maxKDayDrawdown(wiUSD: number[], k: number): { p50: number; p90: number
   };
 }
 
-function nextLargerTier(tier: LLTV): LLTV | null {
-  const sorted = [...GOV_LLTVS].sort((a, b) => a - b);
-  for (const t of sorted) {
-    if (t > tier) return t;
-  }
-  return null;
-}
-
 function pct(x: number, d = 2): string {
   return `${(x * 100).toFixed(d)}%`;
 }
 
 export default function LLTVPage() {
-  const rows = (raw as { rows: Row[] }).rows;
-  const fiveY = windowRows(rows as Row[], 5);
-  const first = fiveY[0]!;
-  const last = fiveY[fiveY.length - 1]!;
+  const sim = useSimulator();
+  const [, setUrlState] = useUrlState();
 
-  const rates = fiveY.map((r) => r.rate);
-  const wiUSD = rates.map((r) => 1 / r); // wiTRY value in USD ∝ 1/USDTRY
-  const logR = dailyLogReturns(fiveY as Row[]);
-  const mean = logR.reduce((a, b) => a + b, 0) / logR.length;
-  const variance = logR.reduce((a, b) => a + (b - mean) ** 2, 0) / (logR.length - 1);
-  const annVol = Math.sqrt(variance) * Math.sqrt(252);
-  const annDrift = mean * 252;
+  // Historical reference (kept for pedagogical context — drawdowns table,
+  // vol/drift summary). The actual recommendation is driven by useSimulator
+  // so this page renders identically to the home page's recommendation.
+  const historical = useMemo(() => {
+    const rows = (raw as { rows: Row[] }).rows;
+    const fiveY = windowRows(rows as Row[], 5);
+    const first = fiveY[0]!;
+    const last = fiveY[fiveY.length - 1]!;
+    const rates = fiveY.map((r) => r.rate);
+    const wiUSD = rates.map((r) => 1 / r);
+    const logR = dailyLogReturns(fiveY as Row[]);
+    const mean = logR.reduce((a, b) => a + b, 0) / logR.length;
+    const variance = logR.reduce((a, b) => a + (b - mean) ** 2, 0) / (logR.length - 1);
+    const annVol = Math.sqrt(variance) * Math.sqrt(252);
+    const annDrift = mean * 252;
+    return {
+      first,
+      last,
+      days: fiveY.length,
+      annVol,
+      annDrift,
+      dd1: maxKDayDrawdown(wiUSD, 1),
+      dd3: maxKDayDrawdown(wiUSD, 3),
+      dd7: maxKDayDrawdown(wiUSD, 7),
+      dd30: maxKDayDrawdown(wiUSD, 30),
+    };
+  }, []);
 
-  const dd1 = maxKDayDrawdown(wiUSD, 1);
-  const dd3 = maxKDayDrawdown(wiUSD, 3);
-  const dd7 = maxKDayDrawdown(wiUSD, 7);
-  const dd30 = maxKDayDrawdown(wiUSD, 30);
+  // Live inputs from useSimulator — same pipeline as the home page. We read
+  // p95Drawdown / slippage from lltvDerivation (not recompute) so this page
+  // is guaranteed to mirror VaultRecommendations on home, byte-for-byte.
+  const p95Drawdown = sim.lltvDerivation.p95Drawdown;
+  const slippage = sim.lltvDerivation.slippageEstimate;
+  const safetyMargin = sim.inputs.safetyMargin;
+  const rawDerived = sim.lltvDerivation.raw;
+  const recommended = sim.lltvDerivation.snapped;
+  const riskTier = sim.riskTier;
+  const lifAtRecommended = recommended > 0 ? LIF(recommended) : 0;
+  const ddPctile = sim.lltvDerivation.drawdownPercentile;
+  const ddLabel = `p${ddPctile} 1-day drawdown`;
 
-  // Calibration assumptions
-  const slippage = 0.01;
-  const safetyMargin = 0.03;
-  const p95Drawdown = dd3.p95;
+  // ----- Sensitivity matrix: (horizon × percentile) -> LLTV ----------------
+  // Sub-daily horizons use Brownian √-scaling from the 1-day series:
+  //   dd_h = dd_24h × √(h/24)
+  // We do not generate intra-day FX paths — the FX history is daily-close
+  // Yahoo data; sub-daily Monte Carlo would be fabrication. √-scaling is
+  // standard DeFi practice for collateral risk at h < 1d.
+  const matrixHorizons: { h: number; label: string }[] = [
+    { h: 24, label: '24h' },
+    { h: 12, label: '12h' },
+    { h: 6, label: '6h' },
+  ];
+  const matrixPercentiles: { p: number; label: string }[] = [
+    { p: 0.95, label: 'p95' },
+    { p: 0.99, label: 'p99' },
+    { p: 0.999, label: 'p99.9' },
+  ];
+  const matrix = useMemo(() => {
+    const series = sim.fx?.oneDayDD;
+    if (!series || series.length === 0) return null;
+    const sorted = [...series].sort((a, b) => a - b);
+    return matrixHorizons.map(({ h, label: hLabel }) => ({
+      h,
+      hLabel,
+      cells: matrixPercentiles.map(({ p, label: pLabel }) => {
+        const dd1d = quantileSorted(sorted, p);
+        const ddH = dd1d * Math.sqrt(h / 24);
+        const derived = deriveRecommendedLLTV({
+          p95Drawdown: ddH,
+          slippage,
+          safetyMargin,
+        });
+        const snapped = snapToGovernanceLLTV(derived.raw);
+        return {
+          p,
+          pLabel,
+          dd: ddH,
+          raw: derived.raw,
+          snapped,
+          converged: derived.converged,
+        };
+      }),
+    }));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sim.fx?.oneDayDD, slippage, safetyMargin]);
 
-  const derived = deriveRecommendedLLTV({ p95Drawdown, slippage, safetyMargin });
-  const recommended = snapToGovernanceLLTV(derived.raw);
-  const lifAtRecommended = LIF(recommended);
-  const oneStepLarger = nextLargerTier(recommended);
-  const lifAtOneStep = oneStepLarger ? LIF(oneStepLarger) : null;
+  const fxSource = sim.fx?.oneDayDD ? 'Monte Carlo worker' : '5-year empirical fallback';
 
-  // What it would take for the next-larger tier to be the snap result.
-  // Solve for max p95dd such that derived raw >= oneStepLarger:
-  //   raw = (1 - dd) / (LIF(L) (1+slip)) - safety   (fixed-point ~ L = raw)
-  //   require raw >= oneStepLarger  =>  dd <= 1 - (oneStepLarger + safety) * LIF(oneStepLarger) * (1+slip)
-  const ddCeilingForNext = oneStepLarger
-    ? Math.max(0, 1 - (oneStepLarger + safetyMargin) * lifAtOneStep! * (1 + slippage))
+  // ----- Path to the user's chosen LLTV ------------------------------------
+  // The "Bumping one step" view was hardcoded to oneStepLarger; here we target
+  // sim.inputs.lltv (what the operator actually wants to ship at). For each
+  // path we (a) check single-knob feasibility, (b) when slippage is the lever
+  // we numerically solve for the pool TVL that hits the slip ceiling.
+  const targetLLTV = sim.inputs.lltv;
+  const lifTarget = LIF(targetLLTV);
+  const targetIsSupported = targetLLTV > 0 && rawDerived >= targetLLTV;
+
+  // Single-knob ceilings (each holds the other two at current).
+  const ddCeilingForTarget = Math.max(0, 1 - (targetLLTV + safetyMargin) * lifTarget * (1 + slippage));
+  const slipCeilingForTarget = (1 - p95Drawdown) / ((targetLLTV + safetyMargin) * lifTarget) - 1;
+  const safetyCeilingForTarget = (1 - p95Drawdown) / (lifTarget * (1 + slippage)) - targetLLTV;
+
+  // Combined ceiling — relax safety to TIGHT.
+  const slipCeilingTightSafety =
+    (1 - p95Drawdown) / ((targetLLTV + TIGHT_SAFETY_MARGIN) * lifTarget) - 1;
+
+  // Numerical pool-TVL recipes.
+  const recipePoolOnly = !targetIsSupported && slipCeilingForTarget > 0
+    ? findPoolTVLForSlippage({
+        targetSlippage: slipCeilingForTarget,
+        targetLLTV,
+        s: sim.inputs as unknown as SidebarInputs,
+        spot: sim.pool.spot,
+      })
     : null;
-  // Slippage that would push raw up to oneStepLarger, holding dd & safety fixed:
-  //   (1+slip) <= (1-dd) / ((oneStepLarger+safety) * LIF(oneStepLarger))
-  const slipCeilingForNext = oneStepLarger
-    ? Math.max(0, (1 - p95Drawdown) / ((oneStepLarger + safetyMargin) * lifAtOneStep!) - 1)
-    : null;
-  // Safety margin that would push raw up to oneStepLarger:
-  const safetyCeilingForNext = oneStepLarger
-    ? Math.max(0, (1 - p95Drawdown) / (lifAtOneStep! * (1 + slippage)) - oneStepLarger)
+  const recipeTightSafety = !targetIsSupported && slipCeilingTightSafety > 0
+    ? findPoolTVLForSlippage({
+        targetSlippage: slipCeilingTightSafety,
+        targetLLTV,
+        s: sim.inputs as unknown as SidebarInputs,
+        spot: sim.pool.spot,
+      })
     : null;
 
   return (
-    <div className="mx-auto max-w-4xl px-6 py-10 bg-brix-bg min-h-screen text-neutral-200">
-      <TopNav />
-      <header className="mb-8 border-b border-brix-border pb-6">
-        <div className="brix-kicker mb-3">Brix · LLTV analysis</div>
-        <h1 className="text-3xl font-semibold tracking-tight">
-          LLTV calibration <span className="text-brix-accent">·</span> 5-year USD/TRY
-        </h1>
-      </header>
+    <div className="flex bg-brix-bg min-h-screen text-neutral-200">
+      <LLTVSidebar />
+      <div className="flex-1 mx-auto max-w-4xl px-6 py-10">
+        <TopNav />
+        <header className="mb-8 border-b border-brix-border pb-6 mt-6">
+          <div className="brix-kicker mb-3">Brix · LLTV calibration</div>
+          <h1 className="text-3xl font-semibold tracking-tight">
+            Recommended LLTV <span className="text-brix-accent">·</span> live parameters
+          </h1>
+          <p className="text-sm text-neutral-400 mt-3">
+            Uses the same recommendation pipeline as the{' '}
+            <a href="/" className="underline">Market Simulator</a> homepage. Edit inputs there or on{' '}
+            <a href="/swapliquidity" className="underline">Swap Liquidity</a>; this page mirrors them.
+          </p>
+        </header>
 
-      <section className="space-y-3">
-        <h2 className="text-xl font-semibold">Recommendation</h2>
-        <div className="rounded border border-emerald-500/40 bg-emerald-950/30 p-4">
-          <div className="text-3xl font-bold text-emerald-300">
-            LLTV = {pct(recommended, 1)}
+        <section className="space-y-3">
+          <h2 className="text-xl font-semibold">Recommendation</h2>
+          <div className="rounded border border-emerald-500/40 bg-emerald-950/30 p-4">
+            <div className="text-3xl font-bold text-emerald-300">
+              LLTV = {recommended > 0 ? pct(recommended, 1) : '—'}
+            </div>
+            <p className="text-sm mt-1 text-neutral-300">
+              Snapped down from raw {rawDerived.toFixed(4)} ({pct(rawDerived, 2)}) to the nearest
+              governance tier. Chosen LLTV in sidebar: {pct(sim.inputs.lltv, 1)} → risk tier:{' '}
+              <strong>{riskTier}</strong>.
+              {!sim.lltvDerivation.converged && (
+                <span className="text-amber-400">
+                  {' '}Formula did not converge — inputs likely degenerate (very high slippage or
+                  drawdown); tighten safety margin or deepen pool.
+                </span>
+              )}
+            </p>
           </div>
-          <p className="text-sm mt-1 text-neutral-300">
-            Snapped down from raw {derived.raw.toFixed(4)} ({pct(derived.raw, 2)}) to the nearest
-            governance tier. Risk tier: <strong>Moderate</strong>.
-          </p>
-        </div>
-      </section>
+        </section>
 
-      <section className="space-y-3 mt-8">
-        <h2 className="text-xl font-semibold">Data window</h2>
-        <p className="text-sm text-neutral-300">
-          Yahoo Finance <code>TRY=X</code> daily close, {first.date} → {last.date} ({fiveY.length}{' '}
-          trading days). Source: <code>lib/usdtryData.json</code>.
-        </p>
-        <table className="text-sm w-full max-w-md">
-          <tbody>
-            <tr>
-              <td className="py-1 text-neutral-500">Annualized vol (USDTRY log-returns)</td>
-              <td className="text-right font-mono">{pct(annVol, 2)}</td>
-            </tr>
-            <tr>
-              <td className="py-1 text-neutral-500">Annualized drift (TRY depreciation)</td>
-              <td className="text-right font-mono">+{pct(annDrift, 2)}</td>
-            </tr>
-          </tbody>
-        </table>
-      </section>
+        <section className="space-y-3 mt-6">
+          <div className="rounded border border-brix-border bg-brix-surface p-4">
+            <div className="flex items-baseline justify-between">
+              <h3 className="text-sm font-semibold">Safety margin (calibration only)</h3>
+              <span className="text-[11px] text-neutral-500">not deployed on-chain</span>
+            </div>
+            <p className="text-xs text-neutral-400 mt-1 max-w-2xl">
+              Risk-officer&apos;s discretionary cushion on top of LIF + slippage. Covers oracle
+              staleness, MEV, gas, modelling error. Affects which governance tier the formula
+              recommends — but is never written to the vault contract. Lives here, not on the
+              home sidebar, because it is a calibration knob, not a deployed parameter.
+            </p>
+            <div className="mt-3 flex items-center gap-3">
+              <label className="text-xs text-neutral-400">Value</label>
+              <input
+                type="text"
+                inputMode="decimal"
+                value={(safetyMargin * 100).toFixed(2)}
+                onChange={(e) => {
+                  const v = parseFloat(e.target.value);
+                  if (Number.isFinite(v)) {
+                    setUrlState({ safetyMargin: Math.max(0, Math.min(0.10, v / 100)) });
+                  }
+                }}
+                className="w-24 rounded border border-brix-border bg-brix-bg px-2 py-1 text-sm font-mono text-right"
+                aria-label="Safety margin (percent)"
+              />
+              <span className="text-sm text-neutral-400">%</span>
+            </div>
+          </div>
+        </section>
 
-      <section className="space-y-3 mt-8">
-        <h2 className="text-xl font-semibold">wiTRY-in-USD drawdowns</h2>
-        <p className="text-sm text-neutral-300">
-          wiTRY is iTRY held as collateral; its USD value moves with <code>1 / USDTRY</code>. The
-          k-day drawdown at day <em>t</em> is the worst loss from the peak of the prior k days. This
-          is what a liquidator faces if oracle and on-chain price diverge during a window of length
-          k.
-        </p>
-        <table className="text-sm w-full max-w-2xl border-collapse">
-          <thead>
-            <tr className="border-b border-brix-border">
-              <th className="text-left py-1">Window</th>
-              <th className="text-right py-1">p50</th>
-              <th className="text-right py-1">p90</th>
-              <th className="text-right py-1">p95</th>
-              <th className="text-right py-1">p99</th>
-              <th className="text-right py-1">max</th>
-            </tr>
-          </thead>
-          <tbody className="font-mono">
-            {[
-              { k: '1d', d: dd1 },
-              { k: '3d', d: dd3 },
-              { k: '7d', d: dd7 },
-              { k: '30d', d: dd30 },
-            ].map((r) => (
-              <tr key={r.k} className="border-b border-brix-border">
-                <td className="py-1 font-sans">{r.k}</td>
-                <td className="text-right">{pct(r.d.p50)}</td>
-                <td className="text-right">{pct(r.d.p90)}</td>
-                <td className="text-right">{pct(r.d.p95)}</td>
-                <td className="text-right">{pct(r.d.p99)}</td>
-                <td className="text-right">{pct(r.d.max)}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </section>
+        {/* ----- Drawdown percentile (calibration only) ----- */}
+        <section className="space-y-3 mt-4">
+          <div className="rounded border border-brix-border bg-brix-surface p-4">
+            <div className="flex items-baseline justify-between">
+              <h3 className="text-sm font-semibold">Drawdown percentile (calibration only)</h3>
+              <span className="text-[11px] text-neutral-500">not deployed on-chain</span>
+            </div>
+            <p className="text-xs text-neutral-400 mt-1 max-w-2xl">
+              Which point in the 1-day drawdown distribution the LLTV formula
+              must absorb. <strong>p95</strong> covers normal-stress days (1-in-20).
+              <strong> p99</strong> is tail-protective (1-in-100) — produces a more
+              conservative LLTV at the cost of capital efficiency. Switch to p99
+              if you want the formula to survive rarer USD/TRY shocks without
+              relying on safety margin alone.
+            </p>
+            <div className="mt-3 flex gap-2">
+              {[
+                { v: 95, label: 'p95 (default · normal stress)' },
+                { v: 99, label: 'p99 (tail-protective)' },
+              ].map((opt) => (
+                <button
+                  key={opt.v}
+                  type="button"
+                  onClick={() => setUrlState({ lltvDrawdownPercentile: opt.v })}
+                  className={`px-3 py-1.5 rounded border text-xs ${
+                    sim.lltvDerivation.drawdownPercentile === opt.v
+                      ? 'border-brix-accent text-brix-accent'
+                      : 'border-brix-border text-neutral-400 hover:border-brix-accent hover:text-brix-accent'
+                  }`}
+                >
+                  {opt.label}
+                </button>
+              ))}
+            </div>
+          </div>
+        </section>
 
-      <section className="space-y-3 mt-8">
-        <h2 className="text-xl font-semibold">Formula</h2>
-        <p className="text-sm text-neutral-300">
-          The recommended LLTV is the largest L such that, after a p95 collateral drawdown and
-          liquidator-pays-slippage-and-LIF, the liquidator still breaks even with a safety buffer.
-          From <code>lib/simulator.ts</code>:
-        </p>
-        <pre className="rounded bg-brix-surface p-3 text-sm overflow-x-auto">
-{`L = (1 − p95Drawdown) / (LIF(L) · (1 + slippage)) − safetyMargin`}
-        </pre>
-        <p className="text-sm text-neutral-300">
-          Solved by fixed-point iteration starting at L = 0.80, then snapped down to the nearest
-          governance LLTV in <code>GOV_LLTVS</code>.
-        </p>
-      </section>
-
-      <section className="space-y-3 mt-8">
-        <h2 className="text-xl font-semibold">Assumptions</h2>
-        <ul className="text-sm space-y-2 list-disc pl-5 text-neutral-300">
-          <li>
-            <strong>Drawdown horizon = 3 days.</strong> Matches the worker&apos;s
-            <code> threeDayMaxDrawdown</code> output and is a realistic upper bound on the time
-            between oracle update / liquidation eligibility and execution under sustained TRY shock.
-          </li>
-          <li>
-            <strong>Drawdown percentile = p95.</strong> The liquidator must remain profitable in
-            1-in-20 stress days; deeper tail (p99) is intentionally absorbed by pre-liquidation +
-            safety margin, not by lowering LLTV.
-          </li>
-          <li>
-            <strong>USDM/TRY-stable pool slippage = {pct(slippage)}.</strong> Liquidators acquire
-            USDM (or sell seized wiTRY into a TRY-stable pool) and lose ~1% to AMM depth at expected
-            P95 liquidation volume. Driven by the <code>poolTVL_USD</code> + ladder splits configured
-            in the sidebar (or on <a href="/swapliquidity" className="underline">/swapliquidity</a>).
-          </li>
-          <li>
-            <strong>Safety margin = {pct(safetyMargin)}.</strong> Explicit cushion on top of LIF +
-            slippage to cover oracle staleness, gas, MEV competition for the liquidation, and
-            modeling error.
-          </li>
-          <li>
-            <strong>5-year history is representative.</strong> Covers two major TRY regimes (2021
-            crisis + 2023–24 stabilization), so the p95 3-day drawdown of {pct(p95Drawdown)} is
-            treated as a stable input to calibration. Bootstrap re-sampling of these returns is
-            what feeds the worker&apos;s Monte Carlo.
-          </li>
-          <li>
-            <strong>LIF(L) is Morpho-canonical:</strong>{' '}
-            <code>LIF(L) = min(1.15, 1 / (β·L + (1−β)))</code> with β = 0.3, locked by tests in{' '}
-            <code>tests/morphoMath.test.ts</code>.
-          </li>
-        </ul>
-      </section>
-
-      <section className="space-y-3 mt-8">
-        <h2 className="text-xl font-semibold">Walk-through</h2>
-        <pre className="rounded bg-brix-surface p-3 text-sm overflow-x-auto">
-{`p95 3-day drawdown    = ${pct(p95Drawdown, 4)}
-slippage              = ${pct(slippage, 2)}
-safety margin         = ${pct(safetyMargin, 2)}
-
-fixed-point at L ≈ ${derived.raw.toFixed(4)}:
-  LIF(L)              = ${lifAtRecommended.toFixed(4)} (recompute below with snap)
-  (1 + slippage)      = ${(1 + slippage).toFixed(4)}
-  (1 − p95Drawdown)   = ${(1 - p95Drawdown).toFixed(4)}
-  L_raw               = (1 − ${p95Drawdown.toFixed(4)}) / (LIF · ${(1 + slippage).toFixed(4)}) − ${safetyMargin.toFixed(2)}
-                      = ${derived.raw.toFixed(4)}
-
-snap to GOV_LLTVS     → ${recommended}  (= ${pct(recommended, 1)})
-LIF(${recommended})              = ${lifAtRecommended.toFixed(4)}`}
-        </pre>
-      </section>
-
-      {oneStepLarger !== null && (
+        {/* ----- Sensitivity matrix: horizon × percentile ------------------- */}
         <section className="space-y-3 mt-8">
-          <h2 className="text-xl font-semibold">
-            Bumping one step to {pct(oneStepLarger, 1)}
-          </h2>
+          <h2 className="text-xl font-semibold">Sensitivity matrix</h2>
           <p className="text-sm text-neutral-300">
-            The next governance tier above {pct(recommended, 1)} is{' '}
-            <strong>{pct(oneStepLarger, 1)}</strong>. The raw derivation currently lands at{' '}
-            <code>{derived.raw.toFixed(4)}</code>, which is{' '}
-            {derived.raw >= oneStepLarger ? 'above' : 'below'} the bump threshold. For{' '}
-            {pct(oneStepLarger, 1)} to be the snap result, any <em>one</em> of the following must
-            hold (others held at current values):
+            Recommended (snapped) LLTV for every combination of execution horizon and drawdown
+            percentile, holding slippage <code>{pct(slippage, 3)}</code> and safety margin{' '}
+            <code>{pct(safetyMargin, 2)}</code> at the current values. Move the safety-margin
+            slider above and watch the whole grid update.
           </p>
+          <p className="text-xs text-neutral-500 max-w-3xl">
+            Sub-daily horizons use Brownian √-scaling from the 1-day series:{' '}
+            <code>dd_h = dd_24h × √(h/24)</code>. We do not generate intra-day FX paths — the FX
+            history is daily-close Yahoo data, so finer-grained Monte Carlo would be fabrication.
+            √-scaling is standard practice for sub-daily collateral risk and is conservative for
+            jumpy assets like USD/TRY (real intra-day tails are usually fatter).
+          </p>
+          {matrix ? (
+            <div className="overflow-x-auto">
+              <table className="text-sm border-collapse">
+                <thead>
+                  <tr className="border-b border-brix-border">
+                    <th className="text-left py-1 pr-4">Horizon \ Percentile</th>
+                    {matrixPercentiles.map((c) => (
+                      <th key={c.label} className="text-right py-1 px-3">
+                        {c.label}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody className="font-mono">
+                  {matrix.map((row) => (
+                    <tr key={row.h} className="border-b border-brix-border">
+                      <td className="py-1 pr-4 font-sans text-neutral-300">{row.hLabel}</td>
+                      {row.cells.map((c) => {
+                        const isCurrent =
+                          row.h === 24 && Math.round(c.p * 100) === ddPctile;
+                        return (
+                          <td
+                            key={c.pLabel}
+                            className={`text-right py-1 px-3 ${
+                              isCurrent
+                                ? 'text-emerald-300 font-semibold'
+                                : 'text-neutral-200'
+                            }`}
+                            title={`dd_h = ${pct(c.dd, 3)} · raw L = ${c.raw.toFixed(4)}${
+                              c.converged ? '' : ' (did not converge)'
+                            }`}
+                          >
+                            {c.snapped > 0 ? pct(c.snapped, 1) : '—'}
+                            <span className="block text-[10px] text-neutral-500 font-sans">
+                              dd {pct(c.dd, 2)}
+                            </span>
+                          </td>
+                        );
+                      })}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              <p className="text-[11px] text-neutral-500 mt-2">
+                The cell highlighted in green is the (horizon, percentile) combo currently driving
+                the main recommendation above. <em>Hover</em> a cell to see the raw L and the
+                horizon-adjusted drawdown.
+              </p>
+            </div>
+          ) : (
+            <p className="text-sm text-neutral-500">
+              Monte Carlo worker has not finished yet — matrix appears once paths are sampled.
+            </p>
+          )}
+        </section>
 
-          <table className="text-sm w-full max-w-3xl border-collapse">
+        <section className="space-y-3 mt-8">
+          <h2 className="text-xl font-semibold">Live calculation inputs</h2>
+          <p className="text-sm text-neutral-300">
+            Inputs feeding the formula right now. Each row links to where the parameter is edited.
+          </p>
+          <table className="text-sm w-full max-w-2xl border-collapse">
             <thead>
               <tr className="border-b border-brix-border">
-                <th className="text-left py-1">Knob</th>
-                <th className="text-right py-1">Current</th>
-                <th className="text-right py-1">Required to snap to {pct(oneStepLarger, 1)}</th>
+                <th className="text-left py-1">Input</th>
+                <th className="text-right py-1">Value</th>
+                <th className="text-left py-1 pl-4">Source</th>
               </tr>
             </thead>
             <tbody className="font-mono">
-              <tr className="border-b border-brix-border">
-                <td className="py-1 font-sans">p95 3-day drawdown</td>
-                <td className="text-right">{pct(p95Drawdown, 3)}</td>
-                <td className="text-right">≤ {pct(ddCeilingForNext!, 3)}</td>
+              <tr className="border-b border-brix-border bg-brix-bg/40">
+                <td className="py-1 font-sans font-semibold">{ddLabel}</td>
+                <td className="text-right font-semibold">{pct(p95Drawdown, 3)}</td>
+                <td className="font-sans pl-4 text-neutral-400">
+                  {fxSource} · worst-case (no pre-liq cap)
+                </td>
               </tr>
               <tr className="border-b border-brix-border">
-                <td className="py-1 font-sans">Slippage</td>
-                <td className="text-right">{pct(slippage, 2)}</td>
-                <td className="text-right">
-                  {slipCeilingForNext! > 0 ? `≤ ${pct(slipCeilingForNext!, 3)}` : 'infeasible at current dd+safety'}
+                <td className="py-1 font-sans">Slippage estimate</td>
+                <td className="text-right">{pct(slippage, 3)}</td>
+                <td className="font-sans pl-4 text-neutral-400">
+                  Pool preset (TVL ${sim.inputs.poolTVL_USD.toLocaleString()}, bands){' '}
+                  <a href="/swapliquidity" className="underline">edit</a>
                 </td>
               </tr>
               <tr className="border-b border-brix-border">
                 <td className="py-1 font-sans">Safety margin</td>
                 <td className="text-right">{pct(safetyMargin, 2)}</td>
-                <td className="text-right">
-                  {safetyCeilingForNext! > 0 ? `≤ ${pct(safetyCeilingForNext!, 3)}` : 'infeasible'}
-                </td>
+                <td className="font-sans pl-4 text-neutral-400">Slider above</td>
+              </tr>
+              <tr className="border-b border-brix-border">
+                <td className="py-1 font-sans">LIF(recommended)</td>
+                <td className="text-right">{lifAtRecommended.toFixed(4)}</td>
+                <td className="font-sans pl-4 text-neutral-400">Morpho canonical (β = 0.3)</td>
               </tr>
             </tbody>
           </table>
+        </section>
 
-          <h3 className="text-base font-semibold mt-4">What that means operationally</h3>
+        <section className="space-y-3 mt-8">
+          <h2 className="text-xl font-semibold">Formula</h2>
+          <p className="text-sm text-neutral-300">
+            The recommended LLTV is the largest L such that, after a p{ddPctile} collateral
+            drawdown and liquidator-pays-slippage-and-LIF, the liquidator still breaks even with a
+            safety buffer. From <code>lib/simulator.ts</code>:
+          </p>
+          <pre className="rounded bg-brix-surface p-3 text-sm overflow-x-auto">
+{`L = (1 − dd) / (LIF(L) · (1 + slippage)) − safetyMargin
+
+  where dd = p${ddPctile} 1-day collateral drawdown`}
+          </pre>
+          <p className="text-sm text-neutral-300">
+            Solved by fixed-point iteration starting at L = 0.80, then snapped down to the nearest
+            governance LLTV in <code>GOV_LLTVS</code>.
+          </p>
+        </section>
+
+        <section className="space-y-3 mt-8">
+          <h2 className="text-xl font-semibold">Walk-through (live)</h2>
+          <pre className="rounded bg-brix-surface p-3 text-sm overflow-x-auto">
+{`${ddLabel.padEnd(26, ' ')} = ${pct(p95Drawdown, 4)}   (${fxSource}; worst-case, no pre-liq cap)
+slippage                   = ${pct(slippage, 3)}   (pool TVL $${sim.inputs.poolTVL_USD.toLocaleString()} + bands)
+safety margin              = ${pct(safetyMargin, 2)}   (slider above)
+
+fixed-point at L ≈ ${rawDerived.toFixed(4)}:
+  LIF(L)              = ${lifAtRecommended.toFixed(4)}
+  (1 + slippage)      = ${(1 + slippage).toFixed(4)}
+  (1 − dd)            = ${(1 - p95Drawdown).toFixed(4)}
+  L_raw               = (1 − ${p95Drawdown.toFixed(4)}) / (LIF · ${(1 + slippage).toFixed(4)}) − ${safetyMargin.toFixed(2)}
+                      = ${rawDerived.toFixed(4)}
+
+snap to GOV_LLTVS     → ${recommended}  (= ${recommended > 0 ? pct(recommended, 1) : '—'})`}
+          </pre>
+        </section>
+
+        <section className="space-y-3 mt-8">
+          <h2 className="text-xl font-semibold">
+            Path to your chosen LLTV ({pct(targetLLTV, 1)})
+          </h2>
+          {targetIsSupported ? (
+            <div className="rounded border border-emerald-500/40 bg-emerald-950/30 p-4 text-sm text-neutral-200">
+              Your chosen LLTV <strong>{pct(targetLLTV, 1)}</strong> is already supported by the
+              current parameters (raw {rawDerived.toFixed(4)} ≥ {targetLLTV}). No changes needed.
+              {targetLLTV < recommended && (
+                <>
+                  {' '}You have headroom — recommended is{' '}
+                  <strong>{pct(recommended, 1)}</strong>.
+                </>
+              )}
+            </div>
+          ) : (
+            <>
+              <p className="text-sm text-neutral-300">
+                To make <strong>{pct(targetLLTV, 1)}</strong> the recommended (snapped) tier, raw L
+                must reach <code>{targetLLTV}</code>. The constraint at that target:
+              </p>
+              <pre className="rounded bg-brix-surface p-3 text-xs overflow-x-auto">
+{`(1 − dd) ≥ (${targetLLTV} + safety) · LIF(${targetLLTV}) · (1 + slip)
+(1 − ${p95Drawdown.toFixed(4)}) ≥ (${targetLLTV} + safety) · ${lifTarget.toFixed(4)} · (1 + slip)`}
+              </pre>
+
+              <h3 className="text-base font-semibold mt-4">Single-knob ceilings</h3>
+              <p className="text-sm text-neutral-400">
+                What each input would need to be on its own (others held at current values).
+              </p>
+              <table className="text-sm w-full max-w-3xl border-collapse">
+                <thead>
+                  <tr className="border-b border-brix-border">
+                    <th className="text-left py-1">Input</th>
+                    <th className="text-right py-1">Current</th>
+                    <th className="text-right py-1">Required (single-knob)</th>
+                  </tr>
+                </thead>
+                <tbody className="font-mono">
+                  <tr className="border-b border-brix-border">
+                    <td className="py-1 font-sans">{ddLabel}</td>
+                    <td className="text-right">{pct(p95Drawdown, 3)}</td>
+                    <td className="text-right">
+                      {ddCeilingForTarget > 0
+                        ? `≤ ${pct(ddCeilingForTarget, 3)}`
+                        : 'infeasible (LLTV exceeds 1-LIF capacity)'}
+                    </td>
+                  </tr>
+                  <tr className="border-b border-brix-border">
+                    <td className="py-1 font-sans">Slippage</td>
+                    <td className="text-right">{pct(slippage, 3)}</td>
+                    <td className="text-right">
+                      {slipCeilingForTarget > 0
+                        ? `≤ ${pct(slipCeilingForTarget, 3)}`
+                        : 'infeasible at current dd + safety'}
+                    </td>
+                  </tr>
+                  <tr className="border-b border-brix-border">
+                    <td className="py-1 font-sans">Safety margin</td>
+                    <td className="text-right">{pct(safetyMargin, 2)}</td>
+                    <td className="text-right">
+                      {safetyCeilingForTarget > 0
+                        ? `≤ ${pct(safetyCeilingForTarget, 3)}`
+                        : 'infeasible at current dd + slip'}
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+
+              <h3 className="text-base font-semibold mt-6">Concrete recipes</h3>
+              <p className="text-sm text-neutral-400">
+                Pool-TVL targets below are computed by binary-searching{' '}
+                <code>slippageFromPreset</code> at the expected P95 liquidation size, holding band
+                splits/ranges and fee tier at the values you set on{' '}
+                <a href="/swapliquidity" className="underline">/swapliquidity</a>.
+              </p>
+
+              {/* Recipe A — pool only */}
+              <div className="rounded border border-brix-border bg-brix-surface p-4 mt-2">
+                <div className="flex items-center justify-between">
+                  <h4 className="font-semibold">Recipe A · Pool deepening only</h4>
+                  <span className={`text-xs font-mono ${recipePoolOnly ? 'text-emerald-300' : 'text-amber-400'}`}>
+                    {recipePoolOnly ? 'feasible' : 'infeasible'}
+                  </span>
+                </div>
+                <p className="text-xs text-neutral-400 mt-1">
+                  Keep safety margin at <code>{pct(safetyMargin, 2)}</code>.
+                </p>
+                {recipePoolOnly ? (
+                  <ul className="text-sm mt-2 space-y-1 list-disc pl-5 text-neutral-200">
+                    <li>
+                      Increase pool TVL from{' '}
+                      <code>{formatUSDshort(sim.inputs.poolTVL_USD)}</code> to{' '}
+                      <code className="text-emerald-300">{formatUSDshort(recipePoolOnly.tvl)}</code>{' '}
+                      (≈ {(recipePoolOnly.tvl / Math.max(1, sim.inputs.poolTVL_USD)).toFixed(1)}×
+                      current).
+                    </li>
+                    <li>
+                      This brings slippage from <code>{pct(slippage, 2)}</code> down to{' '}
+                      <code>{pct(recipePoolOnly.achieved, 2)}</code> (≤ target{' '}
+                      <code>{pct(slipCeilingForTarget, 2)}</code>).
+                    </li>
+                    <li>
+                      Edit <code>poolTVL_USD</code> on{' '}
+                      <a href="/swapliquidity" className="underline">/swapliquidity</a>.
+                    </li>
+                  </ul>
+                ) : (
+                  <p className="text-sm mt-2 text-neutral-300">
+                    Even at the search ceiling of{' '}
+                    <code>${(MAX_POOL_TVL_SEARCH / 1_000_000).toFixed(0)}M</code> pool TVL, slippage
+                    cannot fall low enough to satisfy the constraint at safety{' '}
+                    {pct(safetyMargin, 2)} and dd {pct(p95Drawdown, 2)}. Use Recipe B below.
+                  </p>
+                )}
+              </div>
+
+              {/* Recipe B — pool + tighter safety */}
+              <div className="rounded border border-brix-border bg-brix-surface p-4 mt-2">
+                <div className="flex items-center justify-between">
+                  <h4 className="font-semibold">
+                    Recipe B · Pool deepening + tighter safety margin
+                  </h4>
+                  <span className={`text-xs font-mono ${recipeTightSafety ? 'text-emerald-300' : 'text-amber-400'}`}>
+                    {recipeTightSafety ? 'feasible' : 'infeasible'}
+                  </span>
+                </div>
+                <p className="text-xs text-neutral-400 mt-1">
+                  Reduce safety margin from <code>{pct(safetyMargin, 2)}</code> to{' '}
+                  <code>{pct(TIGHT_SAFETY_MARGIN, 0)}</code>. Riskiest knob — eats the cushion for
+                  oracle staleness, MEV, gas, modelling error.
+                </p>
+                {recipeTightSafety ? (
+                  <ul className="text-sm mt-2 space-y-1 list-disc pl-5 text-neutral-200">
+                    <li>
+                      Set <code>safetyMargin</code> to <code>{pct(TIGHT_SAFETY_MARGIN, 0)}</code>{' '}
+                      on the sidebar (Section 5 · Vault Params).
+                    </li>
+                    <li>
+                      Pool TVL needed: from{' '}
+                      <code>{formatUSDshort(sim.inputs.poolTVL_USD)}</code> to{' '}
+                      <code className="text-emerald-300">{formatUSDshort(recipeTightSafety.tvl)}</code>.
+                    </li>
+                    <li>
+                      Slippage falls to <code>{pct(recipeTightSafety.achieved, 2)}</code>.
+                    </li>
+                    <li>
+                      <strong>Trade-off:</strong> only acceptable once the oracle pipeline and
+                      liquidator competition are demonstrably tight on mainnet. Don&apos;t ship
+                      this at launch.
+                    </li>
+                  </ul>
+                ) : (
+                  <p className="text-sm mt-2 text-neutral-300">
+                    Even with safety at <code>{pct(TIGHT_SAFETY_MARGIN, 0)}</code> and pool deepened
+                    to <code>${(MAX_POOL_TVL_SEARCH / 1_000_000).toFixed(0)}M</code>, constraint is
+                    unsatisfied. The chosen LLTV is incompatible with current FX drawdown — pick a
+                    lower LLTV target.
+                  </p>
+                )}
+              </div>
+
+              <h3 className="text-base font-semibold mt-6">Tail check</h3>
+              <p className="text-sm text-neutral-300">
+                The empirical p99 1-day drawdown is {pct(historical.dd1.p99, 2)} and the worst
+                observed is {pct(historical.dd1.max, 2)}. At {pct(targetLLTV, 1)} a p99 event would
+                still produce bad debt — any recipe above is only defensible if the Section 4
+                bad-debt P95 (with cascade simulation) stays under the vault&apos;s tolerance after
+                re-running with the new LLTV.
+              </p>
+            </>
+          )}
+        </section>
+
+        <section className="space-y-3 mt-8">
+          <h2 className="text-xl font-semibold">Historical reference (5-year USD/TRY)</h2>
+          <p className="text-sm text-neutral-300">
+            Yahoo Finance <code>TRY=X</code> daily close, {historical.first.date} →{' '}
+            {historical.last.date} ({historical.days} trading days). These are the raw historical
+            drawdowns; the live recommendation above uses the Monte Carlo worker&apos;s p95 when
+            available (Bootstrap resamples this series), with the empirical p95 as fallback.
+          </p>
+          <table className="text-sm w-full max-w-md">
+            <tbody>
+              <tr>
+                <td className="py-1 text-neutral-500">Annualized vol (USDTRY log-returns)</td>
+                <td className="text-right font-mono">{pct(historical.annVol, 2)}</td>
+              </tr>
+              <tr>
+                <td className="py-1 text-neutral-500">Annualized drift (TRY depreciation)</td>
+                <td className="text-right font-mono">+{pct(historical.annDrift, 2)}</td>
+              </tr>
+            </tbody>
+          </table>
+          <table className="text-sm w-full max-w-2xl border-collapse mt-4">
+            <thead>
+              <tr className="border-b border-brix-border">
+                <th className="text-left py-1">Window</th>
+                <th className="text-right py-1">p50</th>
+                <th className="text-right py-1">p90</th>
+                <th className="text-right py-1">p95</th>
+                <th className="text-right py-1">p99</th>
+                <th className="text-right py-1">max</th>
+              </tr>
+            </thead>
+            <tbody className="font-mono">
+              {[
+                { k: '1d', d: historical.dd1 },
+                { k: '3d', d: historical.dd3 },
+                { k: '7d', d: historical.dd7 },
+                { k: '30d', d: historical.dd30 },
+              ].map((r) => (
+                <tr key={r.k} className="border-b border-brix-border">
+                  <td className="py-1 font-sans">{r.k}</td>
+                  <td className="text-right">{pct(r.d.p50)}</td>
+                  <td className="text-right">{pct(r.d.p90)}</td>
+                  <td className="text-right">{pct(r.d.p95)}</td>
+                  <td className="text-right">{pct(r.d.p99)}</td>
+                  <td className="text-right">{pct(r.d.max)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </section>
+
+        <section className="space-y-3 mt-8">
+          <h2 className="text-xl font-semibold">Caveats</h2>
           <ul className="text-sm space-y-2 list-disc pl-5 text-neutral-300">
             <li>
-              <strong>Drawdown ceiling ({pct(ddCeilingForNext!, 2)}).</strong> The current 5-year
-              p95 is {pct(p95Drawdown, 2)} — a soft pre-liquidation that cuts positions on a smaller
-              loss (e.g., 2% trigger) would effectively shorten the tail the LLTV needs to cover,
-              moving the operative drawdown below this ceiling.
+              The recommendation here is identical to the home page&apos;s
+              VaultRecommendations section — both consume the same{' '}
+              <code>useSimulator()</code> hook. If they disagree, that&apos;s a bug.
             </li>
             <li>
-              <strong>Slippage ceiling ({pct(slipCeilingForNext!, 2)}).</strong> Achieved by
-              deepening the USDM↔TRY-stable pool so that the P95 expected liquidation volume costs
-              under {pct(slipCeilingForNext!, 2)} round-trip. The sidebar&apos;s{' '}
-              <code>poolTVL_USD</code> input (and the ladder splits on /swapliquidity) drives this directly.
-            </li>
-            <li>
-              <strong>Safety margin ({pct(safetyCeilingForNext!, 2)}).</strong> Tightening this is
-              the cheapest knob but the riskiest — it eats the buffer for oracle staleness, MEV, and
-              modeling error. Only acceptable once the oracle pipeline and liquidator competition
-              are demonstrably tight on mainnet.
-            </li>
-            <li>
-              <strong>Combine, do not stack.</strong> All three knobs move in the same direction; a
-              realistic upgrade path is a small move on each (e.g., pre-liq trigger trims dd to
-              ~2%, pool depth trims slip to 0.5%) rather than betting the whole bump on one.
-            </li>
-            <li>
-              <strong>Tail check.</strong> The p99 3-day drawdown is {pct(dd3.p99, 2)} and the
-              worst observed is {pct(dd3.max, 2)}. At {pct(oneStepLarger, 1)} a p99 event would
-              still produce bad debt — the bump is only defensible if pre-liquidation P95 bad-debt
-              output (see the Liquidation section of the dashboard) stays under the vault&apos;s
-              tolerance after re-running the simulator with the new LLTV.
+              Out of scope: oracle manipulation, LayerZero outage, MEV-driven liquidation failure,
+              and TRY regime breaks beyond what the 5-year window contains. See the README
+              &quot;Out of Scope&quot; list.
             </li>
           </ul>
         </section>
-      )}
-
-      <section className="space-y-3 mt-8">
-        <h2 className="text-xl font-semibold">Caveats</h2>
-        <ul className="text-sm space-y-2 list-disc pl-5 text-neutral-300">
-          <li>
-            This page is a <strong>point estimate</strong> using the historical 5-year window
-            directly. The full simulator runs bootstrap / GBM / Scenario paths and may produce a
-            slightly different recommended LLTV when the user changes mode or pathCount.
-          </li>
-          <li>
-            Out of scope: oracle manipulation, LayerZero outage, MEV-driven liquidation failure,
-            and TRY regime breaks beyond what the 5-year window contains. See the README
-            &quot;Out of Scope&quot; list.
-          </li>
-        </ul>
-      </section>
+      </div>
     </div>
   );
 }
