@@ -122,13 +122,25 @@ export function RecoveryDistributionPanel() {
     const lo = Math.log10(SWEEP_MIN_USD);
     const raw: Array<{ probe_USD: number; badDebtPct: number; effectiveSlip: number }> = [];
     let breakeven: number | null = null;
+    let prev: { probe_USD: number; effectiveSlip: number } | null = null;
     for (let i = 0; i < SWEEP_STEPS; i++) {
       const probeUSD = Math.pow(10, lo + ((hi - lo) * i) / (SWEEP_STEPS - 1));
       const ammSale = quoteFixed(probeUSD);
       const bd = badDebtFromAMMSale({ collateral_USD: probeUSD, lltv, ammSale_USDM: ammSale });
       const effectiveSlip = probeUSD > 0 ? Math.max(0, 1 - ammSale / probeUSD) : 0;
       raw.push({ probe_USD: probeUSD, badDebtPct: bd.badDebtPct, effectiveSlip });
-      if (breakeven == null && effectiveSlip >= bufferPct) breakeven = probeUSD;
+      if (
+        breakeven == null &&
+        prev != null &&
+        prev.effectiveSlip < bufferPct &&
+        effectiveSlip >= bufferPct
+      ) {
+        // Log-x linear interp between bracketing samples — sweep is coarse so
+        // the raw bucket overshoots; interpolate to the actual crossing.
+        const t = (bufferPct - prev.effectiveSlip) / (effectiveSlip - prev.effectiveSlip);
+        breakeven = Math.exp(Math.log(prev.probe_USD) + t * (Math.log(probeUSD) - Math.log(prev.probe_USD)));
+      }
+      prev = { probe_USD: probeUSD, effectiveSlip };
     }
     // Trim leading points where both curves are zero so the chart starts
     // at the first probe size with any signal.
