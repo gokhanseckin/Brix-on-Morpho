@@ -81,6 +81,10 @@ export const SWAP_LIQUIDITY_PARAMS: Partial<Record<string, ParamHelp>> = {
     oneLiner:
       'Tail band upper edge (e.g. +0.30). Sets how high above spot the pool earns fees on upside swings.',
   },
+  swapSellUSD: {
+    oneLiner:
+      'Single-trade USD-notional wTRY dump size used by the liquidator probe in Section 2. Section 4 stress-tests the same size across all Monte Carlo terminal spots.',
+  },
 };
 
 // ---------------------------------------------------------------------------

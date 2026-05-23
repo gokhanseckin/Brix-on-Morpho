@@ -59,5 +59,6 @@ export function useUrlState() {
     bandAbsorbUpperPct: parseAsFloat.withDefault(-0.05),
     bandTailLowerPct: parseAsFloat.withDefault(-0.90),
     bandTailUpperPct: parseAsFloat.withDefault(+0.30),
+    swapSellUSD: parseAsFloat.withDefault(1_000_000),
   });
 }

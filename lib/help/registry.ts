@@ -712,6 +712,7 @@ export const PARAM_HELP: Record<keyof SidebarInputs, ParamHelp> = {
   bandAbsorbUpperPct: sectionParam('bandAbsorbUpperPct'),
   bandTailLowerPct: sectionParam('bandTailLowerPct'),
   bandTailUpperPct: sectionParam('bandTailUpperPct'),
+  swapSellUSD: sectionParam('swapSellUSD'),
 };
 
 export const KPI_HELP: Record<KpiKey, KpiHelp> = Object.fromEntries(
@@ -760,4 +761,5 @@ export const PARAM_SECTION: Record<keyof SidebarInputs, HelpSection> = {
   bandAbsorbUpperPct: 'swap-liquidity',
   bandTailLowerPct: 'swap-liquidity',
   bandTailUpperPct: 'swap-liquidity',
+  swapSellUSD: 'swap-liquidity',
 };
