@@ -65,6 +65,7 @@ export function fitGbmParams(returns: number[]): { mu: number; sigma: number } {
 
 export interface JumpArgs extends GbmArgs {
   lambda: number;
+  /** Mean additive log jump for USD/TRY. Positive values model TRY depreciation. */
   muJ: number;
   sigmaJ: number;
 }
@@ -89,6 +90,8 @@ export function jumpDiffusionPaths(a: JumpArgs): Path[] {
       while (prod > L) { k++; prod *= rng(); }
       nJumps = k;
       let jumpSum = 0;
+      // J is added to log(USD/TRY): positive J means USD/TRY rises, TRY weakens,
+      // and TRY-denominated collateral loses USD value.
       for (let j = 0; j < nJumps; j++) jumpSum += a.muJ + a.sigmaJ * gauss(rng);
       const drift = (a.mu - 0.5 * a.sigma * a.sigma - a.lambda * kappa) * dt;
       s[t] = s[t - 1]! * Math.exp(drift + a.sigma * Math.sqrt(dt) * z + jumpSum);

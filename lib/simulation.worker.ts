@@ -19,12 +19,13 @@ import type { SidebarInputs } from '@/types/simulator';
 //   ~1 trading week preserves short-run autocorrelation per spec §2.
 // BORROWER_POPULATION_SAMPLES: number of synthetic borrowers drawn from the
 //   Beta(α,β) LTV distribution for the bad-debt cascade.
-// JUMP_*: Merton jump-diffusion calibration constants per spec §2.
+// JUMP_*: Merton jump-diffusion calibration constants per spec §2. Positive
+//   log jumps raise USD/TRY, i.e. TRY depreciation and wiTRY collateral loss.
 // DEFAULT_GAS_COST_USD: nominal cushion (MegaETH gas is near-zero).
 const BOOTSTRAP_BLOCK_LENGTH_DAYS = 5;
 const BORROWER_POPULATION_SAMPLES = 1000;
 const JUMP_LAMBDA_PER_YEAR = 4;
-const JUMP_LOG_MEAN = -0.05;
+const JUMP_LOG_MEAN = 0.05;
 const JUMP_LOG_STD = 0.04;
 const DEFAULT_GAS_COST_USD = 5;
 
