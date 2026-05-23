@@ -166,14 +166,14 @@ export function quoteSellUSD(
   pool: PoolState,
   spot: number,
   sellUSD: number,
-): { revenue_USD: number; slippagePct: number } {
-  if (sellUSD <= 0) return { revenue_USD: 0, slippagePct: 0 };
+): { revenue_USD: number; slippagePct: number; newPool: PoolState } {
+  if (sellUSD <= 0 || spot <= 0) return { revenue_USD: 0, slippagePct: 0, newPool: pool };
   const wTRYwei = BigInt(Math.floor((sellUSD / spot) * 1e6));
-  if (wTRYwei <= 0n) return { revenue_USD: 0, slippagePct: 0 };
-  const { quote } = swapExactIn(pool, wTRYwei, true /* sell wTRY */);
+  if (wTRYwei <= 0n) return { revenue_USD: 0, slippagePct: 0, newPool: pool };
+  const { quote, newPool } = swapExactIn(pool, wTRYwei, true /* sell wTRY */);
   const revenue_USD = Number(quote.amountOut) / 1e6;
   const slippagePct = Math.max(0, Math.min(1, 1 - revenue_USD / sellUSD));
-  return { revenue_USD, slippagePct };
+  return { revenue_USD, slippagePct, newPool };
 }
 
 /** Convenience: combined slippage fraction for a single sell on a preset. */
@@ -200,6 +200,12 @@ export interface LiquidatorOut {
   slippagePct: number;
   revenue_USD: number;
   profit_USD: number;
+  newPool: PoolState;
+}
+
+export interface LiquidatorPoolArgs extends Omit<LiquidatorArgs, 'preset'> {
+  collateralAvailable_USD?: number;
+  sellSpot?: number;
 }
 
 export function liquidatorProfit(a: LiquidatorArgs): LiquidatorOut {
@@ -209,13 +215,21 @@ export function liquidatorProfit(a: LiquidatorArgs): LiquidatorOut {
 /** Variant that reuses a materialized pool — for tight inner loops. */
 export function liquidatorProfitWithPool(
   pool: PoolState,
-  a: Omit<LiquidatorArgs, 'preset'>,
+  a: LiquidatorPoolArgs,
 ): LiquidatorOut {
   const lif = LIF(a.lltv);
-  const collateralSeized_USD = a.debt_USD * lif;
-  const { revenue_USD, slippagePct } = quoteSellUSD(pool, a.spot, collateralSeized_USD);
+  const uncappedSeized_USD = a.debt_USD * lif;
+  const collateralSeized_USD = Math.max(
+    0,
+    Math.min(uncappedSeized_USD, a.collateralAvailable_USD ?? uncappedSeized_USD),
+  );
+  const { revenue_USD, slippagePct, newPool } = quoteSellUSD(
+    pool,
+    a.sellSpot ?? a.spot,
+    collateralSeized_USD,
+  );
   const profit_USD = revenue_USD - a.debt_USD - a.gasCost_USD - a.holdingRisk_USD;
-  return { collateralSeized_USD, slippagePct, revenue_USD, profit_USD };
+  return { collateralSeized_USD, slippagePct, revenue_USD, profit_USD, newPool };
 }
 
 export interface MinMaxArgs {
@@ -315,9 +329,6 @@ export function simulateBadDebt(a: BadDebtArgs): BadDebtOut {
     };
   }
   const S0 = firstPath[0]!;
-  // Materialize the AMM pool once — slippage math is path-time independent
-  // (the ladder is denominated in USD and lives in price-band space).
-  const pool = materializePool(a.preset, a.spot);
 
   // Pre-liquidation parameters per spec §4D.
   const preLLTV = Math.max(0, a.lltv - PRE_LIQUIDATION_LLTV_OFFSET);
@@ -330,6 +341,7 @@ export function simulateBadDebt(a: BadDebtArgs): BadDebtOut {
 
   for (const path of a.paths) {
     let pathSeizedVolume_USD = 0;
+    let pool = materializePool(a.preset, a.spot);
     const active = a.ltvFractions.map((f) => ({
       ltvFrac: f,
       debt_USD: f * a.lltv * collateralEachUSD,
@@ -342,6 +354,7 @@ export function simulateBadDebt(a: BadDebtArgs): BadDebtOut {
     for (let t = 1; t < path.length; t++) {
       const Snow = path[t]!;
       const rel = (Math.pow(1 + a.witryYieldAnnual, t / 365) * S0) / Snow;
+      const spotNow = Snow > 0 ? a.spot * (S0 / Snow) : 0;
       for (const pos of active) {
         if (pos.closed) continue;
         const collNow = pos.collateralBaseUSD * rel;
@@ -360,10 +373,11 @@ export function simulateBadDebt(a: BadDebtArgs): BadDebtOut {
           const closeDebt = pos.debt_USD * preLCF2;
           const seized = closeDebt * preLIF1;
           pathSeizedVolume_USD += seized;
-          const { slippagePct: slipPct } = quoteSellUSD(pool, a.spot, seized);
+          const { revenue_USD, newPool } = quoteSellUSD(pool, spotNow, seized);
+          pool = newPool;
           // Auto-deleverage routes through the same AMM; collateral seized
           // and debt repaid are removed from the position pro-rata.
-          const repaid = Math.min(closeDebt, seized * (1 - slipPct));
+          const repaid = Math.min(closeDebt, revenue_USD);
           pos.debt_USD -= repaid;
           // Report #2 entry #27 fix: the fraction of collateral seized is
           // seized_USD / collNow_USD, NOT preLCF2 · preLIF1 (which only
@@ -380,15 +394,18 @@ export function simulateBadDebt(a: BadDebtArgs): BadDebtOut {
         const collAfter = pos.collateralBaseUSD * rel;
         const hf = healthFactor({ collateralUSD: collAfter, debtUSD: pos.debt_USD, lltv: a.lltv });
         if (hf <= 1) {
-          const { revenue_USD } = liquidatorProfitWithPool(pool, {
+          const { revenue_USD, newPool } = liquidatorProfitWithPool(pool, {
             debt_USD: pos.debt_USD,
             lltv: a.lltv,
             spot: a.spot,
+            sellSpot: spotNow,
             gasCost_USD: a.gasCost_USD,
             holdingRisk_USD: 0,
+            collateralAvailable_USD: collAfter,
           });
           const profit = revenue_USD - pos.debt_USD - a.gasCost_USD;
           if (profit > 0) {
+            pool = newPool;
             pos.closed = true;
             pos.residual_USD = Math.max(0, pos.debt_USD - revenue_USD);
             // Liquidator actually executed: this revenue is the USD volume

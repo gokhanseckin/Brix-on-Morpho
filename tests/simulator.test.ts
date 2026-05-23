@@ -5,7 +5,9 @@ import {
   pctUnderwaterAtT,
   slippage,
   liquidatorProfit,
+  liquidatorProfitWithPool,
   minMaxProfitableLiquidation,
+  quoteSellUSD,
   simulateBadDebt,
   deriveRecommendedLLTV,
   snapToGovernanceLLTV,
@@ -17,7 +19,8 @@ import {
   BUFFER_PCT_BASE,
   BUFFER_PCT_INCENTIVE_SLOPE,
 } from '@/lib/simulator';
-import { buildAsymmetricLadder, DEFAULT_BAND_SPLIT } from '@/lib/poolPreset';
+import { buildAsymmetricLadder, DEFAULT_BAND_SPLIT, type PoolPreset } from '@/lib/poolPreset';
+import { materializePool } from '@/lib/univ3/quoteLiquidatorSell';
 import { LIF } from '@/lib/morphoMath';
 
 // Convenience: build a ladder preset of the requested USD TVL, centered at
@@ -27,6 +30,19 @@ import { LIF } from '@/lib/morphoMath';
 const SPOT = 1 / 45;
 const presetWithTVL = (tvl_USD: number, spot: number = SPOT) =>
   buildAsymmetricLadder(spot, tvl_USD, DEFAULT_BAND_SPLIT, 3000);
+
+const crashPresetWithTVL = (tvl_USD: number, spot = 1): PoolPreset =>
+  buildAsymmetricLadder(
+    spot,
+    tvl_USD,
+    { core: 1, absorb: 0, tail: 0 },
+    3000,
+    {
+      core: { lowerPct: -0.9, upperPct: 0.3 },
+      absorb: { lowerPct: -0.9, upperPct: -0.8 },
+      tail: { lowerPct: -0.9, upperPct: 0.3 },
+    },
+  );
 
 describe('liquidity need', () => {
   it('verification anchor: 5M × 0.77 × 0.6 / 0.7 ≈ 3.3M', () => {
@@ -160,6 +176,74 @@ describe('bad debt cascade', () => {
       preLiquidationEnabled: false,
     });
     expect(result.badDebtByPath[0]!).toBeGreaterThan(0);
+  });
+
+  it('caps hard-liquidation sale size at the remaining collateral', () => {
+    const lltv = 0.86;
+    const pool = materializePool(crashPresetWithTVL(5_000_000, 1), 1);
+    const out = liquidatorProfitWithPool(pool, {
+      debt_USD: 1_000_000,
+      lltv,
+      spot: 1,
+      gasCost_USD: 5,
+      holdingRisk_USD: 0,
+      collateralAvailable_USD: 100_000,
+    });
+
+    expect(out.collateralSeized_USD).toBe(100_000);
+  });
+
+  it('sizes hard-liquidation wTRY dumps at the stressed path spot', () => {
+    const lltv = 0.86;
+    const tvl_USD = 1_000_000;
+    const path = [1, 2];
+    const preset = crashPresetWithTVL(10_000_000, 1);
+    const debt = 0.95 * lltv * tvl_USD;
+    const collAfter = tvl_USD / 2;
+    const seized = Math.min(debt * LIF(lltv), collAfter);
+    const expected = quoteSellUSD(materializePool(preset, 1), 0.5, seized).revenue_USD;
+    expect(expected).toBeGreaterThan(debt + 5);
+
+    const result = simulateBadDebt({
+      paths: [path],
+      ltvFractions: [0.95],
+      lltv,
+      tvl_USD,
+      preset,
+      spot: 1,
+      gasCost_USD: 5,
+      witryYieldAnnual: 0,
+      preLiquidationEnabled: false,
+    });
+
+    expect(result.liquidatedVolumeByPath[0]!).toBeCloseTo(expected, 0);
+  });
+
+  it('consumes AMM liquidity across hard liquidations in the same path', () => {
+    const single = simulateBadDebt({
+      paths: [[1, 2]],
+      ltvFractions: [0.95],
+      lltv: 0.86,
+      tvl_USD: 500_000,
+      preset: crashPresetWithTVL(5_000_000, 1),
+      spot: 1,
+      gasCost_USD: 5,
+      witryYieldAnnual: 0,
+      preLiquidationEnabled: false,
+    });
+    const cascade = simulateBadDebt({
+      paths: [[1, 2]],
+      ltvFractions: [0.95, 0.95],
+      lltv: 0.86,
+      tvl_USD: 1_000_000,
+      preset: crashPresetWithTVL(5_000_000, 1),
+      spot: 1,
+      gasCost_USD: 5,
+      witryYieldAnnual: 0,
+      preLiquidationEnabled: false,
+    });
+
+    expect(cascade.badDebtByPath[0]!).toBeGreaterThan(single.badDebtByPath[0]! * 2);
   });
 
   it('pre-liquidation reduces bad debt vs. hard-LLTV only', () => {
