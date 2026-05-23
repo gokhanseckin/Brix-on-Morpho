@@ -26,6 +26,20 @@ export interface SidebarInputs {
   managementFee: number;
   safetyMargin: number;
   preLiquidationEnabled: boolean;
+  // Morpho pre-liquidation parameters (spec §4D), editable on /lltv.
+  // preLLTV  = LLTV − preLLTVOffset                  (range 0..0.15)
+  // preLCF1  = close factor at the preLLTV boundary  (0..1)
+  // preLCF2  = close factor at the LLTV boundary     (0..1)
+  // preLIF1  = liquidation incentive at preLLTV      (1..1.15)
+  // preLIF2  is auto-derived = LIF(LLTV) — Morpho caps it there.
+  preLLTVOffset: number;
+  preLCF1: number;
+  preLCF2: number;
+  preLIF1: number;
+  // Execution horizon for LLTV-formula drawdown. Operationally realistic
+  // window between liquidation eligibility and execution; default 1 day.
+  // Not a Morpho parameter — calibration-only, like safetyMargin.
+  lltvDrawdownHorizonDays: number;
   blockBootstrap: boolean;
   seed: number;
   // /swapliquidity page state (mirrored in URL via useUrlState).

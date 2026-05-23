@@ -1,6 +1,5 @@
 'use client';
 import { useSimulator } from '@/lib/useSimulator';
-import { PRE_LIQUIDATION_LLTV_OFFSET } from '@/lib/simulator';
 import { GOV_LLTVS } from '@/types/simulator';
 import { useState } from 'react';
 import { Kpi, formatPct, formatUSD } from '../Kpi';
@@ -37,7 +36,7 @@ export function VaultRecommendations() {
     ? `${(lltvDerivation.snapped * 100).toFixed(1)}%`
     : '—';
 
-  const preLLTV = Math.max(0, inputs.lltv - PRE_LIQUIDATION_LLTV_OFFSET);
+  const preLLTV = Math.max(0, inputs.lltv - inputs.preLLTVOffset);
   const preLiqDegenerate = inputs.preLiquidationEnabled && preLLTV < SMALLEST_GOV_LLTV;
   const preLiqValue = !inputs.preLiquidationEnabled
     ? 'Disabled'

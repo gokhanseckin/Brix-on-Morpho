@@ -228,12 +228,11 @@ export function Sidebar() {
             </span>
           </div>
         </div>
-        <CheckboxField
-          label="Pre-liquidation enabled"
-          helpKey="preLiquidationEnabled"
-          checked={s.preLiquidationEnabled}
-          onChange={(v) => setS({ preLiquidationEnabled: v })}
-        />
+        <div className="text-[11px] text-neutral-500 leading-snug">
+          Pre-liquidation parameters (toggle, preLLTV offset, preLCF, preLIF)
+          edited on the{' '}
+          <a href="/lltv" className="text-brix-accent underline">LLTV page</a>.
+        </div>
       </Group>
 
       <Group title="Section 5 · Vault Params">
