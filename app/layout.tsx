@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Suspense } from "react";
 import localFont from "next/font/local";
 import { NuqsAdapter } from "nuqs/adapters/next/app";
+import { Footer } from "./components/Footer";
 import "./globals.css";
 
 const geistSans = localFont({
@@ -32,6 +33,7 @@ export default function RootLayout({
       >
         <Suspense fallback={null}>
           <NuqsAdapter>{children}</NuqsAdapter>
+          <Footer />
         </Suspense>
       </body>
     </html>
