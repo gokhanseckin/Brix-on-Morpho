@@ -57,6 +57,30 @@ export const SWAP_LIQUIDITY_PARAMS: Partial<Record<string, ParamHelp>> = {
       ],
     },
   },
+  bandCoreLowerPct: {
+    oneLiner:
+      'Core band lower edge as a signed fraction of spot (e.g. −0.05 = 5% below). Defines where the tight near-spot liquidity starts.',
+  },
+  bandCoreUpperPct: {
+    oneLiner:
+      'Core band upper edge as a signed fraction of spot (e.g. +0.05 = 5% above). Together with the lower edge sets the near-spot trading window.',
+  },
+  bandAbsorbLowerPct: {
+    oneLiner:
+      'Absorb band lower edge (e.g. −0.15 = 15% below spot). Push this further down to extend the catch zone for deeper crashes.',
+  },
+  bandAbsorbUpperPct: {
+    oneLiner:
+      'Absorb band upper edge (e.g. −0.05). Set equal to Core lower to close the gap, or overlap with Core for compounded depth.',
+  },
+  bandTailLowerPct: {
+    oneLiner:
+      'Tail band lower edge (e.g. −0.90 = 90% below spot). Defines how deep into a catastrophic crash the pool keeps offering liquidity.',
+  },
+  bandTailUpperPct: {
+    oneLiner:
+      'Tail band upper edge (e.g. +0.30). Sets how high above spot the pool earns fees on upside swings.',
+  },
 };
 
 // ---------------------------------------------------------------------------
