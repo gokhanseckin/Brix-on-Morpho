@@ -34,7 +34,6 @@ export function LLTVSidebar() {
         <div className="space-y-1.5">
           <ReadOnlyRow label="USD/TRY baseline" value={s.usdtryBaseline} />
           <ReadOnlyRow label="Chosen LLTV" value={pct(s.lltv, 1)} />
-          <ReadOnlyRow label="Safety margin" value={pct(s.safetyMargin, 2)} />
           <ReadOnlyRow label="wiTRY TVL" value={`$${s.witryTVL_USD.toLocaleString()}`} />
           <ReadOnlyRow label="Target utilization" value={pct(s.targetUtilization, 1)} />
           <ReadOnlyRow label="Borrower LTV α / β" value={`${s.borrowerLTVAlpha} / ${s.borrowerLTVBeta}`} />

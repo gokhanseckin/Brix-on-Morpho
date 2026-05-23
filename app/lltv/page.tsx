@@ -5,6 +5,7 @@ import { dailyLogReturns, windowRows } from '@/lib/fxData';
 import raw from '@/lib/usdtryData.json';
 import { LIF } from '@/lib/morphoMath';
 import { useSimulator, P95_LIQUIDATION_FRACTION_OF_BORROWS } from '@/lib/useSimulator';
+import { useUrlState } from '@/lib/useUrlState';
 import { betaMean, slippageFromPreset } from '@/lib/simulator';
 import { buildLadderFromInputs } from '@/lib/poolPreset';
 import { type SidebarInputs } from '@/types/simulator';
@@ -98,6 +99,7 @@ function pct(x: number, d = 2): string {
 
 export default function LLTVPage() {
   const sim = useSimulator();
+  const [, setUrlState] = useUrlState();
 
   // Historical reference (kept for pedagogical context — drawdowns table,
   // vol/drift summary). The actual recommendation is driven by useSimulator
@@ -216,10 +218,67 @@ export default function LLTVPage() {
               {!sim.lltvDerivation.converged && (
                 <span className="text-amber-400">
                   {' '}Formula did not converge — inputs likely degenerate (very high slippage or
-                  drawdown); widen safety margin or deepen pool.
+                  drawdown); tighten safety margin or deepen pool.
                 </span>
               )}
             </p>
+          </div>
+        </section>
+
+        <section className="space-y-3 mt-6">
+          <div className="rounded border border-brix-border bg-brix-surface p-4">
+            <div className="flex items-baseline justify-between">
+              <h3 className="text-sm font-semibold">Safety margin (calibration only)</h3>
+              <span className="text-[11px] text-neutral-500">not deployed on-chain</span>
+            </div>
+            <p className="text-xs text-neutral-400 mt-1 max-w-2xl">
+              Risk-officer&apos;s discretionary cushion on top of LIF + slippage. Covers oracle
+              staleness, MEV, gas, modelling error. Affects which governance tier the formula
+              recommends — but is never written to the vault contract. Lives here, not on the
+              home sidebar, because it is a calibration knob, not a deployed parameter.
+            </p>
+            <div className="mt-3 flex items-center gap-4">
+              <input
+                type="range"
+                min={0}
+                max={0.10}
+                step={0.005}
+                value={safetyMargin}
+                onChange={(e) => setUrlState({ safetyMargin: parseFloat(e.target.value) })}
+                className="flex-1 accent-brix-accent"
+                aria-label="Safety margin"
+              />
+              <input
+                type="number"
+                min={0}
+                max={0.10}
+                step={0.005}
+                value={safetyMargin.toFixed(3)}
+                onChange={(e) => {
+                  const v = parseFloat(e.target.value);
+                  if (Number.isFinite(v)) setUrlState({ safetyMargin: Math.max(0, Math.min(0.10, v)) });
+                }}
+                className="w-20 rounded border border-brix-border bg-brix-bg px-2 py-1 text-sm font-mono text-right"
+              />
+              <span className="text-sm font-mono w-12 text-right">{pct(safetyMargin, 1)}</span>
+            </div>
+            <div className="mt-2 flex items-center gap-2 text-[11px] text-neutral-500">
+              <span>Common values:</span>
+              {[0.01, 0.02, 0.03, 0.05].map((preset) => (
+                <button
+                  key={preset}
+                  type="button"
+                  onClick={() => setUrlState({ safetyMargin: preset })}
+                  className={`px-2 py-0.5 rounded border ${
+                    Math.abs(safetyMargin - preset) < 1e-6
+                      ? 'border-brix-accent text-brix-accent'
+                      : 'border-brix-border text-neutral-400 hover:border-brix-accent hover:text-brix-accent'
+                  }`}
+                >
+                  {(preset * 100).toFixed(0)}%
+                </button>
+              ))}
+            </div>
           </div>
         </section>
 
