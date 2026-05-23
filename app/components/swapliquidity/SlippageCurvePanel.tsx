@@ -28,7 +28,7 @@ export function SlippageCurvePanel() {
   const [state] = useUrlState();
   const spot = 1 / state.usdtryBaseline;
 
-  const { data, breakeven2pct, breakeven5pct } = useMemo(() => {
+  const { data, breakeven1pct, breakeven5pct } = useMemo(() => {
     const preset = buildLadderFromInputs(spot, state);
     const pts: Array<{ sell: number; priceSlip: number; effective: number }> = [];
     // Log sweep from $1k to max($5M, 5× pool TVL) so we see both the flat
@@ -36,7 +36,7 @@ export function SlippageCurvePanel() {
     const lo = Math.log10(1_000);
     const hi = Math.log10(Math.max(5_000_000, state.poolTVL_USD * 5));
     const steps = 70;
-    let b2: number | null = null;
+    let b1: number | null = null;
     let b5: number | null = null;
     for (let i = 0; i < steps; i++) {
       const sellUSD = Math.pow(10, lo + ((hi - lo) * i) / (steps - 1));
@@ -46,10 +46,10 @@ export function SlippageCurvePanel() {
       // Effective slippage = total proceeds shortfall (includes fee + price impact).
       const effective = Math.max(0, Math.min(1, 1 - usdmOut / sellUSD));
       pts.push({ sell: sellUSD, priceSlip: q.slippagePct, effective });
-      if (b2 == null && effective >= 0.02) b2 = sellUSD;
+      if (b1 == null && effective >= 0.01) b1 = sellUSD;
       if (b5 == null && effective >= 0.0438) b5 = sellUSD;
     }
-    return { data: pts, breakeven2pct: b2, breakeven5pct: b5 };
+    return { data: pts, breakeven1pct: b1, breakeven5pct: b5 };
   }, [
     spot,
     state.poolTVL_USD,
@@ -72,7 +72,7 @@ export function SlippageCurvePanel() {
       </h2>
       <p className="text-xs text-neutral-500 max-w-2xl">
         Sweep of slippage vs. trade size on the current ladder. The horizontal lines mark the
-        2% operating target and the 4.38% LIF cliff — trade sizes above the 4.38% crossing produce
+        1% operating target and the 4.38% LIF cliff — trade sizes above the 4.38% crossing produce
         liquidations that lose the liquidator money. Y-axis capped at 10% to focus on the
         actionable range.
       </p>
@@ -107,11 +107,11 @@ export function SlippageCurvePanel() {
             />
             <Legend wrapperStyle={{ fontSize: 11, color: '#a3a3a3' }} />
             <ReferenceLine
-              y={0.02}
+              y={0.01}
               stroke="#10b981"
               strokeDasharray="3 3"
               label={{
-                value: '2% target',
+                value: '1% target',
                 position: 'right',
                 fill: '#10b981',
                 fontSize: 10,
@@ -153,10 +153,10 @@ export function SlippageCurvePanel() {
       <div className="grid grid-cols-2 gap-3 text-xs">
         <div className="p-3 border border-brix-border rounded bg-brix-card">
           <div className="text-neutral-500 uppercase tracking-wide text-[10px]">
-            Max sell at 2% effective slippage
+            Max sell at 1% effective slippage
           </div>
           <div className="text-base font-mono mt-1 text-emerald-300">
-            {breakeven2pct ? fmtUSD(breakeven2pct) : '> sweep max'}
+            {breakeven1pct ? fmtUSD(breakeven1pct) : '> sweep max'}
           </div>
         </div>
         <div className="p-3 border border-brix-border rounded bg-brix-card">
