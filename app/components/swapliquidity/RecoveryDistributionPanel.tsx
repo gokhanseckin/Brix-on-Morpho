@@ -2,8 +2,9 @@
 import { useMemo } from 'react';
 import { useUrlState } from '@/lib/useUrlState';
 import { useSimulator } from '@/lib/useSimulator';
-import { buildAsymmetricLadder, ladderRangesFromInputs } from '@/lib/poolPreset';
-import { quoteLiquidatorSell } from '@/lib/univ3/quoteLiquidatorSell';
+import { buildLadderFromInputs } from '@/lib/poolPreset';
+import { materializePool } from '@/lib/univ3/quoteLiquidatorSell';
+import { swapExactIn } from '@/lib/univ3/swap';
 import { badDebtFromAMMSale } from '@/lib/badDebtMath';
 import { LIF } from '@/lib/morphoMath';
 import {
@@ -18,33 +19,92 @@ import {
   Tooltip,
   ResponsiveContainer,
   CartesianGrid,
+  Legend,
 } from 'recharts';
 import { Kpi } from '@/app/components/Kpi';
 import { HelpPopover } from '@/app/components/help/HelpPopover';
 
 const MAX_PATHS = 200;
 const HIST_BINS = 20;
-// Sweep probe sizes as fractions of pool TVL — shows how bad-debt degrades
-// as a single-trade liquidation grows. Picks span small → catastrophic.
-const SWEEP_FRACTIONS = [0.05, 0.1, 0.25, 0.5, 1.0, 2.0] as const;
 const fmtUSD = (n: number) =>
   n >= 1e6 ? `$${(n / 1e6).toFixed(2)}M` : n >= 1e3 ? `$${(n / 1e3).toFixed(0)}k` : `$${Math.round(n)}`;
+const fmtPct = (n: number, d = 2) => `${(n * 100).toFixed(d)}%`;
 
-interface PathResult {
-  badDebtPct: number;
-  recoveryPct: number;
-}
+// Deterministic sweep across log-spaced probe sizes from $1k to 3× pool TVL.
+const SWEEP_STEPS = 60;
+const SWEEP_MIN_USD = 1_000;
 
 export function RecoveryDistributionPanel() {
   const [state] = useUrlState();
   const { fx } = useSimulator();
   const lltv = state.lltv;
   const lif = LIF(lltv);
+  const bufferPct = 1 - 1 / lif;
   const probeCollateral_USD = state.swapSellUSD;
   const debtUSD = probeCollateral_USD / lif;
-  const bufferPct = 1 - 1 / lif;
 
-  // Sample terminal USD/TRY across MC paths and convert to USD-per-wTRY spot.
+  // CRITICAL: pool stays where it was deployed (initial spot). FX moves around
+  // it — that's the whole point of the off-center stress test.
+  const initialSpot = useMemo(
+    () => (state.usdtryBaseline > 0 ? 1 / state.usdtryBaseline : 0),
+    [state.usdtryBaseline],
+  );
+  const fixedPreset = useMemo(
+    () => buildLadderFromInputs(initialSpot, state),
+    [
+      initialSpot,
+      state.poolTVL_USD,
+      state.bandSplitCore,
+      state.bandSplitAbsorb,
+      state.poolFeeTier,
+      state.bandCoreLowerPct,
+      state.bandCoreUpperPct,
+      state.bandAbsorbLowerPct,
+      state.bandAbsorbUpperPct,
+      state.bandTailLowerPct,
+      state.bandTailUpperPct,
+    ],
+  );
+  // Materialize once per preset; swapExactIn clones internally so this is reused.
+  const fixedPool = useMemo(() => materializePool(fixedPreset, initialSpot), [fixedPreset, initialSpot]);
+
+  // Quote a wTRY → USDM sell against the fixed (initial-spot) pool, regardless
+  // of what spot the dump "really" happens at. The pool is denominated in
+  // absolute tick prices, so this naturally models off-center dumps.
+  const quoteFixed = (sellUSD: number): number => {
+    if (sellUSD <= 0 || initialSpot <= 0) return 0;
+    const wTRYwei = BigInt(Math.floor((sellUSD / initialSpot) * 1e6));
+    try {
+      const { quote } = swapExactIn(fixedPool, wTRYwei, true);
+      return Number(quote.amountOut) / 1e6;
+    } catch {
+      return 0;
+    }
+  };
+
+  // ─── Chart A: Deterministic bad-debt vs probe size ──────────────────────
+  // No Monte Carlo. Sweep probe size against the deployed pool at initial
+  // spot. Answers: "as the single-trade liquidation grows, when does the AMM
+  // slip eat through the LIF buffer?"
+  const deterministicSweep = useMemo(() => {
+    if (state.poolTVL_USD <= 0) return [];
+    const hi = Math.log10(Math.max(state.poolTVL_USD * 3, 5_000_000));
+    const lo = Math.log10(SWEEP_MIN_USD);
+    const out: Array<{ probe_USD: number; badDebtPct: number; effectiveSlip: number }> = [];
+    for (let i = 0; i < SWEEP_STEPS; i++) {
+      const probeUSD = Math.pow(10, lo + ((hi - lo) * i) / (SWEEP_STEPS - 1));
+      const ammSale = quoteFixed(probeUSD);
+      const bd = badDebtFromAMMSale({ collateral_USD: probeUSD, lltv, ammSale_USDM: ammSale });
+      const effectiveSlip = probeUSD > 0 ? Math.max(0, 1 - ammSale / probeUSD) : 0;
+      out.push({ probe_USD: probeUSD, badDebtPct: bd.badDebtPct, effectiveSlip });
+    }
+    return out;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [fixedPool, state.poolTVL_USD, lltv]);
+
+  // ─── Chart B: MC distribution at the slider's probe size ────────────────
+  // FX shifts spot away from the pool center. The pool stays put. Dump the
+  // slider amount at the shifted price → see how bad debt distributes.
   const terminalSpots = useMemo<number[]>(() => {
     const paths = fx?.paths;
     if (!paths || paths.length === 0) return [];
@@ -59,98 +119,30 @@ export function RecoveryDistributionPanel() {
     return out;
   }, [fx]);
 
-  const results = useMemo<PathResult[]>(() => {
-    if (terminalSpots.length === 0) return [];
-    const split = {
-      core: state.bandSplitCore,
-      absorb: state.bandSplitAbsorb,
-      tail: Math.max(0, 1 - state.bandSplitCore - state.bandSplitAbsorb),
-    };
-    const ranges = ladderRangesFromInputs(state);
-    const fee = state.poolFeeTier === 10000 ? 10000 : 3000;
-    const out: PathResult[] = [];
-    for (const spot of terminalSpots) {
+  const mcResults = useMemo<number[]>(() => {
+    if (terminalSpots.length === 0 || probeCollateral_USD <= 0) return [];
+    const out: number[] = [];
+    for (const terminalSpot of terminalSpots) {
+      // wTRY amount sized at the TERMINAL spot (that's where the dump originates
+      // in collateral terms — the seized wTRY is worth `probeCollateral_USD` at
+      // terminal price). But the swap hits the FIXED pool.
+      if (terminalSpot <= 0) continue;
+      const wTRYwei = BigInt(Math.floor((probeCollateral_USD / terminalSpot) * 1e6));
       try {
-        const preset = buildAsymmetricLadder(spot, state.poolTVL_USD, split, fee, ranges);
-        const wTRYwei = BigInt(Math.floor((probeCollateral_USD / spot) * 1e6));
-        const q = quoteLiquidatorSell(preset, spot, wTRYwei);
-        const ammSale = Number(q.amountOut) / 1e6;
+        const { quote } = swapExactIn(fixedPool, wTRYwei, true);
+        const ammSale = Number(quote.amountOut) / 1e6;
         const bd = badDebtFromAMMSale({
           collateral_USD: probeCollateral_USD,
           lltv,
           ammSale_USDM: ammSale,
         });
-        out.push({ badDebtPct: bd.badDebtPct, recoveryPct: bd.recoveryPct });
+        out.push(bd.badDebtPct);
       } catch {
-        // skip pathological spots (e.g. tick overflow at extreme FX)
+        // skip
       }
     }
     return out;
-  }, [
-    terminalSpots,
-    state.poolTVL_USD,
-    state.bandSplitCore,
-    state.bandSplitAbsorb,
-    state.poolFeeTier,
-    state.bandCoreLowerPct,
-    state.bandCoreUpperPct,
-    state.bandAbsorbLowerPct,
-    state.bandAbsorbUpperPct,
-    state.bandTailLowerPct,
-    state.bandTailUpperPct,
-    lltv,
-    probeCollateral_USD,
-  ]);
-
-  // Sweep across multiple probe sizes (% of pool TVL) to show how bad debt
-  // degrades as a single-trade liquidation grows. Reuses the same terminal
-  // spots so the comparison is apples-to-apples with the single-size panel.
-  const sweep = useMemo<Array<{ probe_USD: number; probePct: number; p95: number; median: number }>>(() => {
-    if (terminalSpots.length === 0 || state.poolTVL_USD <= 0) return [];
-    const split = {
-      core: state.bandSplitCore,
-      absorb: state.bandSplitAbsorb,
-      tail: Math.max(0, 1 - state.bandSplitCore - state.bandSplitAbsorb),
-    };
-    const ranges = ladderRangesFromInputs(state);
-    const fee = state.poolFeeTier === 10000 ? 10000 : 3000;
-    const points: Array<{ probe_USD: number; probePct: number; p95: number; median: number }> = [];
-    for (const frac of SWEEP_FRACTIONS) {
-      const probeUSD = state.poolTVL_USD * frac;
-      const bds: number[] = [];
-      for (const spot of terminalSpots) {
-        try {
-          const preset = buildAsymmetricLadder(spot, state.poolTVL_USD, split, fee, ranges);
-          const wTRYwei = BigInt(Math.floor((probeUSD / spot) * 1e6));
-          const q = quoteLiquidatorSell(preset, spot, wTRYwei);
-          const ammSale = Number(q.amountOut) / 1e6;
-          const bd = badDebtFromAMMSale({ collateral_USD: probeUSD, lltv, ammSale_USDM: ammSale });
-          bds.push(bd.badDebtPct);
-        } catch {
-          // ignore
-        }
-      }
-      if (bds.length === 0) continue;
-      const sorted = [...bds].sort((a, b) => a - b);
-      const p95 = sorted[Math.min(sorted.length - 1, Math.floor(sorted.length * 0.95))] ?? 0;
-      const median = sorted[Math.floor(sorted.length * 0.5)] ?? 0;
-      points.push({ probe_USD: probeUSD, probePct: frac, p95, median });
-    }
-    return points;
-  }, [
-    terminalSpots,
-    state.poolTVL_USD,
-    state.bandSplitCore,
-    state.bandSplitAbsorb,
-    state.poolFeeTier,
-    state.bandCoreLowerPct,
-    state.bandCoreUpperPct,
-    state.bandAbsorbLowerPct,
-    state.bandAbsorbUpperPct,
-    state.bandTailLowerPct,
-    state.bandTailUpperPct,
-    lltv,
-  ]);
+  }, [fixedPool, terminalSpots, probeCollateral_USD, lltv]);
 
   const { histogram, p95BadDebt, medianBadDebt, zeroBadDebtPct } = useMemo<{
     histogram: Array<{ bin: number; count: number }>;
@@ -158,23 +150,21 @@ export function RecoveryDistributionPanel() {
     medianBadDebt: number | null;
     zeroBadDebtPct: number;
   }>(() => {
-    if (results.length === 0) {
+    if (mcResults.length === 0) {
       return { histogram: [], p95BadDebt: null, medianBadDebt: null, zeroBadDebtPct: 0 };
     }
-    const badDebts = results.map((r) => r.badDebtPct);
-    const sorted = [...badDebts].sort((a, b) => a - b);
+    const sorted = [...mcResults].sort((a, b) => a - b);
     const idx95 = Math.min(sorted.length - 1, Math.floor(sorted.length * 0.95));
     const idx50 = Math.floor(sorted.length * 0.5);
-    const zeroCount = badDebts.filter((b) => b === 0).length;
+    const zeroCount = mcResults.filter((b) => b === 0).length;
     const max = sorted[sorted.length - 1]!;
-    // Histogram from 0 to max (or small range if all zero)
     const upper = Math.max(0.001, max);
     const width = upper / HIST_BINS;
     const bins = Array.from({ length: HIST_BINS }, (_, i) => ({
       bin: (i + 0.5) * width,
       count: 0,
     }));
-    for (const b of badDebts) {
+    for (const b of mcResults) {
       const idx = Math.min(HIST_BINS - 1, Math.floor(b / width));
       bins[idx]!.count += 1;
     }
@@ -182,102 +172,124 @@ export function RecoveryDistributionPanel() {
       histogram: bins,
       p95BadDebt: sorted[idx95] ?? null,
       medianBadDebt: sorted[idx50] ?? null,
-      zeroBadDebtPct: zeroCount / badDebts.length,
+      zeroBadDebtPct: zeroCount / mcResults.length,
     };
-  }, [results]);
-
-  const fmtPct = (n: number, d = 2) => `${(n * 100).toFixed(d)}%`;
+  }, [mcResults]);
 
   return (
-    <section id="section-recovery" className="space-y-3">
+    <section id="section-recovery" className="space-y-6">
       <h2 className="text-lg font-semibold">4. Bad-debt distribution</h2>
-      <div className="text-sm text-neutral-500">
-        Sampled n={results.length} of {state.pathCount} Monte-Carlo paths from main-page sim
-        (mode <span className="text-neutral-300">{state.simulationMode}</span>, horizon{' '}
-        <span className="text-neutral-300">{state.simulationHorizonDays}d</span>). For each path:
-        liquidate <span className="text-neutral-300">{fmtUSD(probeCollateral_USD)}</span> of wTRY at
-        the path&apos;s terminal spot (sell size from Section 2 slider). At LLTV {fmtPct(lltv, 1)}{' '}
-        the debt is ${debtUSD.toLocaleString(undefined, { maximumFractionDigits: 0 })}; LIF buffer
-        is {fmtPct(bufferPct, 2)}. Bad debt = max(0, debt − AMM proceeds).
-      </div>
-      <div className="grid grid-cols-3 gap-3">
-        <Kpi label="Paths with zero bad debt" value={fmtPct(zeroBadDebtPct)} helpKey="zeroBadDebtPct" />
-        <Kpi
-          label="Median bad-debt rate"
-          value={medianBadDebt !== null ? fmtPct(medianBadDebt) : '—'}
-          helpKey="medianBadDebtRate"
-        />
-        <Kpi
-          label="95th-percentile bad-debt rate"
-          value={p95BadDebt !== null ? fmtPct(p95BadDebt) : '—'}
-          helpKey="p95BadDebtRate"
-        />
-      </div>
-      <div className="border rounded p-2">
-        <div className="flex items-center text-xs text-neutral-500 px-2 pt-1">
-          <span>Bad-debt rate distribution</span>
-          <HelpPopover chartKey="swapBadDebtHistogram" />
+
+      {/* ─── Chart A: deterministic ─────────────────────────────────────── */}
+      <div className="space-y-2">
+        <h3 className="text-sm font-semibold">
+          A. Bad-debt vs probe size{' '}
+          <span className="text-xs text-neutral-500 font-normal">
+            (deterministic, pool at initial spot)
+          </span>
+        </h3>
+        <p className="text-xs text-neutral-500 max-w-3xl">
+          As a single liquidator dump grows, slippage in the AMM eats into the LIF buffer ({fmtPct(bufferPct, 2)}).
+          When effective slip exceeds the buffer, bad debt accrues. Pool is built at the current
+          spot ({initialSpot.toFixed(6)}); this chart has no Monte Carlo — it's a direct slip
+          curve restated as lender loss.
+        </p>
+        <div className="border border-brix-border rounded p-2 bg-brix-card">
+          <ResponsiveContainer width="100%" height={260}>
+            <LineChart data={deterministicSweep} margin={{ top: 8, right: 40, bottom: 8, left: 8 }}>
+              <CartesianGrid strokeDasharray="3 3" opacity={0.3} />
+              <XAxis
+                dataKey="probe_USD"
+                type="number"
+                scale="log"
+                domain={['dataMin', 'dataMax']}
+                tickFormatter={fmtUSD}
+              />
+              <YAxis tickFormatter={(v: number) => fmtPct(v, 1)} domain={[0, 'auto']} />
+              <Tooltip
+                labelFormatter={(v) => `Probe ${fmtUSD(Number(v))}`}
+                formatter={(v, name) => [fmtPct(Number(v), 2), name]}
+                contentStyle={{ backgroundColor: '#0a0a0a', border: '1px solid #262626', borderRadius: 4, fontSize: 12 }}
+                labelStyle={{ color: '#a3a3a3' }}
+                itemStyle={{ color: '#e5e5e5' }}
+              />
+              <Legend wrapperStyle={{ fontSize: 11, color: '#a3a3a3' }} />
+              <ReferenceLine
+                y={bufferPct}
+                stroke="#f59e0b"
+                strokeDasharray="3 3"
+                label={{ value: `${fmtPct(bufferPct, 2)} LIF buffer`, position: 'right', fill: '#f59e0b', fontSize: 10 }}
+              />
+              <ReferenceLine
+                x={probeCollateral_USD}
+                stroke="#facc15"
+                strokeWidth={1.5}
+                label={{ value: `slider ${fmtUSD(probeCollateral_USD)}`, position: 'top', fill: '#facc15', fontSize: 10 }}
+              />
+              <Line type="monotone" dataKey="effectiveSlip" name="Effective slip" stroke="#3b82f6" strokeWidth={1.5} strokeDasharray="4 3" dot={false} isAnimationActive={false} />
+              <Line type="monotone" dataKey="badDebtPct" name="Bad debt %" stroke="#ef4444" strokeWidth={2} dot={false} isAnimationActive={false} />
+            </LineChart>
+          </ResponsiveContainer>
         </div>
-        <ResponsiveContainer width="100%" height={240}>
-          <BarChart data={histogram}>
-            <CartesianGrid strokeDasharray="3 3" opacity={0.3} />
-            <XAxis
-              dataKey="bin"
-              tickFormatter={(v) => `${(Number(v) * 100).toFixed(1)}%`}
-            />
-            <YAxis />
-            <Tooltip
-              labelFormatter={(v) => `Bad debt ${(Number(v) * 100).toFixed(2)}%`}
-              formatter={(v) => [`${v} paths`, 'count']}
-            />
-            <Bar dataKey="count">
-              {histogram.map((h, i) => (
-                <Cell key={i} fill={h.bin < 0.001 ? '#22c55e' : '#ef4444'} />
-              ))}
-            </Bar>
-          </BarChart>
-        </ResponsiveContainer>
       </div>
-      <div className="border rounded p-2">
-        <div className="flex items-center text-xs text-neutral-500 px-2 pt-1 gap-2">
-          <span>Bad-debt vs probe size (sweep across % of pool TVL)</span>
+
+      {/* ─── Chart B: MC histogram at slider size ───────────────────────── */}
+      <div className="space-y-2">
+        <h3 className="text-sm font-semibold">
+          B. Bad-debt distribution at slider size{' '}
+          <span className="text-xs text-neutral-500 font-normal">
+            (Monte Carlo on terminal FX, pool stays at initial spot)
+          </span>
+        </h3>
+        <div className="text-xs text-neutral-500 max-w-3xl">
+          Sampled n={mcResults.length} of {state.pathCount} paths from main-page sim (mode{' '}
+          <span className="text-neutral-300">{state.simulationMode}</span>, horizon{' '}
+          <span className="text-neutral-300">{state.simulationHorizonDays}d</span>). The pool stays
+          at initial spot ({initialSpot.toFixed(6)}); each path's terminal spot is where the dump
+          originates. The bigger FX moves away from initial, the further the dump lands from the
+          core band — which is where bad debt is born. At LLTV {fmtPct(lltv, 1)} probe debt is{' '}
+          ${debtUSD.toLocaleString(undefined, { maximumFractionDigits: 0 })}. Bad debt = max(0, debt − AMM proceeds).
         </div>
-        <ResponsiveContainer width="100%" height={240}>
-          <LineChart data={sweep} margin={{ top: 12, right: 40, bottom: 8, left: 8 }}>
-            <CartesianGrid strokeDasharray="3 3" opacity={0.3} />
-            <XAxis
-              dataKey="probePct"
-              type="number"
-              scale="log"
-              domain={['dataMin', 'dataMax']}
-              tickFormatter={(v: number) => `${(v * 100).toFixed(0)}%`}
-            />
-            <YAxis tickFormatter={(v: number) => fmtPct(v, 1)} />
-            <Tooltip
-              labelFormatter={(v) =>
-                `Probe ${((Number(v) || 0) * 100).toFixed(0)}% of TVL (${fmtUSD(
-                  (Number(v) || 0) * state.poolTVL_USD,
-                )})`
-              }
-              formatter={(v, name) => [fmtPct(Number(v), 2), name]}
-              contentStyle={{ backgroundColor: '#0a0a0a', border: '1px solid #262626', borderRadius: 4, fontSize: 12 }}
-              labelStyle={{ color: '#a3a3a3' }}
-              itemStyle={{ color: '#e5e5e5' }}
-            />
-            <ReferenceLine
-              y={1 - 1 / lif}
-              stroke="#f59e0b"
-              strokeDasharray="3 3"
-              label={{ value: `${fmtPct(1 - 1 / lif, 2)} LIF cliff`, position: 'right', fill: '#f59e0b', fontSize: 10 }}
-            />
-            <Line type="monotone" dataKey="p95" name="P95 bad-debt" stroke="#ef4444" strokeWidth={2} dot />
-            <Line type="monotone" dataKey="median" name="Median bad-debt" stroke="#a855f7" strokeWidth={1.5} strokeDasharray="4 3" dot />
-          </LineChart>
-        </ResponsiveContainer>
-        <div className="text-xs text-neutral-500 mt-1 px-2">
-          Each point sweeps the probe-collateral size across the SAME terminal spots used above. As
-          the probe grows the AMM slip eats into the LIF buffer (orange line); when the curve
-          crosses, liquidators skip and lenders take the residual debt.
+        <div className="grid grid-cols-3 gap-3">
+          <Kpi label="Paths with zero bad debt" value={fmtPct(zeroBadDebtPct)} helpKey="zeroBadDebtPct" />
+          <Kpi
+            label="Median bad-debt rate"
+            value={medianBadDebt !== null ? fmtPct(medianBadDebt) : '—'}
+            helpKey="medianBadDebtRate"
+          />
+          <Kpi
+            label="95th-percentile bad-debt rate"
+            value={p95BadDebt !== null ? fmtPct(p95BadDebt) : '—'}
+            helpKey="p95BadDebtRate"
+          />
+        </div>
+        <div className="border border-brix-border rounded p-2 bg-brix-card">
+          <div className="flex items-center text-xs text-neutral-500 px-2 pt-1">
+            <span>Bad-debt rate distribution across MC terminal spots</span>
+            <HelpPopover chartKey="swapBadDebtHistogram" />
+          </div>
+          <ResponsiveContainer width="100%" height={240}>
+            <BarChart data={histogram}>
+              <CartesianGrid strokeDasharray="3 3" opacity={0.3} />
+              <XAxis
+                dataKey="bin"
+                tickFormatter={(v) => `${(Number(v) * 100).toFixed(2)}%`}
+              />
+              <YAxis />
+              <Tooltip
+                labelFormatter={(v) => `Bad debt ${(Number(v) * 100).toFixed(2)}%`}
+                formatter={(v) => [`${v} paths`, 'count']}
+                contentStyle={{ backgroundColor: '#0a0a0a', border: '1px solid #262626', borderRadius: 4, fontSize: 12 }}
+                labelStyle={{ color: '#a3a3a3' }}
+                itemStyle={{ color: '#e5e5e5' }}
+              />
+              <Bar dataKey="count">
+                {histogram.map((h, i) => (
+                  <Cell key={i} fill={h.bin < 0.001 ? '#22c55e' : '#ef4444'} />
+                ))}
+              </Bar>
+            </BarChart>
+          </ResponsiveContainer>
         </div>
       </div>
     </section>

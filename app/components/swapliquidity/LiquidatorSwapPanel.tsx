@@ -37,7 +37,7 @@ export function LiquidatorSwapPanel() {
 
   return (
     <section id="section-liquidator-swap" className="space-y-3">
-      <h2 className="text-lg font-semibold">2. Liquidator swap</h2>
+      <h2 className="text-lg font-semibold">3. Liquidator swap</h2>
       <label className="block text-sm">
         <span>
           Sell size (USD): {fmtUSD(sellUSD)}

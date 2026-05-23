@@ -3,9 +3,9 @@ import { test, expect } from '@playwright/test';
 test('/swapliquidity renders all four sections', async ({ page }) => {
   await page.goto('/swapliquidity');
   await expect(page.locator('#section-pool-state')).toBeVisible();
+  await expect(page.locator('#section-slippage-curve')).toBeVisible();
   await expect(page.locator('#section-liquidator-swap')).toBeVisible();
   await expect(page.locator('#section-recovery')).toBeVisible();
-  await expect(page.locator('#section-export')).toBeVisible();
 });
 
 test('changing pool fee tier updates URL', async ({ page }) => {
@@ -47,7 +47,7 @@ test('every sidebar field exposes a help affordance', async ({ page }) => {
 
 test('every output section exposes at least one help popover trigger', async ({ page }) => {
   await page.goto('/swapliquidity');
-  for (const sectionId of ['#section-pool-state', '#section-liquidator-swap', '#section-recovery', '#section-export']) {
+  for (const sectionId of ['#section-pool-state', '#section-slippage-curve', '#section-liquidator-swap', '#section-recovery']) {
     const section = page.locator(sectionId);
     const helpButtons = section.locator('button').filter({ hasText: /\?/ });
     expect(await helpButtons.count(), `${sectionId} should have ≥1 help button`).toBeGreaterThanOrEqual(1);

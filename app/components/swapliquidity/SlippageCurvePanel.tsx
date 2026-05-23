@@ -67,7 +67,7 @@ export function SlippageCurvePanel() {
   return (
     <section id="section-slippage-curve" className="space-y-3">
       <h2 className="text-lg font-semibold flex items-center gap-1">
-        <span>3. Slippage curve</span>
+        <span>2. Slippage curve</span>
         <InfoTooltip text="Slippage as a function of single-trade sell size against the current ladder. Two curves: marginal price slip (Uniswap math) and effective proceeds shortfall (1 − amountOut/sellUSD, includes fee). The effective curve is what determines liquidator profitability — when it exceeds LIF − 1 = 4.38% at the 86% LLTV cliff, the liquidator loses money and skips." />
       </h2>
       <p className="text-xs text-neutral-500 max-w-2xl">
