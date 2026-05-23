@@ -240,6 +240,21 @@ export function RecoveryDistributionPanel() {
           core band — which is where bad debt is born. At LLTV {fmtPct(lltv, 1)} probe debt is{' '}
           ${debtUSD.toLocaleString(undefined, { maximumFractionDigits: 0 })}. Bad debt = max(0, debt − AMM proceeds).
         </div>
+        <div className="text-xs text-amber-300/80 max-w-3xl border-l-2 border-amber-500/40 pl-2">
+          <strong>Different metric from the home page.</strong> This is a
+          single-probe rate at one slider-set dump size, with the pool held at
+          initial spot. The market-simulator Section 4 histogram aggregates
+          leftover Morpho debt across the full Beta-distributed borrower
+          population per path with sequential AMM liquidations. The two
+          distributions answer different questions and will not agree
+          numerically.{' '}
+          <a
+            href="/#section-liquidation-design"
+            className="text-brix-accent hover:text-brix-accentHover"
+          >
+            See aggregate cascade →
+          </a>
+        </div>
         <div className="grid grid-cols-3 gap-3">
           <Kpi label="Paths with zero bad debt" value={fmtPct(zeroBadDebtPct)} helpKey="zeroBadDebtPct" />
           <Kpi
