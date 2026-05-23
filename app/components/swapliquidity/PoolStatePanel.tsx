@@ -13,24 +13,48 @@ const fmt6 = (n: number) => n.toFixed(6);
 
 export function PoolStatePanel() {
   const [state] = useUrlState();
+  const {
+    usdtryBaseline,
+    poolTVL_USD,
+    bandSplitCore,
+    bandSplitAbsorb,
+    poolFeeTier,
+    bandCoreLowerPct,
+    bandCoreUpperPct,
+    bandAbsorbLowerPct,
+    bandAbsorbUpperPct,
+    bandTailLowerPct,
+    bandTailUpperPct,
+  } = state;
   const spot = useMemo(
-    () => state.usdtryBaseline > 0 ? 1 / state.usdtryBaseline : 0,
-    [state.usdtryBaseline],
+    () => usdtryBaseline > 0 ? 1 / usdtryBaseline : 0,
+    [usdtryBaseline],
   );
   const preset = useMemo(
-    () => buildLadderFromInputs(spot, state),
+    () => buildLadderFromInputs(spot, {
+      poolTVL_USD,
+      bandSplitCore,
+      bandSplitAbsorb,
+      poolFeeTier,
+      bandCoreLowerPct,
+      bandCoreUpperPct,
+      bandAbsorbLowerPct,
+      bandAbsorbUpperPct,
+      bandTailLowerPct,
+      bandTailUpperPct,
+    }),
     [
       spot,
-      state.poolTVL_USD,
-      state.bandSplitCore,
-      state.bandSplitAbsorb,
-      state.poolFeeTier,
-      state.bandCoreLowerPct,
-      state.bandCoreUpperPct,
-      state.bandAbsorbLowerPct,
-      state.bandAbsorbUpperPct,
-      state.bandTailLowerPct,
-      state.bandTailUpperPct,
+      poolTVL_USD,
+      bandSplitCore,
+      bandSplitAbsorb,
+      poolFeeTier,
+      bandCoreLowerPct,
+      bandCoreUpperPct,
+      bandAbsorbLowerPct,
+      bandAbsorbUpperPct,
+      bandTailLowerPct,
+      bandTailUpperPct,
     ],
   );
   const pool = useMemo(() => materializePool(preset, spot), [preset, spot]);

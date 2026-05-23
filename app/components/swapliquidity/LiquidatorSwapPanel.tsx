@@ -11,23 +11,47 @@ const fmtPct = (n: number) => `${(n * 100).toFixed(3)}%`;
 
 export function LiquidatorSwapPanel() {
   const [state, setState] = useUrlState();
-  const sellUSD = state.swapSellUSD;
+  const {
+    usdtryBaseline,
+    poolTVL_USD,
+    bandSplitCore,
+    bandSplitAbsorb,
+    poolFeeTier,
+    bandCoreLowerPct,
+    bandCoreUpperPct,
+    bandAbsorbLowerPct,
+    bandAbsorbUpperPct,
+    bandTailLowerPct,
+    bandTailUpperPct,
+    swapSellUSD: sellUSD,
+  } = state;
   const setSellUSD = (v: number) => setState({ swapSellUSD: v });
-  const spot = 1 / state.usdtryBaseline;
+  const spot = 1 / usdtryBaseline;
   const preset = useMemo(
-    () => buildLadderFromInputs(spot, state),
+    () => buildLadderFromInputs(spot, {
+      poolTVL_USD,
+      bandSplitCore,
+      bandSplitAbsorb,
+      poolFeeTier,
+      bandCoreLowerPct,
+      bandCoreUpperPct,
+      bandAbsorbLowerPct,
+      bandAbsorbUpperPct,
+      bandTailLowerPct,
+      bandTailUpperPct,
+    }),
     [
       spot,
-      state.poolTVL_USD,
-      state.bandSplitCore,
-      state.bandSplitAbsorb,
-      state.poolFeeTier,
-      state.bandCoreLowerPct,
-      state.bandCoreUpperPct,
-      state.bandAbsorbLowerPct,
-      state.bandAbsorbUpperPct,
-      state.bandTailLowerPct,
-      state.bandTailUpperPct,
+      poolTVL_USD,
+      bandSplitCore,
+      bandSplitAbsorb,
+      poolFeeTier,
+      bandCoreLowerPct,
+      bandCoreUpperPct,
+      bandAbsorbLowerPct,
+      bandAbsorbUpperPct,
+      bandTailLowerPct,
+      bandTailUpperPct,
     ],
   );
   const wTRYwei = BigInt(Math.floor((sellUSD / spot) * 1e6));
@@ -52,7 +76,7 @@ export function LiquidatorSwapPanel() {
         <input
           type="range"
           min={5_000}
-          max={Math.max(5_000_000, state.poolTVL_USD)}
+          max={Math.max(5_000_000, poolTVL_USD)}
           step={5_000}
           value={sellUSD}
           onChange={(e) => setSellUSD(parseFloat(e.target.value) || 0)}
