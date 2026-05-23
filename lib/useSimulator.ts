@@ -146,13 +146,15 @@ export function useSimulator() {
   );
 
   const lltvDerivation = useMemo(() => {
-    // Drawdown source: worker's per-path max 1-day move, p95 across paths.
-    // 1 day is the realistic execution window between liquidation eligibility
-    // and a MEV bot's tx confirming on MegaETH. Pre-liquidation is opt-in
-    // per borrower (Morpho spec) so it cannot be assumed market-wide; LLTV
-    // calibration must reflect the worst case — no pre-liq cap.
+    // Drawdown source: worker's per-path max 1-day move, taken at the
+    // operator's chosen percentile (default p95). 1 day is the realistic
+    // execution window between liquidation eligibility and a MEV bot's
+    // tx confirming on MegaETH. Pre-liquidation is opt-in per borrower
+    // (Morpho spec) so it cannot be assumed market-wide; LLTV calibration
+    // must reflect the worst case — no pre-liq cap.
+    const percentileFrac = Math.max(0, Math.min(1, s.lltvDrawdownPercentile / 100));
     const p95dd = result?.oneDayDD
-      ? quantile(result.oneDayDD, 0.95)
+      ? quantile(result.oneDayDD, percentileFrac)
       : DEFAULT_P95_1D_DRAWDOWN;
 
     const minMax = minMaxProfitableLiquidation({
@@ -181,6 +183,7 @@ export function useSimulator() {
       minMax,
       slippageEstimate,
       p95Drawdown: p95dd,
+      drawdownPercentile: s.lltvDrawdownPercentile,
     };
   }, [
     result,
@@ -191,6 +194,7 @@ export function useSimulator() {
     s.witryTVL_USD,
     s.borrowerLTVAlpha,
     s.borrowerLTVBeta,
+    s.lltvDrawdownPercentile,
   ]);
 
   const vaultJson = useMemo(

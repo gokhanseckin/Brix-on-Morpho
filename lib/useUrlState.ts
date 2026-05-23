@@ -51,6 +51,7 @@ export function useUrlState() {
     preLCF1: parseAsFloat.withDefault(0.05),
     preLCF2: parseAsFloat.withDefault(0.5),
     preLIF1: parseAsFloat.withDefault(1.01),
+    lltvDrawdownPercentile: parseAsInteger.withDefault(95),
     blockBootstrap: parseAsBoolean.withDefault(true),
     seed: parseAsInteger.withDefault(42),
     // /swapliquidity page state

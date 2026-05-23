@@ -36,6 +36,9 @@ export interface SidebarInputs {
   preLCF1: number;
   preLCF2: number;
   preLIF1: number;
+  // Percentile of the 1-day drawdown distribution to feed the LLTV formula.
+  // 95 = p95 (default, ~normal stress). 99 = p99 (tail-protective).
+  lltvDrawdownPercentile: number;
   blockBootstrap: boolean;
   seed: number;
   // /swapliquidity page state (mirrored in URL via useUrlState).

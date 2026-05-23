@@ -33,6 +33,7 @@ const EXPECTED_PARAM_KEYS = [
   'preLCF1',
   'preLCF2',
   'preLIF1',
+  'lltvDrawdownPercentile',
   'blockBootstrap',
   'seed',
   'poolFeeTier',

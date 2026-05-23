@@ -6,7 +6,13 @@ import raw from '@/lib/usdtryData.json';
 import { LIF } from '@/lib/morphoMath';
 import { useSimulator, P95_LIQUIDATION_FRACTION_OF_BORROWS } from '@/lib/useSimulator';
 import { useUrlState } from '@/lib/useUrlState';
-import { betaMean, slippageFromPreset } from '@/lib/simulator';
+import {
+  betaMean,
+  slippageFromPreset,
+  deriveRecommendedLLTV,
+  snapToGovernanceLLTV,
+} from '@/lib/simulator';
+import { quantileSorted } from '@/lib/stats';
 import { buildLadderFromInputs } from '@/lib/poolPreset';
 import { type SidebarInputs } from '@/types/simulator';
 import { LLTVSidebar } from './LLTVSidebar';
@@ -138,6 +144,53 @@ export default function LLTVPage() {
   const recommended = sim.lltvDerivation.snapped;
   const riskTier = sim.riskTier;
   const lifAtRecommended = recommended > 0 ? LIF(recommended) : 0;
+  const ddPctile = sim.lltvDerivation.drawdownPercentile;
+  const ddLabel = `p${ddPctile} 1-day drawdown`;
+
+  // ----- Sensitivity matrix: (horizon × percentile) -> LLTV ----------------
+  // Sub-daily horizons use Brownian √-scaling from the 1-day series:
+  //   dd_h = dd_24h × √(h/24)
+  // We do not generate intra-day FX paths — the FX history is daily-close
+  // Yahoo data; sub-daily Monte Carlo would be fabrication. √-scaling is
+  // standard DeFi practice for collateral risk at h < 1d.
+  const matrixHorizons: { h: number; label: string }[] = [
+    { h: 24, label: '24h' },
+    { h: 12, label: '12h' },
+    { h: 6, label: '6h' },
+  ];
+  const matrixPercentiles: { p: number; label: string }[] = [
+    { p: 0.95, label: 'p95' },
+    { p: 0.99, label: 'p99' },
+    { p: 0.999, label: 'p99.9' },
+  ];
+  const matrix = useMemo(() => {
+    const series = sim.fx?.oneDayDD;
+    if (!series || series.length === 0) return null;
+    const sorted = [...series].sort((a, b) => a - b);
+    return matrixHorizons.map(({ h, label: hLabel }) => ({
+      h,
+      hLabel,
+      cells: matrixPercentiles.map(({ p, label: pLabel }) => {
+        const dd1d = quantileSorted(sorted, p);
+        const ddH = dd1d * Math.sqrt(h / 24);
+        const derived = deriveRecommendedLLTV({
+          p95Drawdown: ddH,
+          slippage,
+          safetyMargin,
+        });
+        const snapped = snapToGovernanceLLTV(derived.raw);
+        return {
+          p,
+          pLabel,
+          dd: ddH,
+          raw: derived.raw,
+          snapped,
+          converged: derived.converged,
+        };
+      }),
+    }));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sim.fx?.oneDayDD, slippage, safetyMargin]);
 
   const fxSource = sim.fx?.oneDayDD ? 'Monte Carlo worker' : '5-year empirical fallback';
 
@@ -246,6 +299,115 @@ export default function LLTVPage() {
           </div>
         </section>
 
+        {/* ----- Drawdown percentile (calibration only) ----- */}
+        <section className="space-y-3 mt-4">
+          <div className="rounded border border-brix-border bg-brix-surface p-4">
+            <div className="flex items-baseline justify-between">
+              <h3 className="text-sm font-semibold">Drawdown percentile (calibration only)</h3>
+              <span className="text-[11px] text-neutral-500">not deployed on-chain</span>
+            </div>
+            <p className="text-xs text-neutral-400 mt-1 max-w-2xl">
+              Which point in the 1-day drawdown distribution the LLTV formula
+              must absorb. <strong>p95</strong> covers normal-stress days (1-in-20).
+              <strong> p99</strong> is tail-protective (1-in-100) — produces a more
+              conservative LLTV at the cost of capital efficiency. Switch to p99
+              if you want the formula to survive rarer USD/TRY shocks without
+              relying on safety margin alone.
+            </p>
+            <div className="mt-3 flex gap-2">
+              {[
+                { v: 95, label: 'p95 (default · normal stress)' },
+                { v: 99, label: 'p99 (tail-protective)' },
+              ].map((opt) => (
+                <button
+                  key={opt.v}
+                  type="button"
+                  onClick={() => setUrlState({ lltvDrawdownPercentile: opt.v })}
+                  className={`px-3 py-1.5 rounded border text-xs ${
+                    sim.lltvDerivation.drawdownPercentile === opt.v
+                      ? 'border-brix-accent text-brix-accent'
+                      : 'border-brix-border text-neutral-400 hover:border-brix-accent hover:text-brix-accent'
+                  }`}
+                >
+                  {opt.label}
+                </button>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        {/* ----- Sensitivity matrix: horizon × percentile ------------------- */}
+        <section className="space-y-3 mt-8">
+          <h2 className="text-xl font-semibold">Sensitivity matrix</h2>
+          <p className="text-sm text-neutral-300">
+            Recommended (snapped) LLTV for every combination of execution horizon and drawdown
+            percentile, holding slippage <code>{pct(slippage, 3)}</code> and safety margin{' '}
+            <code>{pct(safetyMargin, 2)}</code> at the current values. Move the safety-margin
+            slider above and watch the whole grid update.
+          </p>
+          <p className="text-xs text-neutral-500 max-w-3xl">
+            Sub-daily horizons use Brownian √-scaling from the 1-day series:{' '}
+            <code>dd_h = dd_24h × √(h/24)</code>. We do not generate intra-day FX paths — the FX
+            history is daily-close Yahoo data, so finer-grained Monte Carlo would be fabrication.
+            √-scaling is standard practice for sub-daily collateral risk and is conservative for
+            jumpy assets like USD/TRY (real intra-day tails are usually fatter).
+          </p>
+          {matrix ? (
+            <div className="overflow-x-auto">
+              <table className="text-sm border-collapse">
+                <thead>
+                  <tr className="border-b border-brix-border">
+                    <th className="text-left py-1 pr-4">Horizon \ Percentile</th>
+                    {matrixPercentiles.map((c) => (
+                      <th key={c.label} className="text-right py-1 px-3">
+                        {c.label}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody className="font-mono">
+                  {matrix.map((row) => (
+                    <tr key={row.h} className="border-b border-brix-border">
+                      <td className="py-1 pr-4 font-sans text-neutral-300">{row.hLabel}</td>
+                      {row.cells.map((c) => {
+                        const isCurrent =
+                          row.h === 24 && Math.round(c.p * 100) === ddPctile;
+                        return (
+                          <td
+                            key={c.pLabel}
+                            className={`text-right py-1 px-3 ${
+                              isCurrent
+                                ? 'text-emerald-300 font-semibold'
+                                : 'text-neutral-200'
+                            }`}
+                            title={`dd_h = ${pct(c.dd, 3)} · raw L = ${c.raw.toFixed(4)}${
+                              c.converged ? '' : ' (did not converge)'
+                            }`}
+                          >
+                            {c.snapped > 0 ? pct(c.snapped, 1) : '—'}
+                            <span className="block text-[10px] text-neutral-500 font-sans">
+                              dd {pct(c.dd, 2)}
+                            </span>
+                          </td>
+                        );
+                      })}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              <p className="text-[11px] text-neutral-500 mt-2">
+                The cell highlighted in green is the (horizon, percentile) combo currently driving
+                the main recommendation above. <em>Hover</em> a cell to see the raw L and the
+                horizon-adjusted drawdown.
+              </p>
+            </div>
+          ) : (
+            <p className="text-sm text-neutral-500">
+              Monte Carlo worker has not finished yet — matrix appears once paths are sampled.
+            </p>
+          )}
+        </section>
+
         <section className="space-y-3 mt-8">
           <h2 className="text-xl font-semibold">Live calculation inputs</h2>
           <p className="text-sm text-neutral-300">
@@ -261,7 +423,7 @@ export default function LLTVPage() {
             </thead>
             <tbody className="font-mono">
               <tr className="border-b border-brix-border bg-brix-bg/40">
-                <td className="py-1 font-sans font-semibold">p95 1-day drawdown</td>
+                <td className="py-1 font-sans font-semibold">{ddLabel}</td>
                 <td className="text-right font-semibold">{pct(p95Drawdown, 3)}</td>
                 <td className="font-sans pl-4 text-neutral-400">
                   {fxSource} · worst-case (no pre-liq cap)
@@ -292,12 +454,14 @@ export default function LLTVPage() {
         <section className="space-y-3 mt-8">
           <h2 className="text-xl font-semibold">Formula</h2>
           <p className="text-sm text-neutral-300">
-            The recommended LLTV is the largest L such that, after a p95 collateral drawdown and
-            liquidator-pays-slippage-and-LIF, the liquidator still breaks even with a safety buffer.
-            From <code>lib/simulator.ts</code>:
+            The recommended LLTV is the largest L such that, after a p{ddPctile} collateral
+            drawdown and liquidator-pays-slippage-and-LIF, the liquidator still breaks even with a
+            safety buffer. From <code>lib/simulator.ts</code>:
           </p>
           <pre className="rounded bg-brix-surface p-3 text-sm overflow-x-auto">
-{`L = (1 − p95Drawdown) / (LIF(L) · (1 + slippage)) − safetyMargin`}
+{`L = (1 − dd) / (LIF(L) · (1 + slippage)) − safetyMargin
+
+  where dd = p${ddPctile} 1-day collateral drawdown`}
           </pre>
           <p className="text-sm text-neutral-300">
             Solved by fixed-point iteration starting at L = 0.80, then snapped down to the nearest
@@ -308,14 +472,14 @@ export default function LLTVPage() {
         <section className="space-y-3 mt-8">
           <h2 className="text-xl font-semibold">Walk-through (live)</h2>
           <pre className="rounded bg-brix-surface p-3 text-sm overflow-x-auto">
-{`p95 1-day drawdown         = ${pct(p95Drawdown, 4)}   (${fxSource}; worst-case, no pre-liq cap)
+{`${ddLabel.padEnd(26, ' ')} = ${pct(p95Drawdown, 4)}   (${fxSource}; worst-case, no pre-liq cap)
 slippage                   = ${pct(slippage, 3)}   (pool TVL $${sim.inputs.poolTVL_USD.toLocaleString()} + bands)
 safety margin              = ${pct(safetyMargin, 2)}   (slider above)
 
 fixed-point at L ≈ ${rawDerived.toFixed(4)}:
   LIF(L)              = ${lifAtRecommended.toFixed(4)}
   (1 + slippage)      = ${(1 + slippage).toFixed(4)}
-  (1 − p95Drawdown)   = ${(1 - p95Drawdown).toFixed(4)}
+  (1 − dd)            = ${(1 - p95Drawdown).toFixed(4)}
   L_raw               = (1 − ${p95Drawdown.toFixed(4)}) / (LIF · ${(1 + slippage).toFixed(4)}) − ${safetyMargin.toFixed(2)}
                       = ${rawDerived.toFixed(4)}
 
@@ -345,7 +509,7 @@ snap to GOV_LLTVS     → ${recommended}  (= ${recommended > 0 ? pct(recommended
                 must reach <code>{targetLLTV}</code>. The constraint at that target:
               </p>
               <pre className="rounded bg-brix-surface p-3 text-xs overflow-x-auto">
-{`(1 − p95dd) ≥ (${targetLLTV} + safety) · LIF(${targetLLTV}) · (1 + slip)
+{`(1 − dd) ≥ (${targetLLTV} + safety) · LIF(${targetLLTV}) · (1 + slip)
 (1 − ${p95Drawdown.toFixed(4)}) ≥ (${targetLLTV} + safety) · ${lifTarget.toFixed(4)} · (1 + slip)`}
               </pre>
 
@@ -363,7 +527,7 @@ snap to GOV_LLTVS     → ${recommended}  (= ${recommended > 0 ? pct(recommended
                 </thead>
                 <tbody className="font-mono">
                   <tr className="border-b border-brix-border">
-                    <td className="py-1 font-sans">p95 1-day drawdown</td>
+                    <td className="py-1 font-sans">{ddLabel}</td>
                     <td className="text-right">{pct(p95Drawdown, 3)}</td>
                     <td className="text-right">
                       {ddCeilingForTarget > 0
