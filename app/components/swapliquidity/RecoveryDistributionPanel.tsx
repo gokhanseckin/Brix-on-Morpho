@@ -252,7 +252,7 @@ export function RecoveryDistributionPanel() {
           As a single liquidator dump grows, slippage in the AMM eats into the LIF buffer ({fmtPct(bufferPct, 2)}).
           When effective slip exceeds the buffer, bad debt accrues. Pool is built at the current
           spot ({initialSpot.toFixed(6)}); this chart has no Monte Carlo and does not depend on the
-          Section 3 slider — it's the pool&apos;s deterministic stress profile vs trade size.
+          Section 3 slider — it&apos;s the pool&apos;s deterministic stress profile vs trade size.
         </p>
         <div className="border border-brix-border rounded p-2 bg-brix-card">
           <ResponsiveContainer width="100%" height={260}>
