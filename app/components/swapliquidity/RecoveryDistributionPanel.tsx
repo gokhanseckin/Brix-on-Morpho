@@ -180,63 +180,10 @@ export function RecoveryDistributionPanel() {
     <section id="section-recovery" className="space-y-6">
       <h2 className="text-lg font-semibold">4. Bad-debt distribution</h2>
 
-      {/* ─── Chart A: deterministic ─────────────────────────────────────── */}
+      {/* ─── Chart A: MC histogram at slider size — slider-driven, sits closest to Section 3 ─ */}
       <div className="space-y-2">
         <h3 className="text-sm font-semibold">
-          A. Bad-debt vs probe size{' '}
-          <span className="text-xs text-neutral-500 font-normal">
-            (deterministic, pool at initial spot)
-          </span>
-        </h3>
-        <p className="text-xs text-neutral-500 max-w-3xl">
-          As a single liquidator dump grows, slippage in the AMM eats into the LIF buffer ({fmtPct(bufferPct, 2)}).
-          When effective slip exceeds the buffer, bad debt accrues. Pool is built at the current
-          spot ({initialSpot.toFixed(6)}); this chart has no Monte Carlo — it's a direct slip
-          curve restated as lender loss.
-        </p>
-        <div className="border border-brix-border rounded p-2 bg-brix-card">
-          <ResponsiveContainer width="100%" height={260}>
-            <LineChart data={deterministicSweep} margin={{ top: 8, right: 40, bottom: 8, left: 8 }}>
-              <CartesianGrid strokeDasharray="3 3" opacity={0.3} />
-              <XAxis
-                dataKey="probe_USD"
-                type="number"
-                scale="log"
-                domain={['dataMin', 'dataMax']}
-                tickFormatter={fmtUSD}
-              />
-              <YAxis tickFormatter={(v: number) => fmtPct(v, 1)} domain={[0, 'auto']} />
-              <Tooltip
-                labelFormatter={(v) => `Probe ${fmtUSD(Number(v))}`}
-                formatter={(v, name) => [fmtPct(Number(v), 2), name]}
-                contentStyle={{ backgroundColor: '#0a0a0a', border: '1px solid #262626', borderRadius: 4, fontSize: 12 }}
-                labelStyle={{ color: '#a3a3a3' }}
-                itemStyle={{ color: '#e5e5e5' }}
-              />
-              <Legend wrapperStyle={{ fontSize: 11, color: '#a3a3a3' }} />
-              <ReferenceLine
-                y={bufferPct}
-                stroke="#f59e0b"
-                strokeDasharray="3 3"
-                label={{ value: `${fmtPct(bufferPct, 2)} LIF buffer`, position: 'right', fill: '#f59e0b', fontSize: 10 }}
-              />
-              <ReferenceLine
-                x={probeCollateral_USD}
-                stroke="#facc15"
-                strokeWidth={1.5}
-                label={{ value: `slider ${fmtUSD(probeCollateral_USD)}`, position: 'top', fill: '#facc15', fontSize: 10 }}
-              />
-              <Line type="monotone" dataKey="effectiveSlip" name="Effective slip" stroke="#3b82f6" strokeWidth={1.5} strokeDasharray="4 3" dot={false} isAnimationActive={false} />
-              <Line type="monotone" dataKey="badDebtPct" name="Bad debt %" stroke="#ef4444" strokeWidth={2} dot={false} isAnimationActive={false} />
-            </LineChart>
-          </ResponsiveContainer>
-        </div>
-      </div>
-
-      {/* ─── Chart B: MC histogram at slider size ───────────────────────── */}
-      <div className="space-y-2">
-        <h3 className="text-sm font-semibold">
-          B. Bad-debt distribution at slider size{' '}
+          A. Bad-debt distribution at slider size{' '}
           <span className="text-xs text-neutral-500 font-normal">
             (Monte Carlo on terminal FX, pool stays at initial spot)
           </span>
@@ -245,7 +192,7 @@ export function RecoveryDistributionPanel() {
           Sampled n={mcResults.length} of {state.pathCount} paths from main-page sim (mode{' '}
           <span className="text-neutral-300">{state.simulationMode}</span>, horizon{' '}
           <span className="text-neutral-300">{state.simulationHorizonDays}d</span>). The pool stays
-          at initial spot ({initialSpot.toFixed(6)}); each path's terminal spot is where the dump
+          at initial spot ({initialSpot.toFixed(6)}); each path&apos;s terminal spot is where the dump
           originates. The bigger FX moves away from initial, the further the dump lands from the
           core band — which is where bad debt is born. At LLTV {fmtPct(lltv, 1)} probe debt is{' '}
           ${debtUSD.toLocaleString(undefined, { maximumFractionDigits: 0 })}. Bad debt = max(0, debt − AMM proceeds).
@@ -292,6 +239,60 @@ export function RecoveryDistributionPanel() {
           </ResponsiveContainer>
         </div>
       </div>
+
+      {/* ─── Chart B: deterministic sweep — independent of slider ─────────── */}
+      <div className="space-y-2">
+        <h3 className="text-sm font-semibold">
+          B. Bad-debt vs probe size{' '}
+          <span className="text-xs text-neutral-500 font-normal">
+            (deterministic, pool at initial spot — no slider dependency)
+          </span>
+        </h3>
+        <p className="text-xs text-neutral-500 max-w-3xl">
+          As a single liquidator dump grows, slippage in the AMM eats into the LIF buffer ({fmtPct(bufferPct, 2)}).
+          When effective slip exceeds the buffer, bad debt accrues. Pool is built at the current
+          spot ({initialSpot.toFixed(6)}); this chart has no Monte Carlo and does not depend on the
+          Section 3 slider — it's the pool&apos;s deterministic stress profile vs trade size.
+        </p>
+        <div className="border border-brix-border rounded p-2 bg-brix-card">
+          <ResponsiveContainer width="100%" height={260}>
+            <LineChart data={deterministicSweep} margin={{ top: 8, right: 40, bottom: 8, left: 8 }}>
+              <CartesianGrid strokeDasharray="3 3" opacity={0.3} />
+              <XAxis
+                dataKey="probe_USD"
+                type="number"
+                scale="log"
+                domain={['dataMin', 'dataMax']}
+                tickFormatter={fmtUSD}
+              />
+              <YAxis tickFormatter={(v: number) => fmtPct(v, 1)} domain={[0, 'auto']} />
+              <Tooltip
+                labelFormatter={(v) => `Probe ${fmtUSD(Number(v))}`}
+                formatter={(v, name) => [fmtPct(Number(v), 2), name]}
+                contentStyle={{ backgroundColor: '#0a0a0a', border: '1px solid #262626', borderRadius: 4, fontSize: 12 }}
+                labelStyle={{ color: '#a3a3a3' }}
+                itemStyle={{ color: '#e5e5e5' }}
+              />
+              <Legend wrapperStyle={{ fontSize: 11, color: '#a3a3a3' }} />
+              <ReferenceLine
+                y={bufferPct}
+                stroke="#f59e0b"
+                strokeDasharray="3 3"
+                label={{ value: `${fmtPct(bufferPct, 2)} LIF buffer`, position: 'right', fill: '#f59e0b', fontSize: 10 }}
+              />
+              <ReferenceLine
+                x={probeCollateral_USD}
+                stroke="#facc15"
+                strokeWidth={1.5}
+                label={{ value: `slider ${fmtUSD(probeCollateral_USD)}`, position: 'top', fill: '#facc15', fontSize: 10 }}
+              />
+              <Line type="monotone" dataKey="effectiveSlip" name="Effective slip" stroke="#3b82f6" strokeWidth={1.5} strokeDasharray="4 3" dot={false} isAnimationActive={false} />
+              <Line type="monotone" dataKey="badDebtPct" name="Bad debt %" stroke="#ef4444" strokeWidth={2} dot={false} isAnimationActive={false} />
+            </LineChart>
+          </ResponsiveContainer>
+        </div>
+      </div>
+
     </section>
   );
 }

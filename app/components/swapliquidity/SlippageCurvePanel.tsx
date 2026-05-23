@@ -3,6 +3,7 @@ import { useMemo } from 'react';
 import { useUrlState } from '@/lib/useUrlState';
 import { buildLadderFromInputs } from '@/lib/poolPreset';
 import { quoteLiquidatorSell } from '@/lib/univ3/quoteLiquidatorSell';
+import { LIF } from '@/lib/morphoMath';
 import {
   LineChart,
   Line,
@@ -27,8 +28,11 @@ const fmtPct = (n: number) => `${(n * 100).toFixed(2)}%`;
 export function SlippageCurvePanel() {
   const [state] = useUrlState();
   const spot = 1 / state.usdtryBaseline;
+  // LIF buffer = max effective slip a liquidator dump can take before they
+  // go negative (= 1 − 1/LIF(LLTV)). The threshold is LLTV-dependent.
+  const lifBuffer = 1 - 1 / LIF(state.lltv);
 
-  const { data, breakeven1pct } = useMemo(() => {
+  const { data, breakeven1pct, breakevenLIFbuffer } = useMemo(() => {
     const preset = buildLadderFromInputs(spot, state);
     const pts: Array<{ sell: number; priceSlip: number; effective: number }> = [];
     // Log sweep from $1k to max($5M, 5× pool TVL) so we see both the flat
@@ -37,6 +41,7 @@ export function SlippageCurvePanel() {
     const hi = Math.log10(Math.max(5_000_000, state.poolTVL_USD * 5));
     const steps = 70;
     let b1: number | null = null;
+    let bLif: number | null = null;
     for (let i = 0; i < steps; i++) {
       const sellUSD = Math.pow(10, lo + ((hi - lo) * i) / (steps - 1));
       const wTRYwei = BigInt(Math.floor((sellUSD / spot) * 1e6));
@@ -46,10 +51,12 @@ export function SlippageCurvePanel() {
       const effective = Math.max(0, Math.min(1, 1 - usdmOut / sellUSD));
       pts.push({ sell: sellUSD, priceSlip: q.slippagePct, effective });
       if (b1 == null && effective >= 0.01) b1 = sellUSD;
+      if (bLif == null && effective >= lifBuffer) bLif = sellUSD;
     }
-    return { data: pts, breakeven1pct: b1 };
+    return { data: pts, breakeven1pct: b1, breakevenLIFbuffer: bLif };
   }, [
     spot,
+    lifBuffer,
     state.poolTVL_USD,
     state.bandSplitCore,
     state.bandSplitAbsorb,
@@ -66,13 +73,14 @@ export function SlippageCurvePanel() {
     <section id="section-slippage-curve" className="space-y-3">
       <h2 className="text-lg font-semibold flex items-center gap-1">
         <span>2. Slippage curve</span>
-        <InfoTooltip text="Slippage as a function of single-trade sell size against the current ladder. Two curves: marginal price slip (end-of-trade price impact) and effective proceeds shortfall (1 − amountOut/sellUSD, includes fee). Effective is what hits the trader's wallet. Liquidator-specific thresholds (LIF buffer) are shown in Section 4 where the swap is tied to seized collateral." />
+        <InfoTooltip text="Slippage as a function of single-trade sell size against the current ladder. Two curves: marginal price slip (end-of-trade price impact) and effective proceeds shortfall (1 − amountOut/sellUSD, includes fee). Effective is what hits the trader's wallet. The orange line marks the liquidator-break-even threshold (1 − 1/LIF) — only meaningful when the swap represents seized collateral of matching size." />
       </h2>
       <p className="text-xs text-neutral-500 max-w-2xl">
-        Sweep of slippage vs. trade size on the current ladder. The green line marks the 1% LP
-        service target. This chart shows pure AMM behavior — no liquidation context. Whether a
-        given slippage causes bad debt depends on the swap being a seized-collateral dump
-        (see Section 4). Y-axis capped at 10% to focus on the actionable range.
+        Sweep of slippage vs. trade size on the current ladder. The green line is the 1% LP service
+        target. The orange line is the LIF buffer = 1 − 1/LIF({fmtPct(state.lltv)}) ={' '}
+        {fmtPct(lifBuffer)}: if a liquidator interprets a swap of size X as their seized-collateral
+        dump, they break even when effective slip crosses this line and skip above it. Y-axis
+        capped at 10% to focus on the actionable range.
       </p>
       <div className="border border-brix-border rounded p-2 bg-brix-card">
         <ResponsiveContainer width="100%" height={280}>
@@ -115,6 +123,17 @@ export function SlippageCurvePanel() {
                 fontSize: 10,
               }}
             />
+            <ReferenceLine
+              y={lifBuffer}
+              stroke="#f59e0b"
+              strokeDasharray="3 3"
+              label={{
+                value: `${fmtPct(lifBuffer)} LIF buffer`,
+                position: 'right',
+                fill: '#f59e0b',
+                fontSize: 10,
+              }}
+            />
             <Line
               type="monotone"
               dataKey="effective"
@@ -137,13 +156,21 @@ export function SlippageCurvePanel() {
           </LineChart>
         </ResponsiveContainer>
       </div>
-      <div className="grid grid-cols-1 gap-3 text-xs">
+      <div className="grid grid-cols-2 gap-3 text-xs">
         <div className="p-3 border border-brix-border rounded bg-brix-card">
           <div className="text-neutral-500 uppercase tracking-wide text-[10px]">
             Max sell at 1% effective slippage
           </div>
           <div className="text-base font-mono mt-1 text-emerald-300">
             {breakeven1pct ? fmtUSD(breakeven1pct) : '> sweep max'}
+          </div>
+        </div>
+        <div className="p-3 border border-brix-border rounded bg-brix-card">
+          <div className="text-neutral-500 uppercase tracking-wide text-[10px]">
+            Max liquidator dump at break-even ({fmtPct(lifBuffer)} effective)
+          </div>
+          <div className="text-base font-mono mt-1 text-amber-300">
+            {breakevenLIFbuffer ? fmtUSD(breakevenLIFbuffer) : '> sweep max'}
           </div>
         </div>
       </div>
