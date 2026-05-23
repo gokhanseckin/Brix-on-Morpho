@@ -28,7 +28,7 @@ export function SlippageCurvePanel() {
   const [state] = useUrlState();
   const spot = 1 / state.usdtryBaseline;
 
-  const { data, breakeven1pct, breakeven5pct } = useMemo(() => {
+  const { data, breakeven1pct } = useMemo(() => {
     const preset = buildLadderFromInputs(spot, state);
     const pts: Array<{ sell: number; priceSlip: number; effective: number }> = [];
     // Log sweep from $1k to max($5M, 5× pool TVL) so we see both the flat
@@ -37,7 +37,6 @@ export function SlippageCurvePanel() {
     const hi = Math.log10(Math.max(5_000_000, state.poolTVL_USD * 5));
     const steps = 70;
     let b1: number | null = null;
-    let b5: number | null = null;
     for (let i = 0; i < steps; i++) {
       const sellUSD = Math.pow(10, lo + ((hi - lo) * i) / (steps - 1));
       const wTRYwei = BigInt(Math.floor((sellUSD / spot) * 1e6));
@@ -47,9 +46,8 @@ export function SlippageCurvePanel() {
       const effective = Math.max(0, Math.min(1, 1 - usdmOut / sellUSD));
       pts.push({ sell: sellUSD, priceSlip: q.slippagePct, effective });
       if (b1 == null && effective >= 0.01) b1 = sellUSD;
-      if (b5 == null && effective >= 0.0438) b5 = sellUSD;
     }
-    return { data: pts, breakeven1pct: b1, breakeven5pct: b5 };
+    return { data: pts, breakeven1pct: b1 };
   }, [
     spot,
     state.poolTVL_USD,
@@ -68,13 +66,13 @@ export function SlippageCurvePanel() {
     <section id="section-slippage-curve" className="space-y-3">
       <h2 className="text-lg font-semibold flex items-center gap-1">
         <span>2. Slippage curve</span>
-        <InfoTooltip text="Slippage as a function of single-trade sell size against the current ladder. Two curves: marginal price slip (Uniswap math) and effective proceeds shortfall (1 − amountOut/sellUSD, includes fee). The effective curve is what determines liquidator profitability — when it exceeds LIF − 1 = 4.38% at the 86% LLTV cliff, the liquidator loses money and skips." />
+        <InfoTooltip text="Slippage as a function of single-trade sell size against the current ladder. Two curves: marginal price slip (end-of-trade price impact) and effective proceeds shortfall (1 − amountOut/sellUSD, includes fee). Effective is what hits the trader's wallet. Liquidator-specific thresholds (LIF buffer) are shown in Section 4 where the swap is tied to seized collateral." />
       </h2>
       <p className="text-xs text-neutral-500 max-w-2xl">
-        Sweep of slippage vs. trade size on the current ladder. The horizontal lines mark the
-        1% operating target and the 4.38% LIF cliff — trade sizes above the 4.38% crossing produce
-        liquidations that lose the liquidator money. Y-axis capped at 10% to focus on the
-        actionable range.
+        Sweep of slippage vs. trade size on the current ladder. The green line marks the 1% LP
+        service target. This chart shows pure AMM behavior — no liquidation context. Whether a
+        given slippage causes bad debt depends on the swap being a seized-collateral dump
+        (see Section 4). Y-axis capped at 10% to focus on the actionable range.
       </p>
       <div className="border border-brix-border rounded p-2 bg-brix-card">
         <ResponsiveContainer width="100%" height={280}>
@@ -117,17 +115,6 @@ export function SlippageCurvePanel() {
                 fontSize: 10,
               }}
             />
-            <ReferenceLine
-              y={0.0438}
-              stroke="#f59e0b"
-              strokeDasharray="3 3"
-              label={{
-                value: '4.38% LIF cliff',
-                position: 'right',
-                fill: '#f59e0b',
-                fontSize: 10,
-              }}
-            />
             <Line
               type="monotone"
               dataKey="effective"
@@ -150,21 +137,13 @@ export function SlippageCurvePanel() {
           </LineChart>
         </ResponsiveContainer>
       </div>
-      <div className="grid grid-cols-2 gap-3 text-xs">
+      <div className="grid grid-cols-1 gap-3 text-xs">
         <div className="p-3 border border-brix-border rounded bg-brix-card">
           <div className="text-neutral-500 uppercase tracking-wide text-[10px]">
             Max sell at 1% effective slippage
           </div>
           <div className="text-base font-mono mt-1 text-emerald-300">
             {breakeven1pct ? fmtUSD(breakeven1pct) : '> sweep max'}
-          </div>
-        </div>
-        <div className="p-3 border border-brix-border rounded bg-brix-card">
-          <div className="text-neutral-500 uppercase tracking-wide text-[10px]">
-            Max sell before LIF cliff (4.38% effective)
-          </div>
-          <div className="text-base font-mono mt-1 text-amber-300">
-            {breakeven5pct ? fmtUSD(breakeven5pct) : '> sweep max'}
           </div>
         </div>
       </div>
