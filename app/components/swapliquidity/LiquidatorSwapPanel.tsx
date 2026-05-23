@@ -1,5 +1,5 @@
 'use client';
-import { useMemo, useState } from 'react';
+import { useMemo } from 'react';
 import { useUrlState } from '@/lib/useUrlState';
 import { buildLadderFromInputs } from '@/lib/poolPreset';
 import { quoteLiquidatorSell } from '@/lib/univ3/quoteLiquidatorSell';
@@ -10,8 +10,9 @@ const fmtUSD = (n: number) => `$${Math.round(n).toLocaleString()}`;
 const fmtPct = (n: number) => `${(n * 100).toFixed(3)}%`;
 
 export function LiquidatorSwapPanel() {
-  const [state] = useUrlState();
-  const [sellUSD, setSellUSD] = useState(1_000_000);
+  const [state, setState] = useUrlState();
+  const sellUSD = state.swapSellUSD;
+  const setSellUSD = (v: number) => setState({ swapSellUSD: v });
   const spot = 1 / state.usdtryBaseline;
   const preset = useMemo(
     () => buildLadderFromInputs(spot, state),
@@ -48,7 +49,7 @@ export function LiquidatorSwapPanel() {
           max={Math.max(5_000_000, state.poolTVL_USD)}
           step={5_000}
           value={sellUSD}
-          onChange={(e) => setSellUSD(parseFloat(e.target.value))}
+          onChange={(e) => setSellUSD(parseFloat(e.target.value) || 0)}
           className="block w-full mt-1"
         />
       </label>

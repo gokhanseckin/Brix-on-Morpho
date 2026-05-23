@@ -40,6 +40,8 @@ export interface SidebarInputs {
   bandAbsorbUpperPct: number;
   bandTailLowerPct: number;
   bandTailUpperPct: number;
+  // Section 2 — Liquidator swap. URL-shared so Section 4 can stress the same size.
+  swapSellUSD: number;
 }
 
 export interface LiquidityNeedOutput {

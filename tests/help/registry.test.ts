@@ -41,6 +41,7 @@ const EXPECTED_PARAM_KEYS = [
   'bandAbsorbUpperPct',
   'bandTailLowerPct',
   'bandTailUpperPct',
+  'swapSellUSD',
 ] as const;
 
 describe('help registry', () => {
