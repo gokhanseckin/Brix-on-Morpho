@@ -105,9 +105,9 @@ const recommendedPoolDepth: KpiHelp = {
 };
 
 const badDebtP95USD: KpiHelp = {
-  title: 'P95 Morpho debt — atomized (USD)',
+  title: 'P95 Morpho debt — single (USD)',
   oneLiner:
-    'The 95th-percentile USD amount of residual debt absorbed by the lender (Morpho market) across Monte-Carlo paths, assuming each liquidation hits the AMM as its own independent swap. Lower bound on tail loss — pairs with the coincident-execution viability tile to bracket the real exposure.',
+    'The 95th-percentile USD amount of residual debt absorbed by the lender (Morpho market) across Monte-Carlo paths, assuming each liquidation hits the AMM as its own independent swap. Realistic lower bound on tail loss — arb-refilled liquidations clear one position at a time, so this is the operational regime in practice. Pairs with the concurrent-stress tile, which gates whether the AMM can absorb the worst-3-day arrival rate.',
   formula: {
     plain:
       'for each path:\n  residual_i = max(0, debt_i − revenue_i)   if profitable\n             = max(0, debt_i − collAfter_i)  otherwise\n  badDebtPerPath = Σ residual_i across all positions\nbadDebtP95_USD = P95(badDebtPerPath across paths)',
@@ -134,9 +134,9 @@ const badDebtP95USD: KpiHelp = {
 };
 
 const badDebtP95Pct: KpiHelp = {
-  title: 'P95 Morpho debt — atomized (% TVL)',
+  title: 'P95 Morpho debt — single (% TVL)',
   oneLiner:
-    'P95 atomized Morpho debt as a fraction of TVL — the rate-comparable version. Tile coloring: <1% good, 1–5% warn, >5% bad. This is the loss the lender (not the AMM) absorbs in the optimistic per-position-swap regime.',
+    'P95 single-swap Morpho debt as a fraction of TVL — the rate-comparable version. Tile coloring: <1% good, 1–5% warn, >5% bad. This is the loss the lender (not the AMM) absorbs in the optimistic per-position-swap regime.',
   formula: {
     plain: 'badDebtP95Pct = badDebtP95_USD / TVL',
     latex: 'badDebtP95Pct = \\frac{badDebtP95\\_USD}{TVL}',

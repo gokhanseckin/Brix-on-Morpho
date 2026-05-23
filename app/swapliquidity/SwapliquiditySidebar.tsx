@@ -74,7 +74,7 @@ export function SwapliquiditySidebar() {
 
       <label className="block">
         <span className="text-xs text-neutral-600 dark:text-neutral-400">
-          Total TVL (USD){paramTooltip('poolTVL_USD')}
+          Single-side AMM TVL{paramTooltip('poolTVL_USD')}
         </span>
         <input
           type="number"

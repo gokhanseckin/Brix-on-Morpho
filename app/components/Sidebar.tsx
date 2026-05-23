@@ -209,7 +209,7 @@ export function Sidebar() {
 
       <Group title="Section 4 · Liquidation">
         <NumberField
-          label="Pool TVL (USD)"
+          label="Single-side AMM TVL"
           helpKey="poolTVL_USD"
           value={s.poolTVL_USD}
           onChange={(v) => setS({ poolTVL_USD: v })}
