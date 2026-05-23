@@ -1,4 +1,5 @@
 'use client';
+import { useEffect, useRef } from 'react';
 import {
   useQueryStates,
   parseAsFloat,
@@ -11,6 +12,8 @@ import { GOV_LLTVS, type LLTV } from '@/types/simulator';
 
 const MODES = ['Bootstrap', 'GBM', 'GBM+Jumps', 'Scenario'] as const;
 
+const STORAGE_KEY = 'brix:sidebar-state:v1';
+
 // Reject any LLTV not in the Morpho governance-allowed set.
 const parseAsLLTV = createParser({
   parse: (v: string): LLTV | null => {
@@ -21,7 +24,7 @@ const parseAsLLTV = createParser({
 });
 
 export function useUrlState() {
-  return useQueryStates({
+  const tuple = useQueryStates({
     witryTVL_USD: parseAsFloat.withDefault(5_000_000),
     lltv: parseAsLLTV.withDefault(0.86),
     targetUtilization: parseAsFloat.withDefault(0.8),
@@ -61,4 +64,39 @@ export function useUrlState() {
     bandTailUpperPct: parseAsFloat.withDefault(+0.30),
     swapSellUSD: parseAsFloat.withDefault(1_000_000),
   });
+
+  const [state, setState] = tuple;
+  // On first mount, hydrate from localStorage if the URL is bare. On every
+  // subsequent state change, mirror to localStorage. URL stays the single
+  // source of truth — bookmarked links with explicit params always win.
+  const hydrated = useRef(false);
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    if (!hydrated.current) {
+      hydrated.current = true;
+      const search = window.location.search;
+      const urlIsBare = !search || search === '?';
+      if (urlIsBare) {
+        try {
+          const raw = window.localStorage.getItem(STORAGE_KEY);
+          if (raw) {
+            const parsed = JSON.parse(raw) as Record<string, unknown>;
+            // nuqs ignores keys it doesn't know; bad-typed values get
+            // rejected by the parsers and fall back to defaults.
+            void setState(parsed as Parameters<typeof setState>[0]);
+          }
+        } catch {
+          // Corrupt storage — ignore, fall back to URL/defaults.
+        }
+      }
+      return;
+    }
+    try {
+      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    } catch {
+      // Storage full / unavailable — non-fatal.
+    }
+  }, [state, setState]);
+
+  return tuple;
 }
