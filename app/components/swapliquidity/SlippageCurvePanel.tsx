@@ -27,18 +27,43 @@ const fmtPct = (n: number) => `${(n * 100).toFixed(2)}%`;
 
 export function SlippageCurvePanel() {
   const [state] = useUrlState();
-  const spot = 1 / state.usdtryBaseline;
+  const {
+    usdtryBaseline,
+    lltv,
+    poolTVL_USD,
+    bandSplitCore,
+    bandSplitAbsorb,
+    poolFeeTier,
+    bandCoreLowerPct,
+    bandCoreUpperPct,
+    bandAbsorbLowerPct,
+    bandAbsorbUpperPct,
+    bandTailLowerPct,
+    bandTailUpperPct,
+  } = state;
+  const spot = 1 / usdtryBaseline;
   // LIF buffer = max effective slip a liquidator dump can take before they
   // go negative (= 1 − 1/LIF(LLTV)). The threshold is LLTV-dependent.
-  const lifBuffer = 1 - 1 / LIF(state.lltv);
+  const lifBuffer = 1 - 1 / LIF(lltv);
 
   const { data, breakeven1pct, breakevenLIFbuffer } = useMemo(() => {
-    const preset = buildLadderFromInputs(spot, state);
+    const preset = buildLadderFromInputs(spot, {
+      poolTVL_USD,
+      bandSplitCore,
+      bandSplitAbsorb,
+      poolFeeTier,
+      bandCoreLowerPct,
+      bandCoreUpperPct,
+      bandAbsorbLowerPct,
+      bandAbsorbUpperPct,
+      bandTailLowerPct,
+      bandTailUpperPct,
+    });
     const pts: Array<{ sell: number; priceSlip: number; effective: number }> = [];
     // Log sweep from $1k to max($5M, 5× pool TVL) so we see both the flat
     // small-trade regime and the steep tail.
     const lo = Math.log10(1_000);
-    const hi = Math.log10(Math.max(5_000_000, state.poolTVL_USD * 5));
+    const hi = Math.log10(Math.max(5_000_000, poolTVL_USD * 5));
     const steps = 70;
     let b1: number | null = null;
     let bLif: number | null = null;
@@ -57,16 +82,16 @@ export function SlippageCurvePanel() {
   }, [
     spot,
     lifBuffer,
-    state.poolTVL_USD,
-    state.bandSplitCore,
-    state.bandSplitAbsorb,
-    state.poolFeeTier,
-    state.bandCoreLowerPct,
-    state.bandCoreUpperPct,
-    state.bandAbsorbLowerPct,
-    state.bandAbsorbUpperPct,
-    state.bandTailLowerPct,
-    state.bandTailUpperPct,
+    poolTVL_USD,
+    bandSplitCore,
+    bandSplitAbsorb,
+    poolFeeTier,
+    bandCoreLowerPct,
+    bandCoreUpperPct,
+    bandAbsorbLowerPct,
+    bandAbsorbUpperPct,
+    bandTailLowerPct,
+    bandTailUpperPct,
   ]);
 
   return (
@@ -77,7 +102,7 @@ export function SlippageCurvePanel() {
       </h2>
       <p className="text-xs text-neutral-500 max-w-2xl">
         Sweep of slippage vs. trade size on the current ladder. The green line is the 1% LP service
-        target. The orange line is the LIF buffer = 1 − 1/LIF({fmtPct(state.lltv)}) ={' '}
+        target. The orange line is the LIF buffer = 1 − 1/LIF({fmtPct(lltv)}) ={' '}
         {fmtPct(lifBuffer)}: if a liquidator interprets a swap of size X as their seized-collateral
         dump, they break even when effective slip crosses this line and skip above it. Y-axis
         capped at 10% to focus on the actionable range.

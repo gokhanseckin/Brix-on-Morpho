@@ -1,5 +1,5 @@
 'use client';
-import { useMemo } from 'react';
+import { useCallback, useMemo } from 'react';
 import { useUrlState } from '@/lib/useUrlState';
 import { useSimulator } from '@/lib/useSimulator';
 import { buildLadderFromInputs } from '@/lib/poolPreset';
@@ -37,32 +37,59 @@ const SWEEP_MIN_USD = 1_000;
 export function RecoveryDistributionPanel() {
   const [state] = useUrlState();
   const { fx } = useSimulator();
-  const lltv = state.lltv;
+  const {
+    lltv,
+    usdtryBaseline,
+    poolTVL_USD,
+    bandSplitCore,
+    bandSplitAbsorb,
+    poolFeeTier,
+    bandCoreLowerPct,
+    bandCoreUpperPct,
+    bandAbsorbLowerPct,
+    bandAbsorbUpperPct,
+    bandTailLowerPct,
+    bandTailUpperPct,
+    swapSellUSD: probeCollateral_USD,
+    pathCount,
+    simulationMode,
+    simulationHorizonDays,
+  } = state;
   const lif = LIF(lltv);
   const bufferPct = 1 - 1 / lif;
-  const probeCollateral_USD = state.swapSellUSD;
   const debtUSD = probeCollateral_USD / lif;
 
   // CRITICAL: pool stays where it was deployed (initial spot). FX moves around
   // it — that's the whole point of the off-center stress test.
   const initialSpot = useMemo(
-    () => (state.usdtryBaseline > 0 ? 1 / state.usdtryBaseline : 0),
-    [state.usdtryBaseline],
+    () => (usdtryBaseline > 0 ? 1 / usdtryBaseline : 0),
+    [usdtryBaseline],
   );
   const fixedPreset = useMemo(
-    () => buildLadderFromInputs(initialSpot, state),
+    () => buildLadderFromInputs(initialSpot, {
+      poolTVL_USD,
+      bandSplitCore,
+      bandSplitAbsorb,
+      poolFeeTier,
+      bandCoreLowerPct,
+      bandCoreUpperPct,
+      bandAbsorbLowerPct,
+      bandAbsorbUpperPct,
+      bandTailLowerPct,
+      bandTailUpperPct,
+    }),
     [
       initialSpot,
-      state.poolTVL_USD,
-      state.bandSplitCore,
-      state.bandSplitAbsorb,
-      state.poolFeeTier,
-      state.bandCoreLowerPct,
-      state.bandCoreUpperPct,
-      state.bandAbsorbLowerPct,
-      state.bandAbsorbUpperPct,
-      state.bandTailLowerPct,
-      state.bandTailUpperPct,
+      poolTVL_USD,
+      bandSplitCore,
+      bandSplitAbsorb,
+      poolFeeTier,
+      bandCoreLowerPct,
+      bandCoreUpperPct,
+      bandAbsorbLowerPct,
+      bandAbsorbUpperPct,
+      bandTailLowerPct,
+      bandTailUpperPct,
     ],
   );
   // Materialize once per preset; swapExactIn clones internally so this is reused.
@@ -71,7 +98,7 @@ export function RecoveryDistributionPanel() {
   // Quote a wTRY → USDM sell against the fixed (initial-spot) pool, regardless
   // of what spot the dump "really" happens at. The pool is denominated in
   // absolute tick prices, so this naturally models off-center dumps.
-  const quoteFixed = (sellUSD: number): number => {
+  const quoteFixed = useCallback((sellUSD: number): number => {
     if (sellUSD <= 0 || initialSpot <= 0) return 0;
     const wTRYwei = BigInt(Math.floor((sellUSD / initialSpot) * 1e6));
     try {
@@ -80,15 +107,15 @@ export function RecoveryDistributionPanel() {
     } catch {
       return 0;
     }
-  };
+  }, [fixedPool, initialSpot]);
 
   // ─── Chart A: Deterministic bad-debt vs probe size ──────────────────────
   // No Monte Carlo. Sweep probe size against the deployed pool at initial
   // spot. Answers: "as the single-trade liquidation grows, when does the AMM
   // slip eat through the LIF buffer?"
   const deterministicSweep = useMemo(() => {
-    if (state.poolTVL_USD <= 0) return [];
-    const hi = Math.log10(Math.max(state.poolTVL_USD * 3, 5_000_000));
+    if (poolTVL_USD <= 0) return [];
+    const hi = Math.log10(Math.max(poolTVL_USD * 3, 5_000_000));
     const lo = Math.log10(SWEEP_MIN_USD);
     const out: Array<{ probe_USD: number; badDebtPct: number; effectiveSlip: number }> = [];
     for (let i = 0; i < SWEEP_STEPS; i++) {
@@ -99,8 +126,7 @@ export function RecoveryDistributionPanel() {
       out.push({ probe_USD: probeUSD, badDebtPct: bd.badDebtPct, effectiveSlip });
     }
     return out;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [fixedPool, state.poolTVL_USD, lltv]);
+  }, [poolTVL_USD, lltv, quoteFixed]);
 
   // ─── Chart B: MC distribution at the slider's probe size ────────────────
   // FX shifts spot away from the pool center. The pool stays put. Dump the
@@ -189,9 +215,9 @@ export function RecoveryDistributionPanel() {
           </span>
         </h3>
         <div className="text-xs text-neutral-500 max-w-3xl">
-          Sampled n={mcResults.length} of {state.pathCount} paths from main-page sim (mode{' '}
-          <span className="text-neutral-300">{state.simulationMode}</span>, horizon{' '}
-          <span className="text-neutral-300">{state.simulationHorizonDays}d</span>). The pool stays
+          Sampled n={mcResults.length} of {pathCount} paths from main-page sim (mode{' '}
+          <span className="text-neutral-300">{simulationMode}</span>, horizon{' '}
+          <span className="text-neutral-300">{simulationHorizonDays}d</span>). The pool stays
           at initial spot ({initialSpot.toFixed(6)}); each path&apos;s terminal spot is where the dump
           originates. The bigger FX moves away from initial, the further the dump lands from the
           core band — which is where bad debt is born. At LLTV {fmtPct(lltv, 1)} probe debt is{' '}
