@@ -84,7 +84,7 @@ export function PoolStatePanel() {
           helpKey="spotWtryUsdm"
         />
         <Kpi
-          label="Active liquidity (scaled)"
+          label="Active liquidity L (Uniswap units / 1e12)"
           value={(Number(pool.liquidity) / 1e12).toFixed(2)}
           helpKey="activeLiquidityScaled"
         />

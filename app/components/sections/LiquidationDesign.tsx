@@ -1,8 +1,6 @@
 'use client';
 import { useSimulator } from '@/lib/useSimulator';
 import {
-  LineChart,
-  Line,
   XAxis,
   YAxis,
   Tooltip,
@@ -10,11 +8,9 @@ import {
   CartesianGrid,
   BarChart,
   Bar,
-  ReferenceLine,
 } from 'recharts';
 import { useMemo } from 'react';
-import { liquidatorProfitWithPool, sampleBetaLtvFractions } from '@/lib/simulator';
-import { materializePool } from '@/lib/univ3/quoteLiquidatorSell';
+import { sampleBetaLtvFractions } from '@/lib/simulator';
 import { LIF } from '@/lib/morphoMath';
 import { quantile } from '@/lib/stats';
 import { GOV_LLTVS } from '@/types/simulator';
@@ -22,33 +18,15 @@ import { Kpi, formatPct, formatUSD } from '../Kpi';
 import { HelpPopover } from '../help/HelpPopover';
 import Link from 'next/link';
 
-const POOL_DEPTH_GRID_USD = [100_000, 250_000, 500_000, 1_000_000, 2_500_000];
-const HEATMAP_LLTVS = [0.625, 0.77, 0.86, 0.915] as const;
+// Concurrent stress: assume arbitrage refills the AMM ladder back toward oracle
+// on a ~30-min cycle, giving 48 cycles/day × 3 days = 144 single-swap clears
+// over the 3-day stress window. Conservative — real refill cadence depends on
+// MEV competition and the gap between AMM mid and oracle.
+const ARB_REFILL_PER_3_DAYS = 144;
 
 export function LiquidationDesign() {
   const { fx, inputs, lltvDerivation, pool } = useSimulator();
-  const { preset, spot, effectiveDepth_USD } = pool;
-
-  // Profit cliff data (AMM-accurate sweep using the configured ladder).
-  const profitCurve = useMemo(() => {
-    const pts: Array<{ debt: number; profit: number }> = [];
-    const lo = Math.log10(10);
-    const hi = Math.log10(1_000_000);
-    const steps = 50;
-    const materialized = materializePool(preset, spot);
-    for (let i = 0; i < steps; i++) {
-      const d = Math.pow(10, lo + ((hi - lo) * i) / (steps - 1));
-      const { profit_USD } = liquidatorProfitWithPool(materialized, {
-        debt_USD: d,
-        lltv: inputs.lltv,
-        spot,
-        gasCost_USD: 5,
-        holdingRisk_USD: 0,
-      });
-      pts.push({ debt: d, profit: profit_USD });
-    }
-    return pts;
-  }, [inputs.lltv, preset, spot]);
+  const { effectiveDepth_USD } = pool;
 
   // Bad debt histogram
   const badDebtBins = useMemo(() => {
@@ -72,27 +50,6 @@ export function LiquidationDesign() {
     }
     return out;
   }, [fx]);
-
-  // Heatmap: render placeholder cells highlighting the user's current LLTV ×
-  // pool depth cell. Heuristic shading by (LLTV / 1/depth) keeps the sweep
-  // under main-thread budget. The "current" cell is matched against the
-  // ladder-implied effective depth, so it reflects the real pool config.
-  const heatmap = useMemo(() => {
-    const cur = fx?.badDebt?.badDebtP95Pct ?? 0;
-    // Find the nearest depth bucket to the current effective depth.
-    const nearestDepth = POOL_DEPTH_GRID_USD.reduce((best, d) =>
-      Math.abs(d - effectiveDepth_USD) < Math.abs(best - effectiveDepth_USD) ? d : best,
-    POOL_DEPTH_GRID_USD[0]!);
-    const rows = HEATMAP_LLTVS.map((lv) => ({
-      lltv: lv,
-      cells: POOL_DEPTH_GRID_USD.map((d) => {
-        const heur = (lv / 0.77) * (500_000 / d) * cur;
-        const isCurrent = lv === inputs.lltv && d === nearestDepth;
-        return { depth: d, value: heur, isCurrent };
-      }),
-    }));
-    return rows;
-  }, [fx, inputs.lltv, effectiveDepth_USD]);
 
   // Concurrent stress at the P95 3-day FX move.
   //
@@ -133,7 +90,6 @@ export function LiquidationDesign() {
     const breakevenPerSwap_USD = isFinite(lltvDerivation.minMax.max_USD)
       ? lltvDerivation.minMax.max_USD
       : 0;
-    const ARB_REFILL_PER_3_DAYS = 144;
     const ammCapacity_3d_USD = breakevenPerSwap_USD * ARB_REFILL_PER_3_DAYS;
 
     const viable = seizedConcurrent_USD <= ammCapacity_3d_USD;
@@ -202,13 +158,13 @@ export function LiquidationDesign() {
           tone={concurrentStress.viable ? 'good' : 'bad'}
         />
         <Kpi
-          label="Profitable debt range"
+          label="Profitable debt range (gas-aware)"
           value={
             isFinite(lltvDerivation.minMax.min_USD) && isFinite(lltvDerivation.minMax.max_USD)
               ? `${formatUSD(lltvDerivation.minMax.min_USD)} – ${formatUSD(lltvDerivation.minMax.max_USD)}`
               : 'unprofitable at any size'
           }
-          hint={`pool depth ${formatUSD(effectiveDepth_USD)}, gas $5`}
+          hint={`Liquidator P&L ≥ 0: lower bound is gas-floor ($${5} gas eats small debt), upper bound is slippage-ceiling (AMM proceeds eaten by price impact). The swap-page "max liquidator dump at break-even" KPI uses a stricter LIF-buffer cutoff (gas-blind) — see /swapliquidity.`}
           helpKey="minProfitableLiquidation"
         />
       </div>
@@ -218,42 +174,33 @@ export function LiquidationDesign() {
         feeTier={inputs.poolFeeTier}
         coreSplit={inputs.bandSplitCore}
         absorbSplit={inputs.bandSplitAbsorb}
-        effectiveDepth_USD={effectiveDepth_USD}
         concurrentStress_USD={concurrentStress.seizedConcurrent_USD}
       />
 
       <div>
-        <h3 className="text-sm font-semibold mb-2">
-          Liquidator profit cliff (debt log-scale, in-range depth {formatUSD(effectiveDepth_USD)})
-        </h3>
-        <div className="border border-brix-border rounded p-2 bg-brix-card">
-          <ResponsiveContainer width="100%" height={260}>
-            <LineChart data={profitCurve} margin={{ top: 8, right: 20, bottom: 8, left: 8 }}>
-              <CartesianGrid strokeDasharray="3 3" opacity={0.3} />
-              <XAxis
-                dataKey="debt"
-                scale="log"
-                domain={['auto', 'auto']}
-                type="number"
-                tickFormatter={(v: number) => formatUSD(v)}
-              />
-              <YAxis tickFormatter={(v: number) => formatUSD(v)} />
-              <Tooltip
-                formatter={(v) => formatUSD(Number(v))}
-                labelFormatter={(label) => `debt = ${formatUSD(Number(label))}`}
-              />
-              <ReferenceLine y={0} stroke="#ef4444" strokeDasharray="4 4" />
-              <Line type="monotone" dataKey="profit" stroke="#3b82f6" dot={false} strokeWidth={2} />
-            </LineChart>
-          </ResponsiveContainer>
-        </div>
-      </div>
-
-      <div>
         <div className="flex items-center gap-1 mb-2">
-          <h3 className="text-sm font-semibold">Bad-debt distribution across simulated paths</h3>
+          <h3 className="text-sm font-semibold">
+            Bad-debt distribution across simulated paths
+            <span className="ml-2 text-xs font-normal text-neutral-500">
+              (aggregate Morpho debt per path — full borrower-population cascade)
+            </span>
+          </h3>
           <HelpPopover chartKey="badDebtHistogram" />
         </div>
+        <p className="text-xs text-neutral-500 mb-2 max-w-3xl">
+          Each bar counts simulated FX paths whose total leftover Morpho debt
+          (summed across the Beta-distributed borrower population, with sequential
+          AMM liquidations and pre-liquidation cascade) lands in that USD bucket.
+          For the single-probe complement — &ldquo;if a $X seized-collateral dump lands
+          at this path&apos;s terminal spot, what&apos;s the bad-debt rate?&rdquo; — see{' '}
+          <Link
+            href="/swapliquidity#section-recovery"
+            className="text-brix-accent hover:text-brix-accentHover"
+          >
+            Bad-debt distribution at slider size → /swapliquidity
+          </Link>
+          .
+        </p>
         <div className="border border-brix-border rounded p-2 bg-brix-card">
           <ResponsiveContainer width="100%" height={240}>
             <BarChart data={badDebtBins} margin={{ top: 8, right: 16, bottom: 8, left: 8 }}>
@@ -264,64 +211,6 @@ export function LiquidationDesign() {
               <Bar dataKey="count" fill="#ef4444" />
             </BarChart>
           </ResponsiveContainer>
-        </div>
-      </div>
-
-      <div>
-        <h3 className="text-sm font-semibold mb-2">
-          P95 bad-debt heatmap (LLTV × pool depth, heuristic)
-        </h3>
-        <div className="overflow-x-auto">
-          <table className="text-xs border-collapse">
-            <thead>
-              <tr>
-                <th className="p-2"></th>
-                {POOL_DEPTH_GRID_USD.map((d) => (
-                  <th key={d} className="p-2 text-right border-b border-brix-border">
-                    {formatUSD(d)}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {heatmap.map((row) => (
-                <tr key={row.lltv}>
-                  <td className="p-2 text-left border-r border-brix-border font-medium">
-                    {(row.lltv * 100).toFixed(1)}%
-                  </td>
-                  {row.cells.map((c) => {
-                    // <1% good (green), 1-5% warn (amber), >5% bad (red).
-                    let bg: string;
-                    if (c.value < 0.01) {
-                      const intensity = 1 - c.value / 0.01;
-                      bg = `rgba(34, 197, 94, ${(0.15 + intensity * 0.45).toFixed(2)})`;
-                    } else if (c.value < 0.05) {
-                      const intensity = (c.value - 0.01) / 0.04;
-                      bg = `rgba(245, 158, 11, ${(0.2 + intensity * 0.5).toFixed(2)})`;
-                    } else {
-                      const intensity = Math.min(1, (c.value - 0.05) / 0.1);
-                      bg = `rgba(239, 68, 68, ${(0.35 + intensity * 0.5).toFixed(2)})`;
-                    }
-                    return (
-                      <td
-                        key={c.depth}
-                        className={`p-2 text-right tabular-nums ${c.isCurrent ? 'ring-2 ring-blue-500 ring-inset' : ''}`}
-                        style={{ backgroundColor: bg }}
-                      >
-                        {formatPct(c.value, 2)}
-                      </td>
-                    );
-                  })}
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-        <div className="text-xs text-neutral-500 mt-1">
-          Heatmap is a heuristic scaling of the current P95 % bad-debt by LLTV and pool depth (to
-          stay under main-thread 100&nbsp;ms budget). The blue-outlined cell reflects the active
-          ({(inputs.lltv * 100).toFixed(1)}%, ladder ≈ {formatUSD(effectiveDepth_USD)} in-range)
-          configuration. Re-run with different sidebar settings to populate other cells precisely.
         </div>
       </div>
 
@@ -384,7 +273,6 @@ interface PoolSnapshotProps {
   feeTier: number;
   coreSplit: number;
   absorbSplit: number;
-  effectiveDepth_USD: number;
   concurrentStress_USD: number;
 }
 
@@ -406,9 +294,6 @@ function PoolSnapshot(p: PoolSnapshotProps) {
           core {(p.coreSplit * 100).toFixed(0)}% · absorb {(p.absorbSplit * 100).toFixed(0)}% ·
           tail {(tailSplit * 100).toFixed(0)}%
         </span>
-      </div>
-      <div>
-        In-range <span className="text-neutral-100">{formatUSD(p.effectiveDepth_USD)}</span>
       </div>
       <div>
         P95 3-day stress{' '}
