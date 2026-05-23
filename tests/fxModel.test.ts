@@ -46,8 +46,8 @@ describe('GBM', () => {
 
 describe('jump diffusion', () => {
   it('reproducible & shape', () => {
-    const a = jumpDiffusionPaths({ mu: 0.2, sigma: 0.25, lambda: 4, muJ: -0.05, sigmaJ: 0.04, S0: 38, horizonDays: 30, paths: 50, seed: 5 });
-    const b = jumpDiffusionPaths({ mu: 0.2, sigma: 0.25, lambda: 4, muJ: -0.05, sigmaJ: 0.04, S0: 38, horizonDays: 30, paths: 50, seed: 5 });
+    const a = jumpDiffusionPaths({ mu: 0.2, sigma: 0.25, lambda: 4, muJ: 0.05, sigmaJ: 0.04, S0: 38, horizonDays: 30, paths: 50, seed: 5 });
+    const b = jumpDiffusionPaths({ mu: 0.2, sigma: 0.25, lambda: 4, muJ: 0.05, sigmaJ: 0.04, S0: 38, horizonDays: 30, paths: 50, seed: 5 });
     expect(a).toEqual(b);
     expect(a[0]!.length).toBe(31);
   });
@@ -56,7 +56,7 @@ describe('jump diffusion', () => {
     // With Merton's drift correction −λκ, the expected terminal price matches
     // the pure-GBM expectation. Use a long horizon + many paths to reduce variance.
     const paths = jumpDiffusionPaths({
-      mu: 0.2, sigma: 0.25, lambda: 4, muJ: -0.05, sigmaJ: 0.04,
+      mu: 0.2, sigma: 0.25, lambda: 4, muJ: 0.05, sigmaJ: 0.04,
       S0: 38, horizonDays: 252, paths: 20_000, seed: 99,
     });
     const ST = paths.map((p) => p[p.length - 1]!);

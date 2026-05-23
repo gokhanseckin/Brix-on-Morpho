@@ -347,6 +347,7 @@ export function simulateBadDebt(a: BadDebtArgs): BadDebtOut {
       debt_USD: f * a.lltv * collateralEachUSD,
       collateralBaseUSD: collateralEachUSD,
       closed: false,
+      unresolved: false,
       preLiquidated: false,
       residual_USD: 0,
     }));
@@ -393,6 +394,9 @@ export function simulateBadDebt(a: BadDebtArgs): BadDebtOut {
 
         const collAfter = pos.collateralBaseUSD * rel;
         const hf = healthFactor({ collateralUSD: collAfter, debtUSD: pos.debt_USD, lltv: a.lltv });
+        if (pos.unresolved) {
+          pos.residual_USD = Math.max(0, pos.debt_USD - collAfter);
+        }
         if (hf <= 1) {
           const { revenue_USD, newPool } = liquidatorProfitWithPool(pool, {
             debt_USD: pos.debt_USD,
@@ -407,13 +411,14 @@ export function simulateBadDebt(a: BadDebtArgs): BadDebtOut {
           if (profit > 0) {
             pool = newPool;
             pos.closed = true;
+            pos.unresolved = false;
             pos.residual_USD = Math.max(0, pos.debt_USD - revenue_USD);
             // Liquidator actually executed: this revenue is the USD volume
             // that hit the secondary AMM. Unprofitable branch is NOT counted
             // because no liquidator fires there.
             pathSeizedVolume_USD += revenue_USD;
           } else {
-            pos.closed = true;
+            pos.unresolved = true;
             pos.residual_USD = Math.max(0, pos.debt_USD - collAfter);
           }
         }

@@ -178,6 +178,28 @@ describe('bad debt cascade', () => {
     expect(result.badDebtByPath[0]!).toBeGreaterThan(0);
   });
 
+  it('keeps unprofitable underwater positions open so later collateral losses increase bad debt', () => {
+    const lltv = 0.86;
+    const tvl_USD = 1_000_000;
+    const ltvFrac = 0.95;
+    const debt = ltvFrac * lltv * tvl_USD;
+    const result = simulateBadDebt({
+      paths: [[1, 2, 4]],
+      ltvFractions: [ltvFrac],
+      lltv,
+      tvl_USD,
+      preset: presetWithTVL(1, 1),
+      spot: 1,
+      gasCost_USD: 5,
+      witryYieldAnnual: 0,
+      preLiquidationEnabled: false,
+    });
+
+    expect(result.badDebtByPath[0]!).toBeCloseTo(debt - tvl_USD / 4, 0);
+    expect(result.liquidatedCountByPath[0]!).toBe(0);
+    expect(result.liquidatedVolumeByPath[0]!).toBe(0);
+  });
+
   it('caps hard-liquidation sale size at the remaining collateral', () => {
     const lltv = 0.86;
     const pool = materializePool(crashPresetWithTVL(5_000_000, 1), 1);
