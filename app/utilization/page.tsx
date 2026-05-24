@@ -24,6 +24,12 @@ export default function UtilizationPage() {
   const [hfBuffer, setHfBuffer] = useState(1.5);
   const rTarget = urlState.rTargetIRM;
   const setRTarget = (v: number) => setUrlState({ rTargetIRM: v });
+  const kinkClearance = urlState.kinkClearance;
+  const setKinkClearance = (v: number) => setUrlState({ kinkClearance: v });
+  // Max u_target the recommender can ever return given this clearance,
+  // snapped to the 0.01 search grid used by sweepUtilizationTargets.
+  // Add a tiny epsilon to absorb floating-point error before flooring.
+  const maxUTarget = Math.floor((0.9 - kinkClearance + 1e-9) * 100) / 100;
 
   const analysis = useUtilizationAnalysis({
     tvlUSDM_USD: urlState.witryTVL_USD,
@@ -66,7 +72,7 @@ export default function UtilizationPage() {
         <h2 className="text-sm font-semibold uppercase tracking-wider text-neutral-400">
           Calibration knobs
         </h2>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
           <Slider
             label="Stress withdrawal"
             helpKey="stressPctOfSupplyInput"
@@ -102,6 +108,23 @@ export default function UtilizationPage() {
             format={v => `${(v * 100).toFixed(2)}%`}
             onChange={setRTarget}
           />
+          <div>
+            <Slider
+              label="Kink clearance"
+              value={kinkClearance}
+              min={0}
+              max={0.15}
+              step={0.0005}
+              format={v => `${(v * 100).toFixed(2)}pp`}
+              onChange={setKinkClearance}
+            />
+            <div className="text-xs text-brix-muted mt-1">
+              Max u_target ={' '}
+              <span className="font-mono text-brix-accent">
+                {(maxUTarget * 100).toFixed(0)}%
+              </span>
+            </div>
+          </div>
         </div>
       </section>
 

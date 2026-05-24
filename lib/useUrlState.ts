@@ -56,6 +56,10 @@ export function useUrlState() {
     // the adaptive-curve formula). Default 0.04 = Morpho governance default.
     // Edited on /utilization; read on home (Strategy section + IRM curve).
     rTargetIRM: parseAsFloat.withDefault(0.04),
+    // Minimum gap between u_target and the Morpho IRM kink (u = 0.9).
+    // Default 0.07 = 7pp buffer. Edited on /utilization; gates the
+    // recommended u_target there.
+    kinkClearance: parseAsFloat.withDefault(0.07),
     blockBootstrap: parseAsBoolean.withDefault(true),
     seed: parseAsInteger.withDefault(42),
     // /swapliquidity page state
