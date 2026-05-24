@@ -10,6 +10,9 @@ import {
   quoteSellUSD,
   simulateBadDebt,
   deriveRecommendedLLTV,
+  maxLForBadDebt,
+  maxLForProfit,
+  tierScanRecommendation,
   snapToGovernanceLLTV,
   computeStrategy,
   buildVaultConfigJson,
@@ -376,6 +379,61 @@ describe('LLTV derivation', () => {
     const a = deriveRecommendedLLTV({ p95Drawdown: 0.30, slippage: 0.02, safetyMargin: 0.02 });
     const b = deriveRecommendedLLTV({ p95Drawdown: 0.05, slippage: 0.02, safetyMargin: 0.02 });
     expect(b.raw).toBeGreaterThan(a.raw);
+  });
+
+  // Regression: the old fixed-point formula declared "break-even" at L≈0.9333
+  // for dd=0, slip=5%, safety=0 — but at that L, LIF=1.0204 and the
+  // liquidator loses ~3% per liquidation. The new solver must enforce the
+  // liquidator-profit constraint and cap L well below 0.9333.
+  it('liquidator-profit constraint binds at high slippage / zero drawdown', () => {
+    const r = deriveRecommendedLLTV({ p95Drawdown: 0, slippage: 0.05, safetyMargin: 0 });
+    expect(r.bindingConstraint).toBe('liquidator-profit');
+    expect(r.raw).toBeLessThan(0.90); // old formula gave 0.9333; must be tighter
+    // True ceiling: LIF·(1-slip) ≥ 1 → L ≤ 1 - slip/β = 1 - 0.05/0.3 = 0.8333
+    expect(r.raw).toBeCloseTo(0.8333, 3);
+    expect(LIF(r.raw) * (1 - 0.05)).toBeGreaterThanOrEqual(1 - 1e-6);
+  });
+
+  it('bad-debt constraint binds at high drawdown / zero slippage', () => {
+    const r = deriveRecommendedLLTV({ p95Drawdown: 0.20, slippage: 0, safetyMargin: 0 });
+    expect(r.bindingConstraint).toBe('bad-debt');
+    // L · LIF(L) ≤ 1 - 0.20 = 0.80
+    expect(r.raw * LIF(r.raw)).toBeLessThanOrEqual(0.80 + 1e-6);
+  });
+
+  it('maxLForBadDebt returns 0 when target is non-positive', () => {
+    expect(maxLForBadDebt(1.0, 0.0)).toBe(0);
+    expect(maxLForBadDebt(0.5, 0.6)).toBe(0);
+  });
+
+  it('maxLForProfit returns 0 when even LIF_CAP cannot cover slippage', () => {
+    // LIF_CAP = 1.15; need LIF ≥ (1+0)/(1-0.2) = 1.25 > 1.15 → infeasible
+    expect(maxLForProfit(0.20, 0)).toBe(0);
+  });
+
+  it('tier scan picks largest feasible governance tier', () => {
+    // dd=5%, very low slippage (constant 0.5% across tiers), safety=0.5%
+    const scan = tierScanRecommendation({
+      p95Drawdown: 0.05,
+      safetyMargin: 0.005,
+      slippageAt: () => 0.005,
+    });
+    expect(scan.snapped).toBeGreaterThan(0);
+    expect(scan.perTier.length).toBeGreaterThan(0);
+    // Every tier above the winner must be infeasible
+    const winnerIdx = scan.perTier.findIndex((t) => t.lltv === scan.snapped);
+    for (let i = winnerIdx + 1; i < scan.perTier.length; i++) {
+      expect(scan.perTier[i]!.feasible).toBe(false);
+    }
+  });
+
+  it('tier scan returns 0 when no tier is feasible', () => {
+    const scan = tierScanRecommendation({
+      p95Drawdown: 0.99,
+      safetyMargin: 0,
+      slippageAt: () => 0,
+    });
+    expect(scan.snapped).toBe(0);
   });
 });
 
