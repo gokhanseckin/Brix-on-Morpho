@@ -332,4 +332,25 @@ describe('looperPathPnL', () => {
     expect(out.liquidationRate).toBe(0);
     expect(out.apyP50).toBeGreaterThan(deterministic.netLoopAPY);
   });
+
+  it('invalid path values do not corrupt healthy paths', () => {
+    // First path is healthy flat; second has invalid S0; third has invalid final step.
+    const S0 = 30;
+    const healthy = Array.from({ length: H + 1 }, () => S0);
+    const badStart = [0, ...Array.from({ length: H }, () => S0)];
+    const badEnd = [...Array.from({ length: H }, () => S0), NaN];
+    const out = looperPathPnL({
+      paths: [healthy, badStart, badEnd],
+      lltv: 0.86,
+      hfBuffer: 1.5,
+      witryYieldAnnual: 0.38,
+      borrowAPY: 0.04,
+      perLoopSlippageBps: 30,
+    });
+    // Healthy and badEnd should both report a positive APY (badEnd uses the
+    // last valid step's equity); badStart short-circuits to 0 APY.
+    expect(out.apyByPath[0]).toBeGreaterThan(0);
+    expect(out.apyByPath[1]).toBe(0);
+    expect(out.apyByPath[2]).toBeGreaterThan(0);
+  });
 });
