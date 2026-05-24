@@ -116,7 +116,7 @@ export function Sidebar() {
         />
         <RangeField
           label="HF buffer (looper)"
-          helpKey="hfBufferInput"
+          helpKey="hfBuffer"
           value={s.hfBuffer}
           onChange={(v) => setS({ hfBuffer: v })}
           min={1.0}

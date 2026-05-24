@@ -230,10 +230,11 @@ export function looperPathPnL(i: LooperPathPnLInput): LooperPathPnLResult {
   const borrowedShare = effectiveLeverage - 1;
   const slippageDragAnnual = borrowedShare * (i.perLoopSlippageBps / 10_000);
 
-  // Match the deterministic looperNetAPY convention: only the "productive"
-  // portion of collateral earns yield and carries FX exposure; the rest is
-  // held as a USD HF buffer (no yield, no FX exposure). Posted collateral
-  // for HF purposes is the productive portion only.
+  // Mirror the deterministic looperNetAPY convention: the looper holds back
+  // a fraction (1 − 1/hfBuffer) of their levered debt as USD cash to maintain
+  // the HF target rather than deploying it into wiTRY. That idle USD does
+  // not swing with FX and earns no wiTRY yield (matching `hfIdleCost` in
+  // looperNetAPY). Only the productive collateral is counted toward HF.
   const idleFrac = 1 - 1 / i.hfBuffer;
   const idleUSD = idleFrac * borrowedShare;             // USD cash reserve
   const productiveUSD0 = effectiveLeverage - idleUSD;    // wiTRY-equivalent at t=0
@@ -251,6 +252,11 @@ export function looperPathPnL(i: LooperPathPnLInput): LooperPathPnLResult {
       continue;
     }
     const S0 = path[0]!;
+    if (!Number.isFinite(S0) || S0 <= 0) {
+      apyByPath.push(0);
+      liquidatedByPath.push(false);
+      continue;
+    }
     const H = path.length - 1;        // horizon in steps (days)
     const equity0 = 1;
     const debt0_USD = borrowedShare;
@@ -258,6 +264,7 @@ export function looperPathPnL(i: LooperPathPnLInput): LooperPathPnLResult {
     let liquidated = false;
     let liquidationStep = -1;
     let terminalEquity = 0;
+    let lastValidEquity: number | null = null;
 
     for (let t = 1; t <= H; t++) {
       const St = path[t]!;
@@ -278,7 +285,10 @@ export function looperPathPnL(i: LooperPathPnLInput): LooperPathPnLResult {
         terminalEquity = Math.max(0, equity - liqHaircutFracOfDebt * debtUSD);
         break;
       }
-      if (t === H) terminalEquity = equity;
+      lastValidEquity = equity;
+    }
+    if (!liquidated) {
+      terminalEquity = lastValidEquity ?? 0;
     }
 
     const horizonForAnnualize = liquidated ? liquidationStep : H;
