@@ -183,7 +183,14 @@ describe('help registry', () => {
       'totalSupplyAPY',
       'borrowerIncentiveAPY',
       'netBorrowAPY',
-      'leverageLoopAPY',
+      'netLoopAPY',
+      'netLoopAPYWithIncentives',
+      'effectiveLeverageStrategy',
+      'loopDebtPerCollateral',
+      'loopAPYP5',
+      'loopAPYP50',
+      'loopAPYP95',
+      'loopLiquidationRate',
     ] as const;
     const SECTION_3_PARAMS = [
       'supplyIncentiveBudgetMonthly_USD',
