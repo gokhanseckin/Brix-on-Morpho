@@ -104,7 +104,7 @@ export default function UtilizationPage() {
             value={rTarget}
             min={0.01}
             max={0.10}
-            step={0.005}
+            step={0.0005}
             format={v => `${(v * 100).toFixed(2)}%`}
             onChange={setRTarget}
           />
