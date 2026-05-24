@@ -13,7 +13,7 @@ test('Monte Carlo (1000 paths × 90 days) completes under 3000ms (best-effort)',
   const pathsKpi = page
     .getByText('Paths simulated', { exact: true })
     .locator('xpath=ancestor::div[1]/parent::div')
-    .locator('div.text-2xl');
+    .locator('div.text-3xl');
   await pathsKpi.waitFor();
   await expect(pathsKpi).toHaveText('1000', { timeout: 30_000 });
   const elapsed = Date.now() - start;
