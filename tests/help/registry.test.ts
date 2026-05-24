@@ -94,7 +94,6 @@ describe('help registry', () => {
       'withdrawalBuffer',
       'requiredPlusBuffer',
       'liquidityFloor',
-      'lltvSensitivity',
     ] as const;
     const SECTION_1_CHARTS = ['irmCurve'] as const;
     const SECTION_1_PARAMS = [
@@ -132,12 +131,12 @@ describe('help registry', () => {
   // PR #4: Section 2 (FX Risk) ships real copy.
   describe('PR #4 — fx-risk content is no longer stubbed', () => {
     const SECTION_2_KPIS = [
-      'threeDayMaxDrawdownP50',
-      'threeDayMaxDrawdownP95',
+      'oneDayMaxDrawdownP50',
+      'oneDayMaxDrawdownP95',
       'expectedLiquidationVolumeP95',
       'annualizedVol',
     ] as const;
-    const SECTION_2_CHARTS = ['fxBands', 'netWitryUsdPaths', 'positionsUnderwater'] as const;
+    const SECTION_2_CHARTS = ['fxBands', 'netWitryUsdPaths', 'drawdownDistribution'] as const;
     const SECTION_2_PARAMS = [
       'witryYieldAnnual',
       'usdtryBaseline',

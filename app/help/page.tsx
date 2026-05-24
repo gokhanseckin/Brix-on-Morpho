@@ -3,7 +3,7 @@ import type { Route } from 'next';
 
 const SECTIONS: Array<{ slug: string; label: string; blurb: string }> = [
   { slug: 'liquidity-need', label: '1. Liquidity Need', blurb: 'How much USDM the vault must hold.' },
-  { slug: 'fx-risk', label: '2. FX Risk', blurb: 'USD/TRY shocks, drawdowns, positions underwater.' },
+  { slug: 'fx-risk', label: '2. FX Risk', blurb: 'USD/TRY paths (P5/P50/P95/P99), net wiTRY USD value, 1-day drawdown distribution.' },
   { slug: 'strategy', label: '3. Strategy', blurb: 'APYs, incentives, days to target.' },
   { slug: 'liquidation', label: '4. Liquidation', blurb: 'Liquidator economics and bad debt.' },
   { slug: 'vault', label: '5. Vault', blurb: 'Recommended LLTV, risk tier, deploy JSON.' },

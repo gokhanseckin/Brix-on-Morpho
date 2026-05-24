@@ -14,7 +14,6 @@ import {
 } from 'recharts';
 import { useMemo } from 'react';
 import { witryPerITRY } from '@/lib/morphoMath';
-import { pctUnderwaterAtT, sampleBetaLtvFractions } from '@/lib/simulator';
 import { Kpi, formatPct } from '../Kpi';
 import { HelpPopover } from '../help/HelpPopover';
 
@@ -22,24 +21,28 @@ export function FXRisk() {
   const { fx, inputs, running } = useSimulator();
 
   const pathData = useMemo(() => {
-    if (!fx) return [] as Array<{ day: number; p5: number; p50: number; p95: number }>;
+    if (!fx) return [] as Array<{ day: number; p5: number; p50: number; p95: number; p99: number }>;
     return fx.p50.map((v, i) => ({
       day: i,
       p5: fx.p5[i] ?? 0,
       p50: v,
       p95: fx.p95[i] ?? 0,
+      p99: fx.p99[i] ?? 0,
     }));
   }, [fx]);
 
   const netWitryData = useMemo(() => {
-    if (!fx) return [] as Array<{ day: number; p5: number; p50: number; p95: number }>;
+    if (!fx) return [] as Array<{ day: number; p1: number; p5: number; p50: number; p95: number }>;
     return fx.p50.map((p50, i) => {
       const w = witryPerITRY(i, inputs.witryYieldAnnual);
       const p5v = fx.p5[i] ?? p50;
       const p95v = fx.p95[i] ?? p50;
+      const p99v = fx.p99[i] ?? p50;
+      // wiTRY USD value ∝ 1/S, so USD/TRY percentiles invert: the worst FX (P99
+      // of USD/TRY) maps to the deepest net-value tail (P1 of net wiTRY USD).
       return {
         day: i,
-        // p5 of NET wiTRY USD: when USD/TRY is high (TRY weak), wiTRY USD is low
+        p1: w / p99v,
         p5: w / p95v,
         p50: w / p50,
         p95: w / p5v,
@@ -48,7 +51,7 @@ export function FXRisk() {
   }, [fx, inputs.witryYieldAnnual]);
 
   const drawdownBins = useMemo(() => {
-    if (!fx?.threeDayDD || fx.threeDayDD.length === 0) return [];
+    if (!fx?.oneDayDD || fx.oneDayDD.length === 0) return [];
     const bins = [
       { range: '0-2%', lo: 0, hi: 0.02, count: 0 },
       { range: '2-5%', lo: 0.02, hi: 0.05, count: 0 },
@@ -58,7 +61,7 @@ export function FXRisk() {
       { range: '20-30%', lo: 0.2, hi: 0.3, count: 0 },
       { range: '30%+', lo: 0.3, hi: Infinity, count: 0 },
     ];
-    for (const dd of fx.threeDayDD) {
+    for (const dd of fx.oneDayDD) {
       for (const b of bins) {
         if (dd >= b.lo && dd < b.hi) {
           b.count++;
@@ -69,38 +72,14 @@ export function FXRisk() {
     return bins.map((b) => ({ range: b.range, count: b.count }));
   }, [fx]);
 
-  const underwaterByDay = useMemo(() => {
-    if (!fx?.p50) return [] as Array<{ day: number; pct: number }>;
-    const ltvFractions = sampleBetaLtvFractions({
-      alpha: inputs.borrowerLTVAlpha,
-      beta: inputs.borrowerLTVBeta,
-      n: 500,
-      seed: inputs.seed,
-    });
-    const S0 = fx.p50[0] ?? 1;
-    return fx.p50.map((s, t) => {
-      // collateralRelChange = wiTRY in USD now / wiTRY in USD at t=0
-      // = (witryPerITRY(t) / s) / (1 / S0) = witryPerITRY(t) * S0 / s
-      const collRel = (witryPerITRY(t, inputs.witryYieldAnnual) * S0) / s;
-      return {
-        day: t,
-        pct: pctUnderwaterAtT({
-          ltvFractions,
-          lltv: inputs.lltv,
-          collateralRelChange: collRel,
-        }),
-      };
-    });
-  }, [fx, inputs.borrowerLTVAlpha, inputs.borrowerLTVBeta, inputs.witryYieldAnnual, inputs.lltv, inputs.seed]);
-
   return (
     <section id="section-fx-risk" className="space-y-6">
       <div>
         <div className="brix-kicker mb-2">02 · FX Risk</div>
         <h2 className="text-2xl md:text-3xl font-semibold tracking-tight">FX Risk</h2>
         <p className="text-sm text-neutral-500 mt-1">
-          USD/TRY Monte Carlo paths, the net wiTRY USD value (after staking yield offset), and the
-          fraction of positions that go underwater across the chosen horizon.
+          USD/TRY Monte Carlo paths and the net wiTRY USD value (after staking yield offset)
+          across the chosen horizon.
         </p>
       </div>
 
@@ -122,25 +101,9 @@ export function FXRisk() {
         />
       </div>
 
-      <div className="grid grid-cols-1 gap-4 p-4 border border-amber-400/60 bg-amber-50 dark:bg-amber-950/30 rounded">
-        <div className="text-sm">
-          <strong>Liquidator wiTRY delivery vs. 3-day cooldown:</strong> Liquidators receive
-          seized wiTRY directly at the moment of liquidation. The 3-day cooldown only applies if
-          they choose to redeem through Brix. They can also dump on the wiTRY/USDM secondary
-          market (see Section 4). The 3-day window therefore measures{' '}
-          <em>secondary-market exit risk</em>, not protocol-imposed delay.
-        </div>
-        <div className="text-sm">
-          <strong>Oracle staleness gap:</strong> wiTRY NAV updates are currently manual (not yet
-          on Redstone). The on-chain price can lag the true off-chain NAV by hours-to-a-day. The
-          simulator&apos;s stress scenarios assume oracle prices update instantly; real
-          liquidations will face an additional staleness gap documented in Section 4.
-        </div>
-      </div>
-
       <div>
         <div className="flex items-center gap-1 mb-2">
-          <h3 className="text-sm font-semibold">USD/TRY paths (P5 / P50 / P95)</h3>
+          <h3 className="text-sm font-semibold">USD/TRY paths (P5 / P50 / P95 / P99)</h3>
           <HelpPopover chartKey="fxBands" />
         </div>
         <div className="border border-brix-border rounded p-2 bg-brix-card">
@@ -154,6 +117,14 @@ export function FXRisk() {
               <Line type="monotone" dataKey="p5" stroke="#10b981" dot={false} strokeWidth={1.5} />
               <Line type="monotone" dataKey="p50" stroke="#3b82f6" dot={false} strokeWidth={2} />
               <Line type="monotone" dataKey="p95" stroke="#ef4444" dot={false} strokeWidth={1.5} />
+              <Line
+                type="monotone"
+                dataKey="p99"
+                stroke="#7c3aed"
+                dot={false}
+                strokeWidth={1.5}
+                strokeDasharray="4 4"
+              />
             </LineChart>
           </ResponsiveContainer>
         </div>
@@ -163,7 +134,7 @@ export function FXRisk() {
         <div>
           <div className="flex items-center gap-1 mb-2">
             <h3 className="text-sm font-semibold">
-              Net wiTRY USD value path (wiTRY accrual / USD-per-TRY)
+              Net wiTRY USD value path (P1 / P5 / P50 / P95 · wiTRY accrual / USD-per-TRY)
             </h3>
             <HelpPopover chartKey="netWitryUsdPaths" />
           </div>
@@ -175,6 +146,14 @@ export function FXRisk() {
                 <YAxis tickFormatter={(x: number) => x.toFixed(4)} />
                 <Tooltip formatter={(v) => Number(v).toFixed(5)} />
                 <Legend />
+                <Line
+                  type="monotone"
+                  dataKey="p1"
+                  stroke="#7c3aed"
+                  dot={false}
+                  strokeWidth={1.5}
+                  strokeDasharray="4 4"
+                />
                 <Line type="monotone" dataKey="p5" stroke="#ef4444" dot={false} strokeWidth={1.5} />
                 <Line type="monotone" dataKey="p50" stroke="#3b82f6" dot={false} strokeWidth={2} />
                 <Line type="monotone" dataKey="p95" stroke="#10b981" dot={false} strokeWidth={1.5} />
@@ -184,41 +163,21 @@ export function FXRisk() {
         </div>
       )}
 
-      <div className="grid grid-cols-2 gap-4">
-        <div>
-          <div className="flex items-center gap-1 mb-2">
-            <h3 className="text-sm font-semibold">3-day max drawdown distribution</h3>
-            <HelpPopover chartKey="drawdownDistribution" />
-          </div>
-          <div className="border border-brix-border rounded p-2 bg-brix-card">
-            <ResponsiveContainer width="100%" height={240}>
-              <BarChart data={drawdownBins} margin={{ top: 8, right: 16, bottom: 8, left: 8 }}>
-                <CartesianGrid strokeDasharray="3 3" opacity={0.3} />
-                <XAxis dataKey="range" tick={{ fontSize: 10 }} />
-                <YAxis />
-                <Tooltip />
-                <Bar dataKey="count" fill="#3b82f6" />
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
+      <div>
+        <div className="flex items-center gap-1 mb-2">
+          <h3 className="text-sm font-semibold">1-day max drawdown distribution</h3>
+          <HelpPopover chartKey="drawdownDistribution" />
         </div>
-
-        <div>
-          <div className="flex items-center gap-1 mb-2">
-            <h3 className="text-sm font-semibold">% positions underwater by day (P50 path)</h3>
-            <HelpPopover chartKey="positionsUnderwater" />
-          </div>
-          <div className="border border-brix-border rounded p-2 bg-brix-card">
-            <ResponsiveContainer width="100%" height={240}>
-              <LineChart data={underwaterByDay} margin={{ top: 8, right: 16, bottom: 8, left: 8 }}>
-                <CartesianGrid strokeDasharray="3 3" opacity={0.3} />
-                <XAxis dataKey="day" />
-                <YAxis tickFormatter={(x: number) => `${(x * 100).toFixed(0)}%`} domain={[0, 1]} />
-                <Tooltip formatter={(v) => `${(Number(v) * 100).toFixed(1)}%`} />
-                <Line type="monotone" dataKey="pct" stroke="#ef4444" dot={false} strokeWidth={2} />
-              </LineChart>
-            </ResponsiveContainer>
-          </div>
+        <div className="border border-brix-border rounded p-2 bg-brix-card">
+          <ResponsiveContainer width="100%" height={240}>
+            <BarChart data={drawdownBins} margin={{ top: 8, right: 16, bottom: 8, left: 8 }}>
+              <CartesianGrid strokeDasharray="3 3" opacity={0.3} />
+              <XAxis dataKey="range" tick={{ fontSize: 10 }} />
+              <YAxis />
+              <Tooltip />
+              <Bar dataKey="count" fill="#3b82f6" />
+            </BarChart>
+          </ResponsiveContainer>
         </div>
       </div>
     </section>

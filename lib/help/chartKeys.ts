@@ -4,10 +4,9 @@ import type { HelpSection } from './types';
 export const CHART_KEYS = [
   'irmCurve',              // LiquidityNeed
   'betaDistribution',      // LiquidityNeed
-  'fxBands',               // FXRisk: P5/P50/P95 USD/TRY
+  'fxBands',               // FXRisk: P5/P50/P95/P99 USD/TRY
   'netWitryUsdPaths',      // FXRisk
-  'positionsUnderwater',   // FXRisk
-  'drawdownDistribution',  // FXRisk: 3-day max drawdown histogram
+  'drawdownDistribution',  // FXRisk: 1-day max drawdown histogram
   'badDebtHistogram',      // LiquidationDesign
   'competitiveBenchmark',  // LiquidityStrategy
   // Utilization (section 6)
@@ -30,7 +29,6 @@ export const CHART_SECTION: Record<ChartKey, HelpSection> = {
   betaDistribution: 'liquidity-need',
   fxBands: 'fx-risk',
   netWitryUsdPaths: 'fx-risk',
-  positionsUnderwater: 'fx-risk',
   drawdownDistribution: 'fx-risk',
   badDebtHistogram: 'liquidation',
   competitiveBenchmark: 'strategy',

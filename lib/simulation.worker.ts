@@ -39,6 +39,7 @@ export interface WorkerOutput {
   p5: number[];
   p50: number[];
   p95: number[];
+  p99: number[];
   oneDayDD: number[];
   threeDayDD: number[];
   badDebt: {
@@ -100,7 +101,7 @@ const api = {
         break;
       }
     }
-    const { p5, p50, p95 } = percentilesAtEachStep(paths);
+    const { p5, p50, p95, p99 } = percentilesAtEachStep(paths);
     const oneDayDD = rolling3DayMaxDrawdown(paths, 1);
     const threeDayDD = rolling3DayMaxDrawdown(paths, 3);
     const ltvFractions = sampleBetaLtvFractions({
@@ -134,6 +135,7 @@ const api = {
       p5,
       p50,
       p95,
+      p99,
       oneDayDD,
       threeDayDD,
       badDebt: {
