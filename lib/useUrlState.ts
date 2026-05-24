@@ -72,29 +72,38 @@ export function useUrlState() {
   });
 
   const [state, setState] = tuple;
-  // On first mount, hydrate from localStorage if the URL is bare. On every
-  // subsequent state change, mirror to localStorage. URL stays the single
-  // source of truth — bookmarked links with explicit params always win.
-  const hydrated = useRef(false);
+  // Two effects keep URL as the single source of truth while letting
+  // localStorage carry params across page navigations:
+  //   (A) MOUNT-ONLY hydration — on first mount, if the URL has no query
+  //       string, load every saved key from localStorage and push them to
+  //       the URL. Bookmarked URLs with explicit params always win.
+  //   (B) WRITE-ON-CHANGE mirror — every time state changes, mirror the
+  //       whole shape to localStorage. The flag below skips the very
+  //       first render so we don't overwrite stored values with the
+  //       defaults that render gives us before hydration runs.
+  const skipFirstWrite = useRef(true);
   useEffect(() => {
     if (typeof window === 'undefined') return;
-    if (!hydrated.current) {
-      hydrated.current = true;
-      const search = window.location.search;
-      const urlIsBare = !search || search === '?';
-      if (urlIsBare) {
-        try {
-          const raw = window.localStorage.getItem(STORAGE_KEY);
-          if (raw) {
-            const parsed = JSON.parse(raw) as Record<string, unknown>;
-            // nuqs ignores keys it doesn't know; bad-typed values get
-            // rejected by the parsers and fall back to defaults.
-            void setState(parsed as Parameters<typeof setState>[0]);
-          }
-        } catch {
-          // Corrupt storage — ignore, fall back to URL/defaults.
-        }
-      }
+    const search = window.location.search;
+    const urlIsBare = !search || search === '?';
+    if (!urlIsBare) return;
+    try {
+      const raw = window.localStorage.getItem(STORAGE_KEY);
+      if (!raw) return;
+      const parsed = JSON.parse(raw) as Record<string, unknown>;
+      // nuqs ignores unknown keys and falls back to defaults for bad
+      // values, so we can safely throw the whole blob at setState.
+      void setState(parsed as Parameters<typeof setState>[0]);
+    } catch {
+      // Corrupt storage — fall back to URL/defaults.
+    }
+    // Intentionally [] — hydrate exactly once per mount.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    if (skipFirstWrite.current) {
+      skipFirstWrite.current = false;
       return;
     }
     try {
@@ -102,7 +111,7 @@ export function useUrlState() {
     } catch {
       // Storage full / unavailable — non-fatal.
     }
-  }, [state, setState]);
+  }, [state]);
 
   return tuple;
 }
