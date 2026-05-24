@@ -32,16 +32,17 @@ export function FXRisk() {
   }, [fx]);
 
   const netWitryData = useMemo(() => {
-    if (!fx) return [] as Array<{ day: number; p5: number; p50: number; p95: number; p99: number }>;
+    if (!fx) return [] as Array<{ day: number; p1: number; p5: number; p50: number; p95: number }>;
     return fx.p50.map((p50, i) => {
       const w = witryPerITRY(i, inputs.witryYieldAnnual);
       const p5v = fx.p5[i] ?? p50;
       const p95v = fx.p95[i] ?? p50;
       const p99v = fx.p99[i] ?? p50;
+      // wiTRY USD value ∝ 1/S, so USD/TRY percentiles invert: the worst FX (P99
+      // of USD/TRY) maps to the deepest net-value tail (P1 of net wiTRY USD).
       return {
         day: i,
-        // High USD/TRY (TRY weak) → low wiTRY USD. So p99 of USD/TRY → worst wiTRY USD line.
-        p99: w / p99v,
+        p1: w / p99v,
         p5: w / p95v,
         p50: w / p50,
         p95: w / p5v,
@@ -133,7 +134,7 @@ export function FXRisk() {
         <div>
           <div className="flex items-center gap-1 mb-2">
             <h3 className="text-sm font-semibold">
-              Net wiTRY USD value path (P5 / P50 / P95 / P99 · wiTRY accrual / USD-per-TRY)
+              Net wiTRY USD value path (P1 / P5 / P50 / P95 · wiTRY accrual / USD-per-TRY)
             </h3>
             <HelpPopover chartKey="netWitryUsdPaths" />
           </div>
@@ -147,7 +148,7 @@ export function FXRisk() {
                 <Legend />
                 <Line
                   type="monotone"
-                  dataKey="p99"
+                  dataKey="p1"
                   stroke="#7c3aed"
                   dot={false}
                   strokeWidth={1.5}

@@ -17,8 +17,7 @@ export const FX_RISK_PARAMS: Partial<Record<string, ParamHelp>> = {
         {
           section: 'Section 2 — FX Risk',
           effects: [
-            '"Net wiTRY USD value paths" chart (P5/P50/P95 curves) re-shapes — wiTRY appreciates as (1 + yield)^(t/365)',
-            '"% positions underwater by day" chart shifts — higher yield inflates collateral faster, so fewer positions cross LLTV',
+            '"Net wiTRY USD value paths" chart (P1/P5/P50/P95 curves) re-shapes — wiTRY appreciates as (1 + yield)^(t/365)',
           ],
         },
         {
@@ -101,8 +100,8 @@ export const FX_RISK_PARAMS: Partial<Record<string, ParamHelp>> = {
         {
           section: 'Section 2 — FX Risk',
           effects: [
-            'USD/TRY P5/P50/P95 fan (`fxBands` chart) re-shapes',
-            'Net wiTRY USD value paths and positions-underwater chart update',
+            'USD/TRY P5/P50/P95/P99 fan (`fxBands` chart) re-shapes',
+            'Net wiTRY USD value P1/P5/P50/P95 paths update',
             '1-day max drawdown P50 and P95 KPIs update',
           ],
         },
@@ -283,13 +282,13 @@ const fxBands: ChartHelp = {
 
 const netWitryUsdPaths: ChartHelp = {
   title: 'Net wiTRY USD value paths',
-  oneLiner: 'The USD value of wiTRY collateral over time — two forces fighting each other: wiTRY accrual pushes it up (yield compounds daily), TRY depreciation pushes it down. Shown as P5 / P50 / P95 / P99 (P99 dashed purple).',
+  oneLiner: 'The USD value of wiTRY collateral over time — two forces fighting each other: wiTRY accrual pushes it up (yield compounds daily), TRY depreciation pushes it down. Shown as P1 / P5 / P50 / P95 percentiles OF NET VALUE (P1 dashed purple is the deepest adverse tail).',
   axes: { x: 'Day (0 = today, Day N = N calendar days from now)', y: 'wiTRY USD value, normalized to 1.0 at Day 0' },
   definitions: [
     { term: 'Two competing forces', definition: 'wiTRY earns yield every day (the Turkish MMF NAV grows, giving you more TRY per wiTRY). At the same time TRY itself loses value against USD. The net USD value = (TRY per wiTRY) × (USD per TRY). If yield > depreciation rate, the value drifts up. If depreciation > yield, it drifts down. On the median path, TRY historically depreciates faster than the yield compensates, so the P50 line drifts downward.' },
     { term: 'Break-even rate', definition: 'wiTRY USD value stays flat when TRY depreciates exactly at the annualized wiTRY yield rate (e.g. 38%/yr). This is the threshold — above that depreciation rate, USD value falls; below it, USD value rises.' },
     { term: 'Reading the chart', definition: 'A value of 0.85 at Day 30 on the P5 line means: in the worst 5% of futures, the collateral is worth 85% of its original USD value after 30 days. If the loan was sized at 75% LLTV and collateral drops to 75% of original value, that position is exactly at the liquidation threshold.' },
-    { term: 'Color flip vs fxBands', definition: 'Because wiTRY USD ≈ 1/S, the P5 of USD/TRY corresponds to the P95 of wiTRY USD value and vice versa. Colors are remapped so green = good (high wiTRY USD value), red = bad. The P99 USD/TRY tail maps to the deepest (worst) wiTRY USD line — drawn dashed purple.' },
+    { term: 'Color flip vs fxBands', definition: 'Because wiTRY USD ≈ 1/S, percentiles of USD/TRY invert when mapped to net wiTRY USD value: the P95 USD/TRY (TRY weak, bad for the lender) becomes the P5 of net wiTRY value, and the P99 USD/TRY tail (worst FX) becomes the P1 of net wiTRY value. Colors are remapped so green = good (high wiTRY USD value), red = bad. The P1 net-value line — the deepest adverse tail — is drawn dashed purple.' },
   ],
   impact: {
     health: 'This is what the liquidator actually seizes. The yield offset is real protection — it partially compensates for TRY depreciation before a liquidation is triggered.',

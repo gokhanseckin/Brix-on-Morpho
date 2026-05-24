@@ -47,9 +47,9 @@ const recommendedLLTV: KpiHelp = {
     description: 'Defaults: p95 1-day drawdown ≈ 3%, slippage ≈ 0.05, safetyMargin 1%. (Numbers approximate; live tile updates per the worker.)',
     steps: [
       { label: 'seed', expression: 'L₀ = 0.80, LIF(0.80) ≈ 1.062', usesInputs: [] },
-      { label: 'iterate', expression: 'L₁ = (1 − 0.06) / (1.062 × 1.05) − 0.05 ≈ 0.793', usesInputs: ['safetyMargin'] },
-      { label: 'converge', expression: 'after 4–6 iters, raw ≈ 0.79', usesInputs: [] },
-      { label: 'snap down', expression: 'raw 0.79 → snapped 77% (the largest GOV_LLTVS ≤ 0.79)', usesInputs: [] },
+      { label: 'iterate', expression: 'L₁ = (1 − 0.03) / (1.062 × 1.05) − 0.01 ≈ 0.860', usesInputs: ['safetyMargin'] },
+      { label: 'converge', expression: 'after 4–6 iters, raw ≈ 0.86', usesInputs: [] },
+      { label: 'snap down', expression: 'raw 0.86 → snapped 86% (exactly on a GOV_LLTVS tier)', usesInputs: [] },
     ],
   },
 };
