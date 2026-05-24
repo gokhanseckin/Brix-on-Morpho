@@ -59,7 +59,7 @@ export const FX_RISK_PARAMS: Partial<Record<string, ParamHelp>> = {
       'How the simulator generates 1000 imaginary TRY futures. Bootstrap (default) shuffles real history; GBM uses a math model; GBM+Jumps adds sudden crisis shocks on top; Scenario lets you hardcode a specific crash.',
     details: {
       description:
-        'The simulator runs 1000 parallel "what if" futures for USD/TRY to answer: how often do positions go underwater, how fast, and how much bad debt accumulates? All four modes feed Sections 2 (FX Risk), 4 (Liquidation), and 5 (Vault Recommendations). Section 1 (Liquidity Need) and Section 3 (Strategy) are pre-FX and do not depend on the simulation.',
+        'The simulator runs 1000 parallel "what if" futures for USD/TRY to answer: how often do positions go underwater, how fast, and how much bad debt accumulates? All four modes feed Sections 2 (FX Risk), 4 (Liquidation), and 5 (Deployment Recommendations). Section 1 (Liquidity Need) and Section 3 (Strategy) are pre-FX and do not depend on the simulation.',
       options: [
         {
           name: 'Bootstrap (default)',
@@ -115,7 +115,7 @@ export const FX_RISK_PARAMS: Partial<Record<string, ParamHelp>> = {
           ],
         },
         {
-          section: 'Section 5 — Vault Recommendations',
+          section: 'Section 5 — Deployment Recommendations',
           effects: [
             'Recommended LLTV re-derives from the new P95 3-day drawdown',
             'Risk tier may flip if your chosen LLTV crosses the new recommendation',

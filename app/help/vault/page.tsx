@@ -9,12 +9,15 @@ export default function HelpVault() {
   return (
     <div className="space-y-10">
       <header>
-        <h2 className="text-xl font-semibold">5. Vault Recommendations</h2>
+        <h2 className="text-xl font-semibold">5. Deployment Recommendations</h2>
         <p className="text-sm text-neutral-500 mt-1 max-w-prose">
-          The fixed-point LLTV derivation, the risk-tier classification of the
-          user-chosen LLTV vs the recommendation, and the deploy-ready vault
-          config JSON. Aggregates every upstream section into a single artifact
-          ready for the MetaMorpho deployment scripts.
+          Three distinct artifacts: the Morpho Blue <strong>market</strong> (immutable
+          LLTV/IRM/oracle), the per-market <strong>pre-liquidation contract</strong>{' '}
+          (borrower opt-in, spec §4D), and the MetaMorpho <strong>vault</strong>
+          {' '}(caps, fees, timelock, roles). The two-constraint LLTV derivation, the
+          risk-tier classification, and the deploy-ready JSON aggregate every upstream
+          section into one artifact ready for the Morpho Blue + MetaMorpho deployment
+          scripts.
         </p>
       </header>
 
