@@ -13,6 +13,7 @@ export interface SidebarInputs {
   witryYieldAnnual: number;
   witryYieldUSD_7d: number;
   witryYieldUSD_30d: number;
+  hfBuffer: number;            // looper health-factor safety buffer (≥ 1.0)
   usdtryBaseline: number;
   historicalPeriod: HistoricalPeriod;
   simulationMode: SimulationMode;
