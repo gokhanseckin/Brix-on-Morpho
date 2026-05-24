@@ -114,8 +114,8 @@ export default function UtilizationPage() {
               value={kinkClearance}
               min={0}
               max={0.15}
-              step={0.005}
-              format={v => `${(v * 100).toFixed(1)}pp`}
+              step={0.0005}
+              format={v => `${(v * 100).toFixed(2)}pp`}
               onChange={setKinkClearance}
             />
             <div className="text-xs text-brix-muted mt-1">
