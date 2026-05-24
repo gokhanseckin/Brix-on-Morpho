@@ -23,7 +23,9 @@ export default function UtilizationPage() {
   // rTargetIRM lives in URL state (default 0.04) because it feeds home's
   // Strategy borrowAPY + IRM curve too — see useSimulator.ts.
   const [stressPct, setStressPct] = useState(0.20);
-  const [hfBuffer, setHfBuffer] = useState(1.5);
+  // hfBuffer migrated to URL state so the home page sidebar slider shares it.
+  const hfBuffer = urlState.hfBuffer;
+  const setHfBuffer = (v: number) => setUrlState({ hfBuffer: v });
   const rTarget = urlState.rTargetIRM;
   const setRTarget = (v: number) => setUrlState({ rTargetIRM: v });
   const kinkClearance = urlState.kinkClearance;

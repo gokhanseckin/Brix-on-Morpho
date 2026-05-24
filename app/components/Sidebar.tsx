@@ -114,6 +114,16 @@ export function Sidebar() {
           step={0.01}
           format={(v) => `${(v * 100).toFixed(0)}%`}
         />
+        <RangeField
+          label="HF buffer (looper)"
+          helpKey="hfBufferInput"
+          value={s.hfBuffer}
+          onChange={(v) => setS({ hfBuffer: v })}
+          min={1.0}
+          max={3.0}
+          step={0.05}
+          format={(v) => `${v.toFixed(2)}×`}
+        />
         <NumberField
           label="USD/TRY baseline"
           helpKey="usdtryBaseline"
