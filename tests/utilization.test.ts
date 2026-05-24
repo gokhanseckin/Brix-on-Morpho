@@ -333,6 +333,29 @@ describe('looperPathPnL', () => {
     expect(out.apyP50).toBeGreaterThan(deterministic.netLoopAPY);
   });
 
+  it('wiped positions report -100% APY (renderable floor)', () => {
+    // Identical to the strongly-depreciating test but assert on the value.
+    const S0 = 30;
+    const Send = 60;
+    const paths: number[][] = Array.from({ length: 50 }, () =>
+      Array.from({ length: 91 }, (_, t) => S0 + ((Send - S0) * t) / 90),
+    );
+    const out = looperPathPnL({
+      paths,
+      lltv: 0.86,
+      hfBuffer: 1.5,
+      witryYieldAnnual: 0.38,
+      borrowAPY: 0.04,
+      perLoopSlippageBps: 30,
+    });
+    expect(out.liquidationRate).toBe(1);
+    // All wiped paths should report exactly -1 (not -∞, not NaN); the histogram
+    // bucket lo=-1.0 needs this floor to hold.
+    for (const apy of out.apyByPath) {
+      expect(apy).toBe(-1);
+    }
+  });
+
   it('invalid path values do not corrupt healthy paths', () => {
     // First path is healthy flat; second has invalid S0; third has invalid final step.
     const S0 = 30;

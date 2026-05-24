@@ -449,16 +449,21 @@ describe('strategy', () => {
       borrowerIncentiveBudgetMonthly_USD: 0,
       expectedBorrow_USD: 2_310_000,
       witryYieldAnnual: 0.38,
-      expectedTRYDepreciation_annual: 0.30,
+      hfBuffer: 1.5,
+      perLoopSlippageBps: 30,
+      lltv: 0.86,
     });
     expect(out.grossSupplyAPY).toBeCloseTo(0.07, 4);
     expect(out.totalSupplyAPY).toBeGreaterThan(out.netSupplyAPY);
     expect(out.borrowerIncentiveAPY).toBe(0);
     expect(out.netBorrowAPY).toBeCloseTo(0.10, 6);
+    expect(out.effectiveLeverage).toBeCloseTo(1 / (1 - 0.86 / 1.5), 6);
+    expect(out.loopDebtPerCollateral).toBeCloseTo(0.86 / 1.5, 6);
+    expect(out.netLoopAPY).toBeGreaterThan(0);
+    expect(out.netLoopAPY_withIncentives).toBeCloseTo(out.netLoopAPY, 10);
   });
 
-  it('borrower incentive lowers netBorrowAPY and can go negative', () => {
-    // $20k/mo on $1M expected borrow ⇒ 24%/yr; gross borrow 10% ⇒ net = -14%.
+  it('borrower incentive lowers netBorrowAPY and lifts loop APY via overlay', () => {
     const out = computeStrategy({
       borrowAPY: 0.10,
       targetUtilization: 0.7,
@@ -469,12 +474,13 @@ describe('strategy', () => {
       borrowerIncentiveBudgetMonthly_USD: 20_000,
       expectedBorrow_USD: 1_000_000,
       witryYieldAnnual: 0.38,
-      expectedTRYDepreciation_annual: 0.30,
+      hfBuffer: 1.5,
+      perLoopSlippageBps: 30,
+      lltv: 0.86,
     });
     expect(out.borrowerIncentiveAPY).toBeCloseTo(0.24, 6);
     expect(out.netBorrowAPY).toBeCloseTo(-0.14, 6);
-    // Negative net borrow boosts loop APY above the raw wiTRY yield.
-    expect(out.leverageLoopAPY).toBeGreaterThan(0.38);
+    expect(out.netLoopAPY_withIncentives).toBeGreaterThan(out.netLoopAPY);
   });
 });
 
