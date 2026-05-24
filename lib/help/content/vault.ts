@@ -26,7 +26,7 @@ const recommendedLLTV: KpiHelp = {
       'L_{\\text{raw}} = \\text{fix}\\left( L \\mapsto \\frac{1 - dd_{p95}}{LIF(L)\\cdot(1+\\sigma)} - m \\right),\\quad L^{*} = \\max\\{lv \\in \\text{GOV\\_LLTVS} : lv \\leq L_{\\text{raw}}\\}',
   },
   params: [
-    { name: 'p95Drawdown', source: 'derived', note: 'From Section 2 — P95 of 3-day max drawdown across Monte-Carlo paths. Falls back to DEFAULT_P95_3D_DRAWDOWN = 0.15 before the worker returns.' },
+    { name: 'p95Drawdown', source: 'derived', note: 'From Section 2 — P95 (or selected /lltv percentile) of 1-day max drawdown across Monte-Carlo paths. Falls back to the empirical 1-day drawdown of the embedded USD/TRY history before the worker returns.' },
     { name: 'slippage', source: 'derived', note: 'From Section 4 — slippage(L_p95, poolDepth), clamped to ≤ SLIPPAGE_ESTIMATE_CAP = 0.5.' },
     { name: 'safetyMargin', source: 'sidebar', ref: 'safetyMargin' },
     { name: 'LIF(L)', source: 'derived', note: 'Liquidation Incentive Factor at trial LLTV — see Section 1 morphoMath.' },
@@ -44,7 +44,7 @@ const recommendedLLTV: KpiHelp = {
     profitability: 'Higher snapped LLTV → larger expected borrow base → more interest. Trade-off bounded by §4 bad-debt curve.',
   },
   workedExample: {
-    description: 'Defaults: p95 3-day drawdown ≈ 6%, slippage ≈ 0.05, safetyMargin 5%. (Numbers approximate; live tile updates per the worker.)',
+    description: 'Defaults: p95 1-day drawdown ≈ 3%, slippage ≈ 0.05, safetyMargin 1%. (Numbers approximate; live tile updates per the worker.)',
     steps: [
       { label: 'seed', expression: 'L₀ = 0.80, LIF(0.80) ≈ 1.062', usesInputs: [] },
       { label: 'iterate', expression: 'L₁ = (1 − 0.06) / (1.062 × 1.05) − 0.05 ≈ 0.793', usesInputs: ['safetyMargin'] },

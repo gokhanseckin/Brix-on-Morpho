@@ -69,8 +69,8 @@ export interface LiquidityNeedOutput {
 
 export interface FxOutput {
   paths: number[][];
-  p5: number[]; p50: number[]; p95: number[];
-  netWitryUSDPaths: { p5: number[]; p50: number[]; p95: number[] };
+  p5: number[]; p50: number[]; p95: number[]; p99: number[];
+  netWitryUSDPaths: { p5: number[]; p50: number[]; p95: number[]; p99: number[] };
   positionUnderwaterByDay: Array<{ day: number; pctUnderwater: number }>;
   threeDayMaxDrawdown: { p50: number; p95: number };
   expectedLiquidationVolumeP95_USD: number;

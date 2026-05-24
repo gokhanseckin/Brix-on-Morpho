@@ -187,24 +187,6 @@ const liquidityFloor: KpiHelp = {
   },
 };
 
-const lltvSensitivity: KpiHelp = {
-  title: 'LLTV sensitivity',
-  oneLiner: 'How requiredUSDM scales as the LLTV tier is changed. Linear in LLTV with all else held equal: doubling LLTV doubles required USDM.',
-  formula: {
-    plain: 'requiredUSDM(LLTV) = TVL × LLTV × E[LTV/LLTV] / targetUtilization',
-    latex: 'requiredUSDM(LLTV) = \\frac{TVL \\times LLTV \\times \\frac{\\alpha}{\\alpha+\\beta}}{u_{\\text{target}}}',
-  },
-  params: [COMMON_PARAMS.TVL!, COMMON_PARAMS.alpha!, COMMON_PARAMS.beta!, COMMON_PARAMS.uTarget!],
-  definitions: [
-    { term: 'Governance LLTV tiers', definition: 'Morpho governance ratifies a fixed set of LLTV values: 38.5%, 62.5%, 77%, 86%, 91.5%, 94.5%, 96.5%, 98%. The recommended LLTV (Section 5) is always snapped down to one of these.' },
-  ],
-  impact: {
-    health: 'Quickly sanity-checks how a governance vote on LLTV would shift sizing without re-running the full simulator.',
-    sustainability: 'A higher LLTV requires more USDM AND tolerates less drawdown before liquidations fire. Trade-off is non-trivial — Section 5 derives the optimal LLTV.',
-    profitability: 'Higher LLTV → larger borrow base → more interest, but liquidators face higher bad-debt risk (Section 4).',
-  },
-};
-
 export const LIQUIDITY_NEED_KPIS = {
   maxBorrowable,
   expectedBorrow,
@@ -212,7 +194,6 @@ export const LIQUIDITY_NEED_KPIS = {
   withdrawalBuffer,
   requiredPlusBuffer,
   liquidityFloor,
-  lltvSensitivity,
 };
 
 // ---------------------------------------------------------------------------

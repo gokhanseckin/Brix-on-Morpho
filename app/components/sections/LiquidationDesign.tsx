@@ -19,10 +19,11 @@ import { HelpPopover } from '../help/HelpPopover';
 import Link from 'next/link';
 
 // Concurrent stress: assume arbitrage refills the AMM ladder back toward oracle
-// on a ~30-min cycle, giving 48 cycles/day × 3 days = 144 single-swap clears
-// over the 3-day stress window. Conservative — real refill cadence depends on
-// MEV competition and the gap between AMM mid and oracle.
-const ARB_REFILL_PER_3_DAYS = 144;
+// on a ~30-min cycle, giving 48 single-swap clears over a 1-day stress window
+// (24h × 2 cycles/hour). Conservative — real refill cadence depends on MEV
+// competition and the gap between AMM mid and oracle. The 1-day horizon
+// matches the realistic execution window adopted on /lltv.
+const ARB_REFILL_PER_DAY = 48;
 
 export function LiquidationDesign() {
   const { fx, inputs, lltvDerivation, pool } = useSimulator();
@@ -51,23 +52,24 @@ export function LiquidationDesign() {
     return out;
   }, [fx]);
 
-  // Concurrent stress at the P95 3-day FX move.
+  // Concurrent stress at the P95 1-day FX move.
   //
   // A borrower with utilization fraction f has effective LTV = f × LLTV and
-  // buffer = (1 − f). They liquidate within a 3-day window iff drawdown ≥
+  // buffer = (1 − f). They liquidate within a 1-day window iff drawdown ≥
   // buffer, i.e. f ≥ 1 − dd_p95. We resample the same Beta(α, β) borrower
   // population the worker uses (deterministic on inputs.seed), filter to the
   // tail above that threshold, and sum their debt × LIF. That's the aggregate
-  // collateral seized over the worst 3 days — what could pressure the AMM if
-  // arrivals cluster.
+  // collateral seized over the worst single day — what could pressure the
+  // AMM if arrivals cluster.
   //
   // Capacity: between liquidations, arbitrage restores depth to ~oracle.
-  // Assume a conservative 30-min refill cycle → 144 arb cycles per 3 days.
-  // Each cycle can clear up to the AMM single-swap breakeven (largest swap
-  // with effective slip ≤ LIF − 1).
+  // Assume a conservative 30-min refill cycle → 48 arb cycles per day. Each
+  // cycle can clear up to the AMM single-swap breakeven (largest swap with
+  // effective slip ≤ LIF − 1).
   const concurrentStress = useMemo(() => {
+    // Fallback ≈ 0.15 / √3 ≈ 0.087 by Brownian √-scaling of the prior 3-day default.
     const dd_p95 =
-      fx?.threeDayDD && fx.threeDayDD.length > 0 ? quantile(fx.threeDayDD, 0.95) : 0.15;
+      fx?.oneDayDD && fx.oneDayDD.length > 0 ? quantile(fx.oneDayDD, 0.95) : 0.087;
     const fMin = Math.max(0, 1 - dd_p95);
 
     const N = 1000;
@@ -90,10 +92,10 @@ export function LiquidationDesign() {
     const breakevenPerSwap_USD = isFinite(lltvDerivation.minMax.max_USD)
       ? lltvDerivation.minMax.max_USD
       : 0;
-    const ammCapacity_3d_USD = breakevenPerSwap_USD * ARB_REFILL_PER_3_DAYS;
+    const ammCapacity_1d_USD = breakevenPerSwap_USD * ARB_REFILL_PER_DAY;
 
-    const viable = seizedConcurrent_USD <= ammCapacity_3d_USD;
-    const headroom_USD = ammCapacity_3d_USD - seizedConcurrent_USD;
+    const viable = seizedConcurrent_USD <= ammCapacity_1d_USD;
+    const headroom_USD = ammCapacity_1d_USD - seizedConcurrent_USD;
 
     return {
       dd_p95,
@@ -103,7 +105,7 @@ export function LiquidationDesign() {
       debtAtRisk_USD,
       seizedConcurrent_USD,
       breakevenPerSwap_USD,
-      ammCapacity_3d_USD,
+      ammCapacity_1d_USD,
       viable,
       headroom_USD,
     };
@@ -148,13 +150,13 @@ export function LiquidationDesign() {
           helpKey="badDebtP95Pct"
         />
         <Kpi
-          label="Concurrent stress @ P95 3-day move"
+          label="Concurrent stress @ P95 1-day move"
           value={
             concurrentStress.viable
               ? `VIABLE · ${formatUSD(concurrentStress.seizedConcurrent_USD)}`
               : `STRESSED · ${formatUSD(concurrentStress.seizedConcurrent_USD)}`
           }
-          hint={`At ${formatPct(concurrentStress.dd_p95, 1)} 3-day drawdown, ${concurrentStress.positionsAtRisk}/${concurrentStress.population} borrowers (Beta tail with f ≥ ${concurrentStress.fMin.toFixed(2)}) cross LLTV. Aggregate seized ${formatUSD(concurrentStress.seizedConcurrent_USD)}. With ~30-min arb refill cycle, AMM clears ~${formatUSD(concurrentStress.ammCapacity_3d_USD)} per 3 days (single-swap max ${formatUSD(concurrentStress.breakevenPerSwap_USD)} × 144). ${concurrentStress.viable ? 'Liquidators fire freely.' : 'Cluster risk: arrivals may outpace arb refill.'}`}
+          hint={`At ${formatPct(concurrentStress.dd_p95, 1)} 1-day drawdown, ${concurrentStress.positionsAtRisk}/${concurrentStress.population} borrowers (Beta tail with f ≥ ${concurrentStress.fMin.toFixed(2)}) cross LLTV. Aggregate seized ${formatUSD(concurrentStress.seizedConcurrent_USD)}. With ~30-min arb refill cycle, AMM clears ~${formatUSD(concurrentStress.ammCapacity_1d_USD)} per day (single-swap max ${formatUSD(concurrentStress.breakevenPerSwap_USD)} × 48). ${concurrentStress.viable ? 'Liquidators fire freely.' : 'Cluster risk: arrivals may outpace arb refill.'}`}
           tone={concurrentStress.viable ? 'good' : 'bad'}
         />
         <Kpi
@@ -243,13 +245,13 @@ export function LiquidationDesign() {
           At LLTV={(inputs.lltv * 100).toFixed(1)}%, P95 Morpho debt (single) ={' '}
           {fx?.badDebt ? formatUSD(fx.badDebt.badDebtP95_USD) : '—'} (
           {fx?.badDebt ? formatPct(fx.badDebt.badDebtP95Pct, 2) : '—'} of TVL).
-          Concurrent stress at P95 3-day move ({formatPct(concurrentStress.dd_p95, 1)}):{' '}
+          Concurrent stress at P95 1-day move ({formatPct(concurrentStress.dd_p95, 1)}):{' '}
           {concurrentStress.positionsAtRisk}/{concurrentStress.population} borrowers in Beta tail,{' '}
           {formatUSD(concurrentStress.seizedConcurrent_USD)} aggregate seized →{' '}
           <strong>{concurrentStress.viable ? 'VIABLE' : 'STRESSED'}</strong>
           {!concurrentStress.viable && ' if liquidations cluster faster than arb-refill'} against
-          ~{formatUSD(concurrentStress.ammCapacity_3d_USD)} of 3-day AMM clearing capacity
-          (single-swap max × 144 refills). Note: 90-day cumulative liquidation volume (
+          ~{formatUSD(concurrentStress.ammCapacity_1d_USD)} of 1-day AMM clearing capacity
+          (single-swap max × 48 refills). Note: full-horizon cumulative liquidation volume (
           {fx?.badDebt ? formatUSD(fx.badDebt.expectedLiquidationVolumeP95_USD) : '—'}) is LP-LVR
           burden, not liquidator-skip risk. Recommended wiTRY/USDM pool depth ≥{' '}
           {formatUSD(
@@ -296,7 +298,7 @@ function PoolSnapshot(p: PoolSnapshotProps) {
         </span>
       </div>
       <div>
-        P95 3-day stress{' '}
+        P95 1-day stress{' '}
         <span className="text-neutral-100">{formatUSD(p.concurrentStress_USD)}</span>
       </div>
       <Link
