@@ -12,7 +12,7 @@ import { GOV_LLTVS, type LLTV } from '@/types/simulator';
 
 const MODES = ['Bootstrap', 'GBM', 'GBM+Jumps', 'Scenario'] as const;
 
-const STORAGE_KEY = 'brix:sidebar-state:v1';
+export const STORAGE_KEY = 'brix:sidebar-state:v1';
 
 // Reject any LLTV not in the Morpho governance-allowed set.
 const parseAsLLTV = createParser({
