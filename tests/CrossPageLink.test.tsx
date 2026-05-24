@@ -1,6 +1,7 @@
 import { describe, expect, it, beforeEach } from 'vitest';
 import { render, screen, act, fireEvent } from '@testing-library/react';
 import { CrossPageLink } from '@/app/components/CrossPageLink';
+import { STORAGE_KEY } from '@/lib/useUrlState';
 
 function setLocationSearch(search: string) {
   // jsdom allows replacing the URL via history; reflect that into window.location.search.
@@ -10,6 +11,7 @@ function setLocationSearch(search: string) {
 describe('CrossPageLink', () => {
   beforeEach(() => {
     setLocationSearch('');
+    window.localStorage.clear();
   });
 
   it('renders the bare href on first paint (no SSR/CSR mismatch)', () => {
@@ -111,6 +113,60 @@ describe('CrossPageLink', () => {
     act(() => setLocationSearch(''));
     fireEvent.mouseDown(a);
     expect(a.getAttribute('href')).toBe('/lltv');
+  });
+
+  // Storage fallback — for pages that don't render useUrlState (e.g. help,
+  // assignment) the URL may be bare even though localStorage holds the
+  // operator's last state. CrossPageLink reconstructs the query string
+  // from storage so navigation lands on the destination with state intact.
+  it('falls back to localStorage when the URL is bare', () => {
+    setLocationSearch('');
+    window.localStorage.setItem(
+      STORAGE_KEY,
+      JSON.stringify({ witryTVL_USD: 10000000, lltv: 0.86 }),
+    );
+    render(<CrossPageLink href="/lltv">go</CrossPageLink>);
+    const a = screen.getByRole('link', { name: /go/i }) as HTMLAnchorElement;
+    // The exact key order in URLSearchParams matches insertion order.
+    expect(a.getAttribute('href')).toBe(
+      '/lltv?witryTVL_USD=10000000&lltv=0.86',
+    );
+  });
+
+  it('prefers URL search over localStorage when both have content', () => {
+    setLocationSearch('?witryTVL_USD=99');
+    window.localStorage.setItem(
+      STORAGE_KEY,
+      JSON.stringify({ witryTVL_USD: 10000000 }),
+    );
+    render(<CrossPageLink href="/lltv">go</CrossPageLink>);
+    const a = screen.getByRole('link', { name: /go/i }) as HTMLAnchorElement;
+    expect(a.getAttribute('href')).toBe('/lltv?witryTVL_USD=99');
+  });
+
+  it('returns bare href if localStorage is corrupt JSON', () => {
+    setLocationSearch('');
+    window.localStorage.setItem(STORAGE_KEY, '{not json');
+    render(<CrossPageLink href="/lltv">go</CrossPageLink>);
+    const a = screen.getByRole('link', { name: /go/i }) as HTMLAnchorElement;
+    expect(a.getAttribute('href')).toBe('/lltv');
+  });
+
+  it('JIT-updates from localStorage if URL becomes bare AND storage was written after mount', () => {
+    setLocationSearch('');
+    render(<CrossPageLink href="/lltv">go</CrossPageLink>);
+    const a = screen.getByRole('link', { name: /go/i }) as HTMLAnchorElement;
+    expect(a.getAttribute('href')).toBe('/lltv');
+    // After mount, something else writes localStorage (could be a parallel
+    // tab or the destination page hydrating).
+    act(() => {
+      window.localStorage.setItem(
+        STORAGE_KEY,
+        JSON.stringify({ witryTVL_USD: 5000000 }),
+      );
+    });
+    fireEvent.mouseDown(a);
+    expect(a.getAttribute('href')).toBe('/lltv?witryTVL_USD=5000000');
   });
 
   it('composes with caller-provided onMouseDown / onKeyDown handlers', () => {

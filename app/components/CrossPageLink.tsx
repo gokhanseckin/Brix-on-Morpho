@@ -1,30 +1,36 @@
 'use client';
 import { useEffect, useState } from 'react';
 import type { AnchorHTMLAttributes, MouseEvent, KeyboardEvent } from 'react';
+import { STORAGE_KEY } from '@/lib/useUrlState';
 
 type Props = AnchorHTMLAttributes<HTMLAnchorElement> & { href: string };
 
 /**
- * Cross-page link that preserves the current URL query string on navigation.
+ * Cross-page link that preserves sidebar state on navigation.
  *
- * The app keeps sidebar state in the URL via nuqs; a plain `<a href="/lltv">`
- * drops the search on a full reload, forcing the destination page to wait
- * for a post-render localStorage hydration that may flash defaults or pick
- * up a stale snapshot.
+ * State propagation has three legs that must all align:
+ *   1. nuqs writes editable params to `window.location.search` on change.
+ *   2. `useUrlState` mirrors the full state into `localStorage` so it
+ *      survives full reloads / new tabs.
+ *   3. This component reads the live state at click time and appends it
+ *      to the destination href, so the destination page sees the URL
+ *      params on its very first render — no flash of stale defaults,
+ *      no dependency on the destination's own post-render localStorage
+ *      hydration to kick in.
  *
- * Two-phase href synchronization:
- *   1. Mount-time `useEffect` captures `window.location.search` so the
- *      hover-preview href is correct after hydration. Render-time bare href
- *      keeps SSR/CSR byte-identical to avoid hydration mismatch.
- *   2. **JIT update on `onMouseDown` / `onKeyDown(Enter|Space)`** rewrites
- *      `e.currentTarget.href` against the *current* `window.location.search`
- *      right before navigation. This is the only path that captures URL
- *      mutations that happened after mount (e.g. user edited a sidebar
- *      value via nuqs between page load and link click) — useEffect with
- *      `[]` deps fires once and cannot see those later URL writes.
- *   `onMouseDown` (not `onClick`) is chosen because it fires for all
- *   mouse buttons (left / middle / ctrl-click → new tab) before the
- *   navigation gesture commits.
+ * Source priority for the appended search:
+ *   - `window.location.search` if non-empty (current page already has
+ *     state in the URL — use it verbatim).
+ *   - Else `localStorage[STORAGE_KEY]` serialized as a query string
+ *     (current page didn't render useUrlState, but state from a prior
+ *     page is still on disk).
+ *
+ * JIT update on `onMouseDown` / `onKeyDown(Enter|Space)` covers the
+ * mount-time-stale case: nuqs may write the URL after this component
+ * mounted, and useEffect with [] deps can't see those later writes.
+ * Mutating `e.currentTarget.href` right before navigation is safe —
+ * the browser uses the current href for the navigation that the
+ * following mouseup / click commits.
  */
 export function CrossPageLink({
   href,
@@ -35,12 +41,12 @@ export function CrossPageLink({
 }: Props) {
   const [mountSearch, setMountSearch] = useState('');
   useEffect(() => {
-    setMountSearch(window.location.search);
+    setMountSearch(getLiveSearch());
   }, []);
   const renderedHref = mountSearch ? insertSearch(href, mountSearch) : href;
 
   const syncHrefNow = (el: HTMLAnchorElement) => {
-    const live = window.location.search;
+    const live = getLiveSearch();
     el.href = live ? insertSearch(href, live) : href;
   };
 
@@ -65,6 +71,35 @@ export function CrossPageLink({
       {children}
     </a>
   );
+}
+
+/**
+ * Return the current search string — `?key=val&...` — sourced from the
+ * URL, or from localStorage if the URL is bare. Returns '' if neither
+ * has state. Safe under SSR (no window).
+ */
+function getLiveSearch(): string {
+  if (typeof window === 'undefined') return '';
+  const fromUrl = window.location.search;
+  if (fromUrl) return fromUrl;
+  return readStorageAsSearch();
+}
+
+function readStorageAsSearch(): string {
+  try {
+    const raw = window.localStorage.getItem(STORAGE_KEY);
+    if (!raw) return '';
+    const parsed = JSON.parse(raw) as Record<string, unknown>;
+    const sp = new URLSearchParams();
+    for (const [k, v] of Object.entries(parsed)) {
+      if (v === undefined || v === null) continue;
+      sp.set(k, String(v));
+    }
+    const qs = sp.toString();
+    return qs ? `?${qs}` : '';
+  } catch {
+    return '';
+  }
 }
 
 /**
