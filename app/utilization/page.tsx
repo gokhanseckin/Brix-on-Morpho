@@ -1,13 +1,15 @@
 'use client';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { TopNav } from '@/app/components/TopNav';
 import { CrossPageLink } from '@/app/components/CrossPageLink';
 import { useUtilizationAnalysis } from '@/lib/useUtilizationAnalysis';
 import { useUrlState } from '@/lib/useUrlState';
+import { historicalAnnualizedVol, loadFxRows } from '@/lib/fxData';
 import { RecommendationCard } from './components/RecommendationCard';
 import { LooperViabilityCurve } from './components/LooperViabilityCurve';
 import { LiquidityStressSection } from './components/LiquidityStressSection';
 import { LoopEconomicsBreakdown } from './components/LoopEconomicsBreakdown';
+import { FXRiskCard } from './components/FXRiskCard';
 import { IRMHeatmap } from './components/IRMHeatmap';
 import { RecommendationTable } from './components/RecommendationTable';
 import { HelpPopover } from '@/app/components/help/HelpPopover';
@@ -26,16 +28,22 @@ export default function UtilizationPage() {
   const setRTarget = (v: number) => setUrlState({ rTargetIRM: v });
   const kinkClearance = urlState.kinkClearance;
   const setKinkClearance = (v: number) => setUrlState({ kinkClearance: v });
+  const fxStressZ = urlState.fxStressZ;
+  const setFxStressZ = (v: number) => setUrlState({ fxStressZ: v });
   // Max u_target the recommender can ever return given this clearance,
   // snapped to the 0.01 search grid used by sweepUtilizationTargets.
   // Add a tiny epsilon to absorb floating-point error before flooring.
   const maxUTarget = Math.floor((0.9 - kinkClearance + 1e-9) * 100) / 100;
+  // Annualized σ of USD/TRY log-returns, computed once from embedded data.
+  // Read-only "measurement, not policy" — surfaced as a chip.
+  const fxAnnualVol = useMemo(() => historicalAnnualizedVol(loadFxRows()), []);
 
   const analysis = useUtilizationAnalysis({
     tvlUSDM_USD: urlState.witryTVL_USD,
     stressPctOfSupply: stressPct,
     hfBuffer,
     rTargetOverride: rTarget,
+    fxAnnualVol,
   });
 
   return (
@@ -126,12 +134,42 @@ export default function UtilizationPage() {
             </div>
           </div>
         </div>
+        <div className="border-t border-brix-border pt-4 grid grid-cols-1 md:grid-cols-2 gap-4 items-end">
+          <div>
+            <Slider
+              label="FX stress z-score"
+              helpKey="fxStressZInput"
+              value={fxStressZ}
+              min={1.0}
+              max={3.0}
+              step={0.05}
+              format={v => `${v.toFixed(2)}σ`}
+              onChange={setFxStressZ}
+            />
+            <div className="text-xs text-brix-muted mt-1">
+              1.65σ ≈ 95th-pct 30-day move; 2.33σ ≈ 99th-pct
+            </div>
+          </div>
+          <div className="rounded-md border border-brix-border bg-brix-surface p-3">
+            <div className="text-[11px] uppercase tracking-wider text-neutral-500 flex items-center">
+              USD/TRY annual vol (data)
+              <HelpPopover kpiKey="fxAnnualVol" />
+            </div>
+            <div className="mt-1 font-mono text-sm text-neutral-200">
+              σ = {(fxAnnualVol * 100).toFixed(2)}%
+            </div>
+            <div className="text-[11px] text-brix-muted mt-1">
+              Measured from embedded TRY=X history. Not editable.
+            </div>
+          </div>
+        </div>
       </section>
 
       <RecommendationCard analysis={analysis} />
       <LooperViabilityCurve analysis={analysis} />
       <LiquidityStressSection analysis={analysis} />
       <LoopEconomicsBreakdown analysis={analysis} />
+      <FXRiskCard analysis={analysis} fxAnnualVol={fxAnnualVol} fxStressZ={fxStressZ} />
       <IRMHeatmap analysis={analysis} />
       <RecommendationTable analysis={analysis} />
     </div>

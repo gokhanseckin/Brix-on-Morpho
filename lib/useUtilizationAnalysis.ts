@@ -13,6 +13,7 @@ export interface PageSliders {
   stressPctOfSupply: number;
   hfBuffer: number;
   rTargetOverride: number;
+  fxAnnualVol: number;
 }
 
 export interface UtilizationAnalysisOutput {
@@ -47,6 +48,8 @@ export function useUtilizationAnalysis(s: PageSliders): UtilizationAnalysisOutpu
     tvlUSDM_USD: s.tvlUSDM_USD,
     stressPctOfSupply: s.stressPctOfSupply,
     kinkClearance: url.kinkClearance,
+    fxAnnualVol: s.fxAnnualVol,
+    fxStressZ: url.fxStressZ,
     searchRange: [0.5, 0.9],
     searchStep: 0.01,
   }), [s, url]);
@@ -60,6 +63,7 @@ export function useUtilizationAnalysis(s: PageSliders): UtilizationAnalysisOutpu
       uTarget: target, rTarget: inputs.rTarget, lltv: inputs.lltv,
       hfBuffer: inputs.hfBuffer, witryYieldAnnual: inputs.witryYield7d,
       perLoopSlippageBps: inputs.perLoopSlippageBps,
+      fxAnnualVol: inputs.fxAnnualVol, fxStressZ: inputs.fxStressZ,
     }) : null;
     const stress = liquidityStress({
       uTarget: target, tvlUSDM_USD: inputs.tvlUSDM_USD,
