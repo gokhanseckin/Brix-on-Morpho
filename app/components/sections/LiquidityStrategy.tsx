@@ -1,8 +1,6 @@
 'use client';
 import { useSimulator } from '@/lib/useSimulator';
 import {
-  LineChart,
-  Line,
   XAxis,
   YAxis,
   Tooltip,
@@ -10,7 +8,6 @@ import {
   CartesianGrid,
   BarChart,
   Bar,
-  Legend,
 } from 'recharts';
 import { useMemo } from 'react';
 import { Kpi, formatPct, formatUSD } from '../Kpi';
@@ -22,18 +19,7 @@ const COMPETING_BENCHMARKS: Array<{ name: string; apy: number }> = [
 ];
 
 export function LiquidityStrategy() {
-  const { strategy, inputs, liquidity } = useSimulator();
-
-  const rampData = useMemo(() => {
-    const days = Math.min(90, isFinite(strategy.daysToTarget) ? strategy.daysToTarget : 90);
-    const n = Math.max(2, Math.ceil(days));
-    const arr: Array<{ day: number; tvl: number }> = [];
-    for (let t = 0; t <= n; t++) {
-      const tvl = inputs.attractionRate * inputs.incentiveBudgetMonthly_USD * (t / 30);
-      arr.push({ day: t, tvl });
-    }
-    return arr;
-  }, [strategy.daysToTarget, inputs.attractionRate, inputs.incentiveBudgetMonthly_USD]);
+  const { strategy, inputs } = useSimulator();
 
   const apyComparison = useMemo(
     () => [
@@ -44,41 +30,37 @@ export function LiquidityStrategy() {
     [strategy.netSupplyAPY, strategy.totalSupplyAPY],
   );
 
-  // Stacked horizontal bar: base + incentive
+  // Stacked horizontal bar: base + supply incentive
   const supplyComponents: Array<{ component: string; value: number; pct: number }> = [
     { component: 'Net base APY', value: strategy.netSupplyAPY, pct: strategy.netSupplyAPY },
-    { component: 'Incentives', value: strategy.incentiveAPY, pct: strategy.incentiveAPY },
+    { component: 'Supply incentives', value: strategy.supplyIncentiveAPY, pct: strategy.supplyIncentiveAPY },
   ];
 
-  // Lock & Earn: lockPremium = base × (1 + 0.005 × lockPeriodDays)
-  const lockPremiums = [30, 60, 90, 180].map((d) => ({
-    days: d,
-    premiumAPY: strategy.totalSupplyAPY * (1 + 0.005 * d),
-  }));
+  // Borrower-side stack: gross borrow − borrower incentives = net borrow
+  const borrowComponents: Array<{ component: string; value: number; pct: number }> = [
+    { component: 'Borrow APY', value: strategy.borrowAPY, pct: strategy.borrowAPY },
+    { component: 'Borrower incentives', value: -strategy.borrowerIncentiveAPY, pct: -strategy.borrowerIncentiveAPY },
+  ];
 
   const merklText = useMemo(() => {
-    const days =
-      strategy.daysToTarget && isFinite(strategy.daysToTarget)
-        ? `${strategy.daysToTarget.toFixed(0)} days`
-        : 'unbounded';
-    return `Deploy a Merkl campaign at $${(
-      inputs.incentiveBudgetMonthly_USD / 1000
-    ).toFixed(0)}k/month with attraction rate ${inputs.attractionRate.toFixed(
-      1,
-    )}×. At this rate, expected time to reach target USDM (${formatUSD(
-      liquidity.requiredUSDM,
-    )}) is ${days}, with total incentive spend of ${formatUSD(
-      strategy.totalIncentiveSpend_USD,
-    )}. Net supply APY (post-fee, pre-incentive) is ${formatPct(
-      strategy.netSupplyAPY,
+    return `Supply-side Merkl: $${(
+      inputs.supplyIncentiveBudgetMonthly_USD / 1000
+    ).toFixed(0)}k/month → supply incentive APY ${formatPct(
+      strategy.supplyIncentiveAPY,
       2,
-    )}; with incentives layered on, suppliers see ${formatPct(
+    )}; suppliers see ${formatPct(
       strategy.totalSupplyAPY,
       2,
-    )}. When incentives end, retention estimate is ${formatUSD(
-      strategy.retentionAfterIncentivesEnd_USD,
-    )}.`;
-  }, [strategy, inputs.incentiveBudgetMonthly_USD, inputs.attractionRate, liquidity.requiredUSDM]);
+    )} (net ${formatPct(strategy.netSupplyAPY, 2)} + incentives). Borrower-side: $${(
+      inputs.borrowerIncentiveBudgetMonthly_USD / 1000
+    ).toFixed(0)}k/month → borrower incentive APY ${formatPct(
+      strategy.borrowerIncentiveAPY,
+      2,
+    )}; net borrow cost ${formatPct(strategy.netBorrowAPY, 2)} (gross ${formatPct(
+      strategy.borrowAPY,
+      2,
+    )}).`;
+  }, [strategy, inputs.supplyIncentiveBudgetMonthly_USD, inputs.borrowerIncentiveBudgetMonthly_USD]);
 
   return (
     <section id="section-liquidity-strategy" className="space-y-6">
@@ -86,8 +68,7 @@ export function LiquidityStrategy() {
         <div className="brix-kicker mb-2">03 · Strategy</div>
         <h2 className="text-2xl md:text-3xl font-semibold tracking-tight">Liquidity Strategy</h2>
         <p className="text-sm text-neutral-500 mt-1">
-          Supplier yield, borrower leverage-loop viability, and a Merkl incentive plan to reach
-          target USDM.
+          Supplier yield, borrower leverage-loop viability, and supply/borrower incentive APYs.
         </p>
       </div>
 
@@ -95,10 +76,10 @@ export function LiquidityStrategy() {
         <Kpi label="Gross supply APY" value={formatPct(strategy.grossSupplyAPY, 2)} helpKey="grossSupplyAPY" />
         <Kpi label="Net supply APY" value={formatPct(strategy.netSupplyAPY, 2)} hint="post-fees" helpKey="netSupplyAPY" />
         <Kpi
-          label="Incentive APY"
-          value={formatPct(strategy.incentiveAPY, 2)}
-          hint={`${formatUSD(inputs.incentiveBudgetMonthly_USD)}/mo`}
-          helpKey="incentiveAPY"
+          label="Supply incentive APY"
+          value={formatPct(strategy.supplyIncentiveAPY, 2)}
+          hint={`${formatUSD(inputs.supplyIncentiveBudgetMonthly_USD)}/mo`}
+          helpKey="supplyIncentiveAPY"
         />
         <Kpi
           label="Total supply APY"
@@ -108,17 +89,52 @@ export function LiquidityStrategy() {
         />
       </div>
 
-      <div>
-        <h3 className="text-sm font-semibold mb-2">Supply APY composition</h3>
-        <div className="border border-brix-border rounded p-2 bg-brix-card">
-          <ResponsiveContainer width="100%" height={120}>
-            <BarChart layout="vertical" data={supplyComponents} margin={{ left: 100 }}>
-              <XAxis type="number" tickFormatter={(v: number) => `${(v * 100).toFixed(1)}%`} />
-              <YAxis type="category" dataKey="component" />
-              <Tooltip formatter={(v) => `${(Number(v) * 100).toFixed(2)}%`} />
-              <Bar dataKey="pct" fill="#3b82f6" />
-            </BarChart>
-          </ResponsiveContainer>
+      <div className="grid grid-cols-3 gap-4">
+        <Kpi label="Gross borrow APY" value={formatPct(strategy.borrowAPY, 2)} helpKey="borrowAPY" />
+        <Kpi
+          label="Borrower incentive APY"
+          value={formatPct(strategy.borrowerIncentiveAPY, 2)}
+          hint={`${formatUSD(inputs.borrowerIncentiveBudgetMonthly_USD)}/mo`}
+          helpKey="borrowerIncentiveAPY"
+        />
+        <Kpi
+          label="Net borrow APY"
+          value={formatPct(strategy.netBorrowAPY, 2)}
+          hint={strategy.netBorrowAPY < 0 ? 'paid to borrow' : 'post-incentive'}
+          {...(strategy.netBorrowAPY < 0 ? { tone: 'good' as const } : {})}
+          helpKey="netBorrowAPY"
+        />
+      </div>
+
+      <div className="grid grid-cols-2 gap-4">
+        <div>
+          <h3 className="text-sm font-semibold mb-2">Supply APY composition</h3>
+          <div className="border border-brix-border rounded p-2 bg-brix-card">
+            <ResponsiveContainer width="100%" height={120}>
+              <BarChart layout="vertical" data={supplyComponents} margin={{ left: 110 }}>
+                <XAxis type="number" tickFormatter={(v: number) => `${(v * 100).toFixed(1)}%`} />
+                <YAxis type="category" dataKey="component" />
+                <Tooltip formatter={(v) => `${(Number(v) * 100).toFixed(2)}%`} />
+                <Bar dataKey="pct" fill="#3b82f6" />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+        <div>
+          <h3 className="text-sm font-semibold mb-2">Borrow APY composition</h3>
+          <div className="border border-brix-border rounded p-2 bg-brix-card">
+            <ResponsiveContainer width="100%" height={120}>
+              <BarChart layout="vertical" data={borrowComponents} margin={{ left: 110 }}>
+                <XAxis type="number" tickFormatter={(v: number) => `${(v * 100).toFixed(1)}%`} />
+                <YAxis type="category" dataKey="component" />
+                <Tooltip formatter={(v) => `${(Number(v) * 100).toFixed(2)}%`} />
+                <Bar dataKey="pct" fill="#f59e0b" />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+          <div className="text-xs text-neutral-500 mt-1">
+            Net borrow = gross − borrower incentives. Negative net = borrowers paid (incentive APY {'>'} borrow APY).
+          </div>
         </div>
       </div>
 
@@ -163,59 +179,6 @@ export function LiquidityStrategy() {
               </BarChart>
             </ResponsiveContainer>
           </div>
-        </div>
-      </div>
-
-      <div>
-        <h3 className="text-sm font-semibold mb-2">
-          TVL ramp at {inputs.attractionRate.toFixed(1)}× attraction (linear projection)
-        </h3>
-        <div className="border border-brix-border rounded p-2 bg-brix-card">
-          <ResponsiveContainer width="100%" height={220}>
-            <LineChart data={rampData} margin={{ top: 8, right: 20, bottom: 8, left: 8 }}>
-              <CartesianGrid strokeDasharray="3 3" opacity={0.3} />
-              <XAxis dataKey="day" label={{ value: 'day', position: 'insideBottom', offset: -2 }} />
-              <YAxis tickFormatter={(v: number) => `$${(v / 1000).toFixed(0)}k`} />
-              <Tooltip formatter={(v) => formatUSD(Number(v))} />
-              <Legend />
-              <Line type="monotone" dataKey="tvl" stroke="#3b82f6" dot={false} strokeWidth={2} />
-            </LineChart>
-          </ResponsiveContainer>
-        </div>
-        <div className="text-xs text-neutral-500 mt-1">
-          Days to target: {isFinite(strategy.daysToTarget) ? strategy.daysToTarget.toFixed(0) : '∞'}.
-          Total spend at target: {formatUSD(strategy.totalIncentiveSpend_USD)}.
-        </div>
-      </div>
-
-      <div>
-        <h3 className="text-sm font-semibold mb-2">Lock &amp; Earn — required premium by lock</h3>
-        <table className="text-sm border-collapse w-full max-w-md">
-          <thead>
-            <tr className="border-b border-brix-border">
-              <th className="text-left py-1">Lock days</th>
-              <th className="text-right py-1">Premium APY</th>
-            </tr>
-          </thead>
-          <tbody>
-            {lockPremiums.map((r) => (
-              <tr
-                key={r.days}
-                className={
-                  r.days === inputs.lockPeriodDays
-                    ? 'bg-brix-accent/10 font-medium'
-                    : 'border-b border-neutral-100 dark:border-neutral-900'
-                }
-              >
-                <td className="py-1">{r.days}d</td>
-                <td className="py-1 text-right tabular-nums">{formatPct(r.premiumAPY, 2)}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-        <div className="text-xs text-neutral-500 mt-1">
-          Heuristic: premium = total supply APY × (1 + 0.005 × lockDays). Replace with calibrated
-          curve once illiquidity-preference data is available.
         </div>
       </div>
 

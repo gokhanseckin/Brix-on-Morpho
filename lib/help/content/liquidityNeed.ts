@@ -158,8 +158,8 @@ const requiredPlusBuffer: KpiHelp = {
   ],
   impact: {
     health: 'This is what suppliers need to fund. Used as the absolute deposit cap in the vault config.',
-    sustainability: 'If incentive budget cannot attract this much within Section 3\'s `daysToTarget`, the launch ramp is too slow.',
-    profitability: 'Sets the effective incentive-APY denominator (Section 3): bigger buffer → lower incentive APY per dollar of budget.',
+    sustainability: 'If supply-side incentives can\'t bridge net supply APY to competing stablecoin yields until borrow demand scales, the launch ramp stalls.',
+    profitability: 'Sets the effective supplyIncentiveAPY denominator (Section 3): bigger buffer → lower supply incentive APY per dollar of budget.',
   },
 };
 

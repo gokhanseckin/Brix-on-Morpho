@@ -626,21 +626,24 @@ export interface StrategyArgs {
   performanceFee: number;
   managementFee: number;
   requiredUSDM: number;
-  incentiveBudgetMonthly_USD: number;
-  attractionRate: number;
+  supplyIncentiveBudgetMonthly_USD: number;
+  borrowerIncentiveBudgetMonthly_USD: number;
+  /** Expected USDM borrowed at steady state. Denominator for borrower-incentive APY. */
+  expectedBorrow_USD: number;
   witryYieldAnnual: number;
   expectedTRYDepreciation_annual: number;
-  competingAPY: number;
 }
 
 export interface StrategyOut {
+  /** Gross borrow APY (pre-incentive); mirror of the IRM input for downstream displays. */
+  borrowAPY: number;
   grossSupplyAPY: number;
   netSupplyAPY: number;
-  incentiveAPY: number;
+  supplyIncentiveAPY: number;
   totalSupplyAPY: number;
-  daysToTarget: number;
-  retentionAfterIncentivesEnd_USD: number;
-  totalIncentiveSpend_USD: number;
+  borrowerIncentiveAPY: number;
+  /** Borrow rate net of borrower-side incentives. Can go negative (paid to borrow). */
+  netBorrowAPY: number;
   leverageLoopAPY: number;
   leverageLoopsViable: boolean;
 }
@@ -648,32 +651,28 @@ export interface StrategyOut {
 export function computeStrategy(a: StrategyArgs): StrategyOut {
   const grossSupplyAPY = a.borrowAPY * a.targetUtilization;
   const netSupplyAPY = grossSupplyAPY * (1 - a.performanceFee) - a.managementFee;
-  const incentiveAPY =
-    a.requiredUSDM > 0 ? (a.incentiveBudgetMonthly_USD * 12) / a.requiredUSDM : 0;
-  const totalSupplyAPY = netSupplyAPY + incentiveAPY;
-  const dailyAttract = (a.incentiveBudgetMonthly_USD * a.attractionRate) / 30;
-  const daysToTarget = dailyAttract > 0 ? a.requiredUSDM / dailyAttract : Infinity;
-  const retentionAfterIncentivesEnd_USD =
-    a.competingAPY > 0
-      ? a.requiredUSDM * Math.min(1, netSupplyAPY / a.competingAPY)
-      : a.requiredUSDM;
-  const totalIncentiveSpend_USD = a.incentiveBudgetMonthly_USD * (daysToTarget / 30);
+  const supplyIncentiveAPY =
+    a.requiredUSDM > 0 ? (a.supplyIncentiveBudgetMonthly_USD * 12) / a.requiredUSDM : 0;
+  const totalSupplyAPY = netSupplyAPY + supplyIncentiveAPY;
+  const borrowerIncentiveAPY =
+    a.expectedBorrow_USD > 0
+      ? (a.borrowerIncentiveBudgetMonthly_USD * 12) / a.expectedBorrow_USD
+      : 0;
+  const netBorrowAPY = a.borrowAPY - borrowerIncentiveAPY;
   // Leverage-loop borrower deposits wiTRY (earns witryYield in TRY) and
-  // borrows USDM. Debt cost in TRY-real-terms = borrowAPY × (TRY/USD ratio
-  // at repayment / today). If TRY depreciates `d` over the year, that
-  // ratio is `(1 + d)`. So real cost = borrowAPY · (1 + d). Report #2
-  // open question #1: spec §3B text has a sign typo (`1 − USD_TRY_return`)
-  // that conflicts with this; code is the economically correct form.
+  // borrows USDM. Real debt cost = netBorrowAPY (post-incentive) × (1 + d),
+  // where d is annual TRY depreciation. Report #2 open question #1: spec
+  // §3B text has a sign typo (`1 − USD_TRY_return`); code is canonical.
   const leverageLoopAPY =
-    a.witryYieldAnnual - a.borrowAPY * (1 + a.expectedTRYDepreciation_annual);
+    a.witryYieldAnnual - netBorrowAPY * (1 + a.expectedTRYDepreciation_annual);
   return {
+    borrowAPY: a.borrowAPY,
     grossSupplyAPY,
     netSupplyAPY,
-    incentiveAPY,
+    supplyIncentiveAPY,
     totalSupplyAPY,
-    daysToTarget,
-    retentionAfterIncentivesEnd_USD,
-    totalIncentiveSpend_USD,
+    borrowerIncentiveAPY,
+    netBorrowAPY,
     leverageLoopAPY,
     leverageLoopsViable: leverageLoopAPY > 0,
   };

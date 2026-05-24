@@ -19,9 +19,8 @@ export interface SidebarInputs {
   simulationHorizonDays: 7 | 30 | 60 | 90;
   pathCount: 100 | 1000 | 5000;
   tryShockPct: number;        // scenario mode, e.g. -0.30
-  incentiveBudgetMonthly_USD: number;
-  attractionRate: number;
-  lockPeriodDays: 30 | 60 | 90 | 180;
+  supplyIncentiveBudgetMonthly_USD: number;
+  borrowerIncentiveBudgetMonthly_USD: number;
   performanceFee: number;
   managementFee: number;
   safetyMargin: number;
@@ -81,11 +80,10 @@ export interface LiquidityStrategyOutput {
   borrowAPY: number;
   grossSupplyAPY: number;
   netSupplyAPY: number;
-  incentiveAPY: number;
+  supplyIncentiveAPY: number;
   totalSupplyAPY: number;
-  daysToTarget: number;
-  retentionAfterIncentivesEnd_USD: number;
-  totalIncentiveSpend_USD: number;
+  borrowerIncentiveAPY: number;
+  netBorrowAPY: number;
   leverageLoopAPY: number;
   leverageLoopsViable: boolean;
 }

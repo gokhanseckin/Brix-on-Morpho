@@ -30,7 +30,6 @@ import { GOV_LLTVS, type SidebarInputs } from '@/types/simulator';
 // default 0.04 = Morpho governance) so the page's slider actually feeds
 // home's Strategy borrowAPY and IRM curve.
 const DEFAULT_TRY_DEPRECIATION_ANNUAL = 0.30;     // rough estimate, out of scope
-const COMPETING_STABLECOIN_APY = 0.05;            // typical USDC supply APY
 const DEFAULT_DEAD_DEPOSIT_COST_USD = 1;          // gas-cost proxy for one dead deposit
 const DEFAULT_GAS_COST_USD = 5;                   // nominal cushion (MegaETH gas ≈ 0)
 export const P95_LIQUIDATION_FRACTION_OF_BORROWS = 0.01; // 1% of expected borrows
@@ -80,16 +79,19 @@ export function useSimulator() {
     [s.targetUtilization, s.rTargetIRM],
   );
 
-  // Stage 1: compute requiredUSDM ahead of time so strategy + liquidity can
-  // both consume the same value without a useMemo cycle. The formula matches
-  // computeLiquidityNeed's internal calculation exactly.
+  // Stage 1: compute requiredUSDM + expected borrow ahead of time so strategy
+  // + liquidity can both consume the same values without a useMemo cycle.
   const requiredUSDMPrecursor = useMemo(() => {
     const meanLTVFrac = betaMean(s.borrowerLTVAlpha, s.borrowerLTVBeta);
     return (s.witryTVL_USD * s.lltv * meanLTVFrac) / s.targetUtilization;
   }, [s.witryTVL_USD, s.lltv, s.borrowerLTVAlpha, s.borrowerLTVBeta, s.targetUtilization]);
+  const expectedBorrowPrecursor = useMemo(() => {
+    const meanLTVFrac = betaMean(s.borrowerLTVAlpha, s.borrowerLTVBeta);
+    return s.witryTVL_USD * s.lltv * meanLTVFrac;
+  }, [s.witryTVL_USD, s.lltv, s.borrowerLTVAlpha, s.borrowerLTVBeta]);
 
   // Stage 2: strategy depends on requiredUSDM and produces the real
-  // incentiveAPY + netSupplyAPY that the buffer formula needs.
+  // supplyIncentiveAPY + netSupplyAPY that the buffer formula needs.
   const strategy = useMemo(
     () =>
       computeStrategy({
@@ -98,13 +100,13 @@ export function useSimulator() {
         performanceFee: s.performanceFee,
         managementFee: s.managementFee,
         requiredUSDM: requiredUSDMPrecursor,
-        incentiveBudgetMonthly_USD: s.incentiveBudgetMonthly_USD,
-        attractionRate: s.attractionRate,
+        supplyIncentiveBudgetMonthly_USD: s.supplyIncentiveBudgetMonthly_USD,
+        borrowerIncentiveBudgetMonthly_USD: s.borrowerIncentiveBudgetMonthly_USD,
+        expectedBorrow_USD: expectedBorrowPrecursor,
         witryYieldAnnual: s.witryYieldAnnual,
         expectedTRYDepreciation_annual: DEFAULT_TRY_DEPRECIATION_ANNUAL,
-        competingAPY: COMPETING_STABLECOIN_APY,
       }),
-    [s, requiredUSDMPrecursor, borrowAPY],
+    [s, requiredUSDMPrecursor, expectedBorrowPrecursor, borrowAPY],
   );
 
   // Stage 3: liquidity uses the real APYs from strategy, so withdrawal buffer
@@ -116,7 +118,7 @@ export function useSimulator() {
       targetUtilization: s.targetUtilization,
       borrowerLTVAlpha: s.borrowerLTVAlpha,
       borrowerLTVBeta: s.borrowerLTVBeta,
-      incentiveAPY: strategy.incentiveAPY,
+      incentiveAPY: strategy.supplyIncentiveAPY,
       baseSupplyAPY: strategy.netSupplyAPY,
       deadDepositCost: DEFAULT_DEAD_DEPOSIT_COST_USD,
     });
@@ -130,7 +132,7 @@ export function useSimulator() {
         s.targetUtilization,
     }));
     return { ...out, irmCurve, sensitivity };
-  }, [s, strategy.incentiveAPY, strategy.netSupplyAPY]);
+  }, [s, strategy.supplyIncentiveAPY, strategy.netSupplyAPY]);
 
   // Build the AMM ladder once per parameter change. Reused by minMax, the
   // slippage estimator below, the worker payload, and LiquidationDesign.

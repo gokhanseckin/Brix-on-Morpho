@@ -438,22 +438,43 @@ describe('LLTV derivation', () => {
 });
 
 describe('strategy', () => {
-  it('totals add up', () => {
+  it('totals add up; supply incentives lift totalSupplyAPY above netSupplyAPY', () => {
     const out = computeStrategy({
       borrowAPY: 0.10,
       targetUtilization: 0.7,
       performanceFee: 0.1,
       managementFee: 0.01,
       requiredUSDM: 3_300_000,
-      incentiveBudgetMonthly_USD: 10_000,
-      attractionRate: 5,
+      supplyIncentiveBudgetMonthly_USD: 10_000,
+      borrowerIncentiveBudgetMonthly_USD: 0,
+      expectedBorrow_USD: 2_310_000,
       witryYieldAnnual: 0.38,
       expectedTRYDepreciation_annual: 0.30,
-      competingAPY: 0.05,
     });
     expect(out.grossSupplyAPY).toBeCloseTo(0.07, 4);
     expect(out.totalSupplyAPY).toBeGreaterThan(out.netSupplyAPY);
-    expect(out.daysToTarget).toBeGreaterThan(0);
+    expect(out.borrowerIncentiveAPY).toBe(0);
+    expect(out.netBorrowAPY).toBeCloseTo(0.10, 6);
+  });
+
+  it('borrower incentive lowers netBorrowAPY and can go negative', () => {
+    // $20k/mo on $1M expected borrow ⇒ 24%/yr; gross borrow 10% ⇒ net = -14%.
+    const out = computeStrategy({
+      borrowAPY: 0.10,
+      targetUtilization: 0.7,
+      performanceFee: 0.1,
+      managementFee: 0.01,
+      requiredUSDM: 3_300_000,
+      supplyIncentiveBudgetMonthly_USD: 0,
+      borrowerIncentiveBudgetMonthly_USD: 20_000,
+      expectedBorrow_USD: 1_000_000,
+      witryYieldAnnual: 0.38,
+      expectedTRYDepreciation_annual: 0.30,
+    });
+    expect(out.borrowerIncentiveAPY).toBeCloseTo(0.24, 6);
+    expect(out.netBorrowAPY).toBeCloseTo(-0.14, 6);
+    // Negative net borrow boosts loop APY above the raw wiTRY yield.
+    expect(out.leverageLoopAPY).toBeGreaterThan(0.38);
   });
 });
 
