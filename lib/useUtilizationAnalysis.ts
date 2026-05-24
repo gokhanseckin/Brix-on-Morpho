@@ -46,7 +46,7 @@ export function useUtilizationAnalysis(s: PageSliders): UtilizationAnalysisOutpu
     perLoopSlippageBps: 30,
     tvlUSDM_USD: s.tvlUSDM_USD,
     stressPctOfSupply: s.stressPctOfSupply,
-    kinkClearance: 0.07,
+    kinkClearance: url.kinkClearance,
     searchRange: [0.5, 0.9],
     searchStep: 0.01,
   }), [s, url]);
