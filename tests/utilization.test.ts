@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   looperNetAPY,
+  looperPathPnL,
   liquidityStress,
   recommendUTarget,
   sweepUtilizationTargets,
@@ -245,5 +246,90 @@ describe('recommendUTarget', () => {
     });
     expect(r.recommended).toBeNull();
     expect(r.unmetConstraints).toContain('fxSafe');
+  });
+});
+
+describe('looperPathPnL', () => {
+  const H = 90;
+  const N = 100;
+  // Build N identical paths of length H+1 with S(t) = S0 (no FX move).
+  function flatPaths(S0: number): number[][] {
+    return Array.from({ length: N }, () =>
+      Array.from({ length: H + 1 }, () => S0),
+    );
+  }
+
+  it('flat FX paths produce realized APY ≈ deterministic netLoopAPY', () => {
+    const S0 = 30;
+    const deterministic = looperNetAPY({
+      uTarget: 0.80,
+      rTarget: 0.04,
+      lltv: 0.86,
+      hfBuffer: 1.5,
+      witryYieldAnnual: 0.38,
+      perLoopSlippageBps: 30,
+      fxAnnualVol: 0,
+      fxStressZ: 0,
+    });
+    const out = looperPathPnL({
+      paths: flatPaths(S0),
+      lltv: 0.86,
+      hfBuffer: 1.5,
+      witryYieldAnnual: 0.38,
+      borrowAPY: deterministic.borrowAPY,
+      perLoopSlippageBps: 30,
+    });
+    expect(out.liquidationRate).toBe(0);
+    expect(out.apyP50).toBeCloseTo(deterministic.netLoopAPY, 1);
+    expect(out.apyP5).toBeCloseTo(deterministic.netLoopAPY, 1);
+    expect(out.apyP95).toBeCloseTo(deterministic.netLoopAPY, 1);
+  });
+
+  it('strongly depreciating TRY liquidates most positions', () => {
+    // Linear glide from S0=30 to S0=45 (TRY weakens 50% over horizon).
+    const S0 = 30;
+    const Send = 45;
+    const paths: number[][] = Array.from({ length: N }, () =>
+      Array.from({ length: H + 1 }, (_, t) => S0 + ((Send - S0) * t) / H),
+    );
+    const out = looperPathPnL({
+      paths,
+      lltv: 0.86,
+      hfBuffer: 1.5,
+      witryYieldAnnual: 0.38,
+      borrowAPY: 0.04,
+      perLoopSlippageBps: 30,
+    });
+    expect(out.liquidationRate).toBeGreaterThan(0.9);
+    expect(out.apyP5).toBeLessThan(-0.3); // wiped positions tank the lower tail
+  });
+
+  it('slightly appreciating TRY boosts realized APY above carry', () => {
+    // Linear glide from S0=30 to S0=29 (TRY strengthens ~3% over horizon).
+    const S0 = 30;
+    const Send = 29;
+    const paths: number[][] = Array.from({ length: N }, () =>
+      Array.from({ length: H + 1 }, (_, t) => S0 + ((Send - S0) * t) / H),
+    );
+    const deterministic = looperNetAPY({
+      uTarget: 0.80,
+      rTarget: 0.04,
+      lltv: 0.86,
+      hfBuffer: 1.5,
+      witryYieldAnnual: 0.38,
+      perLoopSlippageBps: 30,
+      fxAnnualVol: 0,
+      fxStressZ: 0,
+    });
+    const out = looperPathPnL({
+      paths,
+      lltv: 0.86,
+      hfBuffer: 1.5,
+      witryYieldAnnual: 0.38,
+      borrowAPY: deterministic.borrowAPY,
+      perLoopSlippageBps: 30,
+    });
+    expect(out.liquidationRate).toBe(0);
+    expect(out.apyP50).toBeGreaterThan(deterministic.netLoopAPY);
   });
 });

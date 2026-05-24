@@ -1,5 +1,5 @@
 // lib/utilization.ts
-import { adaptiveCurveIRM } from './morphoMath';
+import { adaptiveCurveIRM, LIF } from './morphoMath';
 export interface LooperEconomicsInput {
   uTarget: number;
   rTarget: number;
@@ -190,4 +190,128 @@ export function recommendUTarget(i: RecommendInput): RecommendResult {
   if (!anyFx) unmet.push('fxSafe');
   if (unmet.length === 0) unmet.push('stressSurvival');
   return { recommended: null, unmetConstraints: unmet, bestEffort };
+}
+
+export interface LooperPathPnLInput {
+  paths: number[][];               // worker output; paths[i][t] = USD/TRY at step t
+  lltv: number;
+  hfBuffer: number;
+  witryYieldAnnual: number;        // typically witryYieldUSD_7d
+  borrowAPY: number;               // adaptiveCurveIRM(targetUtilization, rTarget)
+  perLoopSlippageBps: number;
+}
+
+export interface LooperPathPnLResult {
+  apyByPath: number[];
+  liquidatedByPath: boolean[];
+  apyP5: number;
+  apyP50: number;
+  apyP95: number;
+  liquidationRate: number;
+}
+
+/**
+ * Walk each Monte Carlo USD/TRY path forward, marking the levered wiTRY
+ * position to market at each step. wiTRY NAV grows in TRY at witryYieldAnnual;
+ * the USD value swings with 1/S[t]. Debt accrues at borrowAPY. If health
+ * factor hits 1.0 at any step the position is closed; we charge an LIF
+ * haircut proxy and freeze equity. At horizon the survivors are annualized.
+ *
+ * Output is per-path scalar realized APY plus distribution percentiles.
+ * Crude vs simulateBadDebt: ignores AMM slippage at liquidation and assumes
+ * a single liquidator-bonus haircut. That's intentional — this represents
+ * the looper's expected P&L, not the protocol's bad-debt exposure.
+ */
+export function looperPathPnL(i: LooperPathPnLInput): LooperPathPnLResult {
+  const borrowFraction = i.lltv / i.hfBuffer;
+  const effectiveLeverage = borrowFraction >= 1
+    ? 50
+    : Math.min(50, 1 / (1 - borrowFraction));
+  const borrowedShare = effectiveLeverage - 1;
+  const slippageDragAnnual = borrowedShare * (i.perLoopSlippageBps / 10_000);
+
+  // Match the deterministic looperNetAPY convention: only the "productive"
+  // portion of collateral earns yield and carries FX exposure; the rest is
+  // held as a USD HF buffer (no yield, no FX exposure). Posted collateral
+  // for HF purposes is the productive portion only.
+  const idleFrac = 1 - 1 / i.hfBuffer;
+  const idleUSD = idleFrac * borrowedShare;             // USD cash reserve
+  const productiveUSD0 = effectiveLeverage - idleUSD;    // wiTRY-equivalent at t=0
+
+  const lif = LIF(i.lltv);
+  const liqHaircutFracOfDebt = Math.max(0, lif - 1);
+
+  const apyByPath: number[] = [];
+  const liquidatedByPath: boolean[] = [];
+
+  for (const path of i.paths) {
+    if (path.length < 2) {
+      apyByPath.push(0);
+      liquidatedByPath.push(false);
+      continue;
+    }
+    const S0 = path[0]!;
+    const H = path.length - 1;        // horizon in steps (days)
+    const equity0 = 1;
+    const debt0_USD = borrowedShare;
+
+    let liquidated = false;
+    let liquidationStep = -1;
+    let terminalEquity = 0;
+
+    for (let t = 1; t <= H; t++) {
+      const St = path[t]!;
+      if (!Number.isFinite(St) || St <= 0) continue;
+      // Simple-interest accrual on a per-day basis — matches the additive
+      // annual rates in looperNetAPY (gross − borrow − slip − idle).
+      const navMul = 1 + i.witryYieldAnnual * (t / 365);
+      const productiveUSD = productiveUSD0 * navMul * (S0 / St);
+      const collateralUSD = productiveUSD;             // HF uses posted collateral only
+      const debtUSD = debt0_USD * (1 + i.borrowAPY * (t / 365));
+      const dragUSD = slippageDragAnnual * (t / 365);
+      const equity = productiveUSD + idleUSD - debtUSD - dragUSD;
+      // HF = (collateral × lltv) / debt; HF ≤ 1 ⇒ liquidation.
+      const hf = debtUSD > 0 ? (collateralUSD * i.lltv) / debtUSD : Infinity;
+      if (hf <= 1) {
+        liquidated = true;
+        liquidationStep = t;
+        terminalEquity = Math.max(0, equity - liqHaircutFracOfDebt * debtUSD);
+        break;
+      }
+      if (t === H) terminalEquity = equity;
+    }
+
+    const horizonForAnnualize = liquidated ? liquidationStep : H;
+    const ratio = terminalEquity / equity0;
+    // Simple-interest annualization keeps parity with looperNetAPY's
+    // additive convention; compounding inflates short-horizon returns.
+    const apy =
+      horizonForAnnualize > 0
+        ? ratio > 0
+          ? (ratio - 1) * (365 / horizonForAnnualize)
+          : -1
+        : 0;
+    apyByPath.push(apy);
+    liquidatedByPath.push(liquidated);
+  }
+
+  const sorted = [...apyByPath].sort((x, y) => x - y);
+  const at = (q: number): number => {
+    if (sorted.length === 0) return 0;
+    const idx = Math.min(
+      sorted.length - 1,
+      Math.max(0, Math.floor(q * (sorted.length - 1))),
+    );
+    return sorted[idx]!;
+  };
+  const liqRate = liquidatedByPath.filter(Boolean).length / Math.max(1, liquidatedByPath.length);
+
+  return {
+    apyByPath,
+    liquidatedByPath,
+    apyP5: at(0.05),
+    apyP50: at(0.50),
+    apyP95: at(0.95),
+    liquidationRate: liqRate,
+  };
 }
