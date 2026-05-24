@@ -13,6 +13,7 @@ export const CHART_KEYS = [
   'looperViabilityCurve',
   'liquidityStressTable',
   'loopEconomicsWaterfall',
+  'fxRiskCard',
   'irmHeatmap',
   'recommendationTable',
   // SwapLiquidity (section 7)
@@ -35,6 +36,7 @@ export const CHART_SECTION: Record<ChartKey, HelpSection> = {
   looperViabilityCurve: 'utilization',
   liquidityStressTable: 'utilization',
   loopEconomicsWaterfall: 'utilization',
+  fxRiskCard: 'utilization',
   irmHeatmap: 'utilization',
   recommendationTable: 'utilization',
   liquidityByTick: 'swap-liquidity',

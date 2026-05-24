@@ -98,14 +98,15 @@ const SECTION_KPIS: Partial<Record<KpiKey, KpiHelp>> = {
     formula: {
       plain: [
         'recommended = max u ∈ [0.50, 0.90] such that:',
-        '  1. loopMargin7d > 0         (looping beats holding)',
-        '  2. bufferUSD ≥ stressWithdrawalUSD  (survives stress)',
-        '  3. (0.9 − u) ≥ 0.07        (7pp kink clearance)',
+        '  1. loopMargin7d > 0           (carry: looping beats holding)',
+        '  2. bufferUSD ≥ stressWithdrawalUSD  (lender stress: covered)',
+        '  3. (0.9 − u) ≥ kinkClearance  (IRM kink buffer; default 0)',
+        '  4. leveredDrawdown < HF headroom  (FX: survives P95 30d move)',
         '',
         '// Example at defaults (LLTV=0.86, HF=1.5, stress=20%, r_target=4%,',
-        '//   wiTRY 7d yield=6.31%, TVL=$10M):',
-        '//   u=0.80 → loopMargin7d ≈ +2.1% ✓, buffer=$2M ≥ stress=$2M ✓,',
-        '//   distance=0.10 ≥ 0.07 ✓  →  recommended = 0.80',
+        '//   kinkClearance=0, σ=16.8%, z=1.65, wiTRY 7d=6.31%, TVL=$10M):',
+        '//   u=0.90 → carry ✓, stress fails (buffer $1M < stress $2M)',
+        '//   recommender steps down until stress is covered (≈ u=0.80).',
       ].join('\n'),
     },
     params: [
@@ -341,8 +342,8 @@ const SECTION_KPIS: Partial<Record<KpiKey, KpiHelp>> = {
   },
 
   looperNetAPY: {
-    title: 'Looper net APY',
-    oneLiner: 'The actual annual return a looper earns after paying borrow costs, DEX slippage, and accounting for the capital that must be kept idle as a health-factor cushion. At defaults this is ≈8.40%.',
+    title: 'Looper net APY (TRY-native carry)',
+    oneLiner: 'The annual return a looper earns from the carry trade (wiTRY yield minus borrow rate, levered) after paying DEX slippage and the cost of capital held idle as HF headroom. Carry-only — no FX adjustment; FX vol is shown separately as a stress overlay. At defaults this is ≈8.40%.',
     formula: {
       plain: [
         'effectiveLeverage  = 1 / (1 − LLTV / hfBuffer)',
@@ -571,6 +572,131 @@ const SECTION_KPIS: Partial<Record<KpiKey, KpiHelp>> = {
       profitability: 'Each 1pp increase in Rate at Target raises borrowAPYAtTarget by roughly 0.86pp at u=0.80 and lowers looperNetAPY by the same amount × borrowedShare — directly compressing loopMargin7d and threatening recommendedUTarget.',
     },
   },
+
+  // ── FX risk overlay (vol-based) ──────────────────────────────────────────
+  // The looper is a TRY-native carry trader. wiTRY yield IS the compensation
+  // for FX risk; expected TRY depreciation is NOT subtracted from the carry.
+  // FX vol enters only as a stress check on whether levered exposure
+  // survives a typical bad month.
+
+  fxAnnualVol: {
+    title: 'USD/TRY annual vol (σ)',
+    oneLiner: 'Annualized standard deviation of daily USD/TRY log-returns, computed from the embedded TRY=X history. A measurement — not a policy knob. At current data ≈ 16.8%.',
+    formula: {
+      plain: [
+        'σ_annual = stdev(daily log-returns) × √252',
+        '',
+        '// Read from lib/usdtryData.json once at mount and shown as a chip',
+        '// next to the FX stress z-slider. The value moves only when the',
+        '// embedded data is refreshed (npm run fx:build).',
+      ].join('\n'),
+    },
+    params: [],
+    definitions: [
+      { term: 'daily log-return', definition: 'log(rate_t / rate_{t−1}). Symmetric around zero for a stationary process; standard deviation measures dispersion regardless of drift direction.' },
+      { term: 'annualization', definition: '√252 ≈ 15.87. Converts daily σ to a yearly-equivalent magnitude, assuming roughly independent daily moves. The home page Monte Carlo uses the same formula.' },
+    ],
+    impact: {
+      health: 'Higher σ widens the FX stress drawdown, shrinks the safety margin between levered exposure and HF headroom, and raises the probability that the FX badge flips red on /utilization.',
+      sustainability: 'Vol is the data the FX risk overlay is anchored to. If the embedded history is refreshed and σ shifts up, recommended u_target may step down even with no parameter changes.',
+      profitability: 'No direct effect — the carry math (and therefore expected return) does not depend on σ. Only the FX-safety gate uses it.',
+    },
+  },
+
+  fxStressDrawdown30d: {
+    title: '30-day FX stress drawdown',
+    oneLiner: 'The size of the 30-day USD/TRY move at the chosen stress quantile (z·σ·√t). At σ=16.8% and z=1.65 (95th percentile) this is ≈ 7.9%. Compares against HF headroom to decide if a levered loop survives a bad month.',
+    formula: {
+      plain: [
+        'fxStressDrawdown_30d = fxAnnualVol × √(30/365) × fxStressZ',
+        '',
+        '// Example at σ=16.8%, z=1.65:',
+        '//   = 0.168 × 0.2867 × 1.65 ≈ 0.0795  →  7.95% 30-day P95 move',
+        '// Example at σ=16.8%, z=2.33 (99th pct):',
+        '//   = 0.168 × 0.2867 × 2.33 ≈ 0.1123  →  11.23%',
+        '',
+        '// Levered drawdown = effectiveLeverage × fxStressDrawdown_30d',
+        '// Must stay below HF headroom = (1 − LLTV/hfBuffer).',
+      ].join('\n'),
+    },
+    params: [
+      { name: 'fxAnnualVol', source: 'derived', note: 'measured from usdtryData.json' },
+      { name: 'fxStressZ', source: 'derived', note: 'page slider on /utilization' },
+    ],
+    definitions: [
+      { term: 'z-score', definition: 'How many standard deviations into the tail to stress. Under a normal-vol assumption: z=1.65 ≈ 95th percentile (single tail), z=2.33 ≈ 99th. Higher z = more conservative.' },
+      { term: '√(30/365)', definition: 'Time-scaling factor that converts annualized σ to a 30-day-horizon σ. Brownian-motion approximation; assumes daily moves are roughly independent.' },
+    ],
+    impact: {
+      health: 'Drives the FX safety badge. Larger drawdown at fixed leverage = smaller cushion; once levered drawdown exceeds HF headroom, the FX badge flips red and recommendedUTarget may step down.',
+      sustainability: 'Pinning a higher z (e.g. 2.33 for 99th pct) forces lower leverage and more conservative u_target — protecting against tail events at the cost of supplier APY.',
+      profitability: 'Indirect: tighter FX gate → lower max feasible u_target → lower supplierAPYAtTarget. The carry itself (loopMargin) is unaffected.',
+    },
+  },
+
+  loopSurvivesStress: {
+    title: 'Loop survives FX stress?',
+    oneLiner: 'Whether the looper\'s levered wiTRY exposure can absorb a P95 30-day USD/TRY move without breaching their LLTV. Pass/fail gate on /utilization — a green Carry badge with a red FX badge means the loop is profitable in expectation but too levered for safety.',
+    formula: {
+      plain: [
+        'leveredDrawdown = effectiveLeverage × fxStressDrawdown_30d',
+        'hfHeadroom      = 1 − LLTV / hfBuffer',
+        'loopSurvivesStress = leveredDrawdown < hfHeadroom',
+        '',
+        '// Example at lev=2.34×, dd=7.95%, headroom=42.67%:',
+        '//   leveredDrawdown ≈ 18.6%  <  42.7%  →  survives ✓',
+        '// Example at lev=4× (lower hfBuffer), dd=7.95%, headroom=21%:',
+        '//   leveredDrawdown ≈ 31.8%  >  21%   →  fails ✗',
+      ].join('\n'),
+    },
+    params: [
+      { name: 'effectiveLeverage', source: 'derived' },
+      { name: 'fxStressDrawdown_30d', source: 'derived' },
+      { name: 'lltv', source: 'sidebar', ref: 'lltv' },
+      { name: 'hfBuffer', source: 'derived', note: 'page slider on /utilization' },
+    ],
+    definitions: [
+      { term: 'HF headroom', definition: '1 − LLTV/hfBuffer. The fractional collateral cushion between the looper\'s borrowed share and the liquidation boundary. At LLTV=0.86 and HF=1.5, headroom = 1 − 0.573 ≈ 42.7%.' },
+      { term: 'levered drawdown', definition: 'effectiveLeverage × fxStressDrawdown_30d. The actual collateral hit at full leverage from the stress move. If this exceeds headroom, the position would breach LLTV.' },
+    ],
+    impact: {
+      health: 'When this is ✗, loopers would face forced liquidation in a P95 month, cascading into bad debt on the home-page simulator. The gate prevents the recommender from suggesting un-safe u_targets.',
+      sustainability: 'Tightening hfBuffer (more aggressive leverage) lowers headroom faster than it raises leverage, so reckless looping cannot pass this gate even if the carry is positive.',
+      profitability: 'A red FX badge is the signal to either raise hfBuffer (less leverage, less carry) or lower LLTV (less leverage, fewer loops) — both protect the vault from a bad-month cascade.',
+    },
+  },
+
+  fxStressZInput: {
+    title: 'FX stress z-score (slider)',
+    oneLiner: 'How far into the FX-vol tail to stress-test the loop. 1.65σ ≈ 95th percentile single-tail (default); 2.33σ ≈ 99th percentile. Higher z = stricter FX safety gate = lower max feasible u_target.',
+    formula: {
+      plain: [
+        'Adjustable input (slider). Range: 1.0σ–3.0σ, default: 1.65σ, step: 0.05σ.',
+        '',
+        'Downstream: fxStressDrawdown_30d = fxAnnualVol × √(30/365) × fxStressZ',
+        '            loopSurvivesStress    = leveredDrawdown < HF headroom',
+        '            recommendedUTarget    drops if the gate flips ✗',
+        '',
+        '// At σ=16.8% and lev=2.34×:',
+        '//   z=1.00 → dd=4.8%,  levered=11.3%, headroom=42.7% → safe',
+        '//   z=1.65 → dd=7.9%,  levered=18.6%, headroom=42.7% → safe',
+        '//   z=2.33 → dd=11.2%, levered=26.3%, headroom=42.7% → safe',
+        '//   z=3.00 → dd=14.5%, levered=33.8%, headroom=42.7% → safe',
+        '// (Tighter when hfBuffer is lower — headroom shrinks fast.)',
+      ].join('\n'),
+    },
+    params: [],
+    definitions: [
+      { term: 'stress quantile', definition: 'The percentile of the 30-day FX return distribution to plan against. 95th = "should survive a bad month one in twenty". 99th = "should survive a bad month one in a hundred".' },
+      { term: 'single-tail z', definition: 'Under a normal distribution, z=1.65 cuts off the worst 5% of moves, z=2.33 cuts off the worst 1%. We only stress the depreciation direction (the direction that hurts loopers), hence single-tail.' },
+    ],
+    impact: {
+      health: 'Higher z gives a wider safety margin against tail FX events but compresses the feasible utilization range — typical trade-off between robustness and supplier yield.',
+      sustainability: 'A z that flips the FX badge red even at modest leverage is signalling either too-high LLTV or too-low hfBuffer for the underlying vol — the page recommends adjusting those rather than over-loosening z.',
+      profitability: 'No effect on the carry. Only affects whether the carry passes the FX-safety gate, and therefore which u_targets the recommender will return.',
+    },
+  },
+
   // ── SwapLiquidity section ────────────────────────────────────────────────
   ...SWAP_LIQUIDITY_KPIS,
 };
@@ -618,8 +744,8 @@ const SECTION_CHARTS: Partial<Record<ChartKey, ChartHelp>> = {
   },
 
   loopEconomicsWaterfall: {
-    title: 'Loop Economics Waterfall',
-    oneLiner: 'A bar chart that breaks the looper\'s return into components, stacked left to right: Gross loop APY (tall positive bar), minus Borrow cost (negative), minus Slippage (negative), minus HF idle cost (negative), equals Net loop APY (result bar). A separate "wiTRY hold" bar shows the unlevered benchmark. If Net > Hold, the loop is worth it.',
+    title: 'Loop Economics Waterfall (carry view)',
+    oneLiner: 'A bar chart breaking the looper\'s TRY-native carry into components, left to right: Gross loop APY (tall positive bar), minus Borrow cost (negative), minus Slippage (negative), minus HF idle cost (negative), equals Net loop APY (result bar). A separate "wiTRY hold" bar shows the unlevered benchmark — if Net > Hold, the carry pays off. FX vol is intentionally absent from this waterfall and shown as a separate stress overlay.',
     axes: { x: 'PnL component (gross → deductions → net → benchmark)', y: 'APY (%)' },
     definitions: [
       { term: 'Gross loop APY', definition: 'effectiveLeverage × witryYieldUSD_7d. At 2.34× leverage and 6.31% yield, this is ≈14.79% — the raw amplified return before any costs.' },
@@ -633,6 +759,25 @@ const SECTION_CHARTS: Partial<Record<ChartKey, ChartHelp>> = {
       health: 'If the Borrow cost bar is close in height to the Gross bar, the loop has thin margin; any rise in borrowAPYAtTarget (e.g., utilization briefly spiking above target) immediately flips the loop unprofitable.',
       sustainability: 'When the Net bar shrinks below the wiTRY hold bar, loopMargin7d turns negative, loopers exit, and the vault loses its organic borrowing demand — supplierAPYAtTarget collapses accordingly.',
       profitability: 'Lowering Rate at Target shrinks the Borrow cost bar; raising LLTV or lowering hfBuffer grows the Gross bar (and Borrow/Slippage proportionally) — the waterfall shows which lever has the bigger payoff.',
+    },
+  },
+
+  fxRiskCard: {
+    title: 'FX Risk Overlay',
+    oneLiner: 'A side-card next to the carry waterfall. Shows the 30-day USD/TRY stress drawdown at the chosen z, the resulting levered drawdown at the recommended u_target, and whether the loop survives that move within HF headroom. Pass/fail badge.',
+    axes: { x: 'KPI tiles', y: 'percent or pass/fail' },
+    definitions: [
+      { term: 'σ annual (data)', definition: 'Measured annualized USD/TRY vol from embedded TRY=X history. Read-only — refresh with npm run fx:build.' },
+      { term: 'Stress z', definition: 'How far into the tail to stress: 1.65σ ≈ 95th-pct 30-day move, 2.33σ ≈ 99th. Slider on /utilization (default 1.65).' },
+      { term: '30-day stress drawdown', definition: 'σ_annual × √(30/365) × z. The USD/TRY move the loop is being stress-tested against. At σ=16.8% and z=1.65 this is ≈ 7.9%.' },
+      { term: 'HF headroom', definition: '1 − LLTV/hfBuffer. The collateral cushion between the looper\'s borrowed share and the liquidation boundary at the chosen HF buffer.' },
+      { term: 'Levered drawdown', definition: 'effectiveLeverage × stress drawdown. The actual hit to collateral value at full leverage in the stress scenario.' },
+      { term: 'FX safe', definition: 'Pass/fail: levered drawdown < HF headroom. If ✗, the loop is profitable in expectation but too levered for a P95 month — raise hfBuffer or lower LLTV.' },
+    ],
+    impact: {
+      health: 'A red FX badge is an early warning that loopers would face forced liquidation in a stress month, feeding the home-page bad-debt cascade. The recommender steps u_target down to keep this gate green.',
+      sustainability: 'This card decouples "is the carry profitable" from "can the levered position survive FX vol" — two questions that were previously conflated by drift-based borrow surcharges. Each is now diagnosable independently.',
+      profitability: 'Tighter z or higher hfBuffer trade away supplierAPYAtTarget for FX robustness. The card makes the trade-off explicit by showing the safety margin in pp.',
     },
   },
 

@@ -22,8 +22,10 @@ export function LoopEconomicsBreakdown({ analysis }: { analysis: UtilizationAnal
     <section className="rounded-lg border border-brix-border bg-brix-card p-4">
       <h2 className="font-semibold inline-flex items-center gap-1">Loop Economics Breakdown<HelpPopover chartKey="loopEconomicsWaterfall" /></h2>
       <p className="text-sm text-neutral-400">
-        Effective leverage <span className="font-mono">{econ.effectiveLeverage.toFixed(2)}×</span>.
+        Carry view (TRY-native). Effective leverage{' '}
+        <span className="font-mono">{econ.effectiveLeverage.toFixed(2)}×</span>.
         Loop margin <span className={`font-mono ${econ.loopMargin > 0 ? 'text-emerald-300' : 'text-red-300'}`}>{pct(econ.loopMargin)}</span>.
+        FX vol is shown as a separate stress overlay below — it does not enter this waterfall.
       </p>
       <div className="h-64 mt-3">
         <ResponsiveContainer>

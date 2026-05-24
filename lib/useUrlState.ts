@@ -56,9 +56,14 @@ export function useUrlState() {
     // Edited on /utilization; read on home (Strategy section + IRM curve).
     rTargetIRM: parseAsFloat.withDefault(0.04),
     // Minimum gap between u_target and the Morpho IRM kink (u = 0.9).
-    // Default 0.07 = 7pp buffer. Edited on /utilization; gates the
-    // recommended u_target there.
-    kinkClearance: parseAsFloat.withDefault(0.07),
+    // Default 0 = no enforced buffer; the goal on /utilization is to
+    // operate close to the kink for max supplier APY. Slider remains so
+    // operators can dial in a buffer if they want one.
+    kinkClearance: parseAsFloat.withDefault(0.0),
+    // FX stress-quantile multiplier on annualized USD/TRY vol. Default
+    // 1.65 ≈ 95th-percentile single-tail z-score. Gates whether a levered
+    // loop position survives a 1-month P95 FX move within HF headroom.
+    fxStressZ: parseAsFloat.withDefault(1.65),
     blockBootstrap: parseAsBoolean.withDefault(true),
     seed: parseAsInteger.withDefault(42),
     // /swapliquidity page state

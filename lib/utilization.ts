@@ -7,6 +7,11 @@ export interface LooperEconomicsInput {
   hfBuffer: number;            // ≥ 1.0
   witryYieldAnnual: number;    // USD APY used for the loop math (typically 7d figure)
   perLoopSlippageBps: number;  // basis points lost per loop step (round-trip swap cost)
+  // FX risk overlay — vol only, no drift. Loopers are TRY-native carry
+  // traders; their expected return is the carry (wiTRY yield − borrow
+  // rate), and FX vol enters separately as a stress test on leverage.
+  fxAnnualVol: number;         // e.g. 0.168 from dailyLogReturns(usdtryData)
+  fxStressZ: number;           // stress quantile multiplier; 1.65 ≈ 95th pct
 }
 
 export interface LooperEconomicsResult {
@@ -17,7 +22,10 @@ export interface LooperEconomicsResult {
   slippageCost: number;
   hfIdleCost: number;
   netLoopAPY: number;
-  loopMargin: number;          // netLoopAPY − witryYieldAnnual (i.e. "beats holding wiTRY"?)
+  loopMargin: number;             // netLoopAPY − witryYieldAnnual (carry beats hold?)
+  // FX stress overlay
+  fxStressDrawdown_30d: number;   // = fxAnnualVol × √(30/365) × fxStressZ
+  loopSurvivesStress: boolean;    // levered drawdown vs HF headroom
 }
 
 export interface LiquidityStressInput {
@@ -44,6 +52,7 @@ export interface SweepRow {
   stressWithdrawalUSD: number;
   survives: boolean;
   distanceToKink: number;
+  fxSafe: boolean;
   verdict: 'feasible' | 'tight' | 'infeasible';
 }
 
@@ -57,13 +66,15 @@ export interface RecommendInput {
   tvlUSDM_USD: number;
   stressPctOfSupply: number;
   kinkClearance: number;       // default 0.07
+  fxAnnualVol: number;         // FX vol overlay; 0 disables the stress gate
+  fxStressZ: number;           // stress quantile; default 1.65 (≈ 95th pct)
   searchRange: [number, number];
   searchStep: number;
 }
 
 export interface RecommendResult {
   recommended: number | null;
-  unmetConstraints: Array<'loopMargin' | 'stressSurvival' | 'kinkClearance'>;
+  unmetConstraints: Array<'loopMargin' | 'stressSurvival' | 'kinkClearance' | 'fxSafe'>;
   bestEffort: number;
 }
 
@@ -79,6 +90,9 @@ export function looperNetAPY(i: LooperEconomicsInput): LooperEconomicsResult {
   const borrowedShare = effectiveLeverage - 1;            // levered debt / equity
 
   const grossLoopAPY = effectiveLeverage * i.witryYieldAnnual;
+  // Carry math is TRY-native. wiTRY yield IS the compensation for FX risk;
+  // we do NOT subtract expected TRY depreciation here. FX appears below as
+  // a separate stress-test on leverage.
   const borrowCost   = borrowedShare * borrowAPY;
   const slippageCost = borrowedShare * (i.perLoopSlippageBps / 10_000);
   // Capital held back to maintain HF buffer earns nothing.
@@ -87,7 +101,18 @@ export function looperNetAPY(i: LooperEconomicsInput): LooperEconomicsResult {
   const netLoopAPY = grossLoopAPY - borrowCost - slippageCost - hfIdleCost;
   const loopMargin = netLoopAPY - i.witryYieldAnnual;
 
-  return { effectiveLeverage, borrowAPY, grossLoopAPY, borrowCost, slippageCost, hfIdleCost, netLoopAPY, loopMargin };
+  // FX stress: 30-day P95 USD/TRY move under a normal-vol assumption.
+  // Levered exposure to that move must fit inside the HF headroom
+  // (1 − lltv/hfBuffer), otherwise the stress wipes the position.
+  const fxStressDrawdown_30d = i.fxAnnualVol * Math.sqrt(30 / 365) * i.fxStressZ;
+  const hfHeadroom = Math.max(0, 1 - i.lltv / i.hfBuffer);
+  const loopSurvivesStress = effectiveLeverage * fxStressDrawdown_30d < hfHeadroom;
+
+  return {
+    effectiveLeverage, borrowAPY, grossLoopAPY, borrowCost, slippageCost,
+    hfIdleCost, netLoopAPY, loopMargin,
+    fxStressDrawdown_30d, loopSurvivesStress,
+  };
 }
 export function liquidityStress(i: LiquidityStressInput): LiquidityStressResult {
   const bufferUSD = Math.max(0, (1 - i.uTarget) * i.tvlUSDM_USD);
@@ -107,10 +132,12 @@ export function sweepUtilizationTargets(i: RecommendInput): SweepRow[] {
     const e7 = looperNetAPY({
       uTarget: u2, rTarget: i.rTarget, lltv: i.lltv, hfBuffer: i.hfBuffer,
       witryYieldAnnual: i.witryYield7d, perLoopSlippageBps: i.perLoopSlippageBps,
+      fxAnnualVol: i.fxAnnualVol, fxStressZ: i.fxStressZ,
     });
     const e30 = looperNetAPY({
       uTarget: u2, rTarget: i.rTarget, lltv: i.lltv, hfBuffer: i.hfBuffer,
       witryYieldAnnual: i.witryYield30d, perLoopSlippageBps: i.perLoopSlippageBps,
+      fxAnnualVol: i.fxAnnualVol, fxStressZ: i.fxStressZ,
     });
     const stress = liquidityStress({
       uTarget: u2, tvlUSDM_USD: i.tvlUSDM_USD,
@@ -120,8 +147,9 @@ export function sweepUtilizationTargets(i: RecommendInput): SweepRow[] {
     const meetsLoop = e7.loopMargin > 0;
     const meetsKink = distanceToKink >= i.kinkClearance;
     const meetsStress = stress.survives;
+    const meetsFx = e7.loopSurvivesStress;
     const verdict: SweepRow['verdict'] =
-      meetsLoop && meetsKink && meetsStress ? 'feasible'
+      meetsLoop && meetsKink && meetsStress && meetsFx ? 'feasible'
       : (meetsLoop && meetsKink) ? 'tight'
       : 'infeasible';
     out.push({
@@ -134,6 +162,7 @@ export function sweepUtilizationTargets(i: RecommendInput): SweepRow[] {
       stressWithdrawalUSD: stress.stressWithdrawalUSD,
       survives: stress.survives,
       distanceToKink,
+      fxSafe: meetsFx,
       verdict,
     });
   }
@@ -154,9 +183,11 @@ export function recommendUTarget(i: RecommendInput): RecommendResult {
   const anyLoop = rows.some(r => r.loopMargin7d > 0);
   const anyStress = rows.some(r => r.survives);
   const anyKink = rows.some(r => r.distanceToKink >= i.kinkClearance);
+  const anyFx = rows.some(r => r.fxSafe);
   if (!anyLoop) unmet.push('loopMargin');
   if (!anyStress) unmet.push('stressSurvival');
   if (!anyKink) unmet.push('kinkClearance');
+  if (!anyFx) unmet.push('fxSafe');
   if (unmet.length === 0) unmet.push('stressSurvival');
   return { recommended: null, unmetConstraints: unmet, bestEffort };
 }
