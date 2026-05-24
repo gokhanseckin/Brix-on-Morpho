@@ -631,7 +631,10 @@ export interface StrategyArgs {
   /** Expected USDM borrowed at steady state. Denominator for borrower-incentive APY. */
   expectedBorrow_USD: number;
   witryYieldAnnual: number;
-  expectedTRYDepreciation_annual: number;
+  // Carry inputs (mirror looperNetAPY in lib/utilization.ts):
+  hfBuffer: number;
+  perLoopSlippageBps: number;
+  lltv: number;
 }
 
 export interface StrategyOut {
@@ -644,7 +647,10 @@ export interface StrategyOut {
   borrowerIncentiveAPY: number;
   /** Borrow rate net of borrower-side incentives. Can go negative (paid to borrow). */
   netBorrowAPY: number;
-  leverageLoopAPY: number;
+  netLoopAPY: number;
+  netLoopAPY_withIncentives: number;
+  effectiveLeverage: number;
+  loopDebtPerCollateral: number;
   leverageLoopsViable: boolean;
 }
 
@@ -659,12 +665,27 @@ export function computeStrategy(a: StrategyArgs): StrategyOut {
       ? (a.borrowerIncentiveBudgetMonthly_USD * 12) / a.expectedBorrow_USD
       : 0;
   const netBorrowAPY = a.borrowAPY - borrowerIncentiveAPY;
-  // Leverage-loop borrower deposits wiTRY (earns witryYield in TRY) and
-  // borrows USDM. Real debt cost = netBorrowAPY (post-incentive) × (1 + d),
-  // where d is annual TRY depreciation. Report #2 open question #1: spec
-  // §3B text has a sign typo (`1 − USD_TRY_return`); code is canonical.
-  const leverageLoopAPY =
-    a.witryYieldAnnual - netBorrowAPY * (1 + a.expectedTRYDepreciation_annual);
+
+  // Carry-only loop economics. Mirrors looperNetAPY (lib/utilization.ts) but
+  // uses the caller-supplied borrowAPY directly (looperNetAPY would re-derive
+  // it from uTarget/rTarget; redundant here). FX risk is NOT subtracted as
+  // expected cost — it's handled separately via the Monte Carlo loopPath.
+  const borrowFraction = a.lltv / a.hfBuffer;
+  const effectiveLeverage = borrowFraction >= 1
+    ? 50
+    : Math.min(50, 1 / (1 - borrowFraction));
+  const borrowedShare = effectiveLeverage - 1;
+  const grossLoopAPY = effectiveLeverage * a.witryYieldAnnual;
+  const borrowCost   = borrowedShare * a.borrowAPY;
+  const slippageCost = borrowedShare * (a.perLoopSlippageBps / 10_000);
+  const hfIdleCost   = a.witryYieldAnnual * (1 - 1 / a.hfBuffer) * borrowedShare;
+  const netLoopAPY   = grossLoopAPY - borrowCost - slippageCost - hfIdleCost;
+
+  // Borrower-incentive overlay: paid on the looper's debt notional.
+  const netLoopAPY_withIncentives = netLoopAPY + borrowerIncentiveAPY * borrowedShare;
+  const loopDebtPerCollateral = a.lltv / a.hfBuffer;
+  const leverageLoopsViable = netLoopAPY > a.witryYieldAnnual;
+
   return {
     borrowAPY: a.borrowAPY,
     grossSupplyAPY,
@@ -673,8 +694,11 @@ export function computeStrategy(a: StrategyArgs): StrategyOut {
     totalSupplyAPY,
     borrowerIncentiveAPY,
     netBorrowAPY,
-    leverageLoopAPY,
-    leverageLoopsViable: leverageLoopAPY > 0,
+    netLoopAPY,
+    netLoopAPY_withIncentives,
+    effectiveLeverage,
+    loopDebtPerCollateral,
+    leverageLoopsViable,
   };
 }
 

@@ -65,6 +65,7 @@ describe('simulation worker jump defaults', () => {
     const output = await runWorker({
       inputs: baseInputs,
       returnsWindow: Array.from({ length: 252 }, () => 0),
+      borrowAPY: 0.04,
     });
     const terminalP5 = output.p5[output.p5.length - 1]!;
     const terminalP50 = output.p50[output.p50.length - 1]!;

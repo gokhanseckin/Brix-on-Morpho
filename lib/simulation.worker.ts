@@ -10,6 +10,7 @@ import {
   rolling3DayMaxDrawdown,
 } from './fxModel';
 import { simulateBadDebt, sampleBetaLtvFractions } from './simulator';
+import { looperPathPnL } from './utilization';
 import { buildLadderFromInputs } from './poolPreset';
 import { quantile } from './stats';
 import type { SidebarInputs } from '@/types/simulator';
@@ -32,6 +33,7 @@ const DEFAULT_GAS_COST_USD = 5;
 export interface WorkerInput {
   inputs: SidebarInputs;
   returnsWindow: number[]; // pre-windowed historical returns
+  borrowAPY: number;                 // derived in useSimulator from rTargetIRM + targetUtilization
 }
 
 export interface WorkerOutput {
@@ -51,6 +53,13 @@ export interface WorkerOutput {
     expectedLiquidationVolumeP95_USD: number;
   };
   annualizedVol: number;
+  loopPath: {
+    apyByPath: number[];
+    apyP5: number;
+    apyP50: number;
+    apyP95: number;
+    liquidationRate: number;
+  };
 }
 
 const api = {
@@ -123,6 +132,14 @@ const api = {
       witryYieldAnnual: inputs.witryYieldAnnual,
       preLiquidationEnabled: inputs.preLiquidationEnabled,
     });
+    const loopPathOut = looperPathPnL({
+      paths,
+      lltv: inputs.lltv,
+      hfBuffer: inputs.hfBuffer,
+      witryYieldAnnual: inputs.witryYieldAnnual,
+      borrowAPY: input.borrowAPY,
+      perLoopSlippageBps: 30,
+    });
     // annualized vol
     const dailyMean =
       returnsWindow.reduce((a, b) => a + b, 0) / returnsWindow.length;
@@ -150,6 +167,13 @@ const api = {
         ),
       },
       annualizedVol,
+      loopPath: {
+        apyByPath: loopPathOut.apyByPath,
+        apyP5: loopPathOut.apyP5,
+        apyP50: loopPathOut.apyP50,
+        apyP95: loopPathOut.apyP95,
+        liquidationRate: loopPathOut.liquidationRate,
+      },
     };
   },
 };

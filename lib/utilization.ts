@@ -196,7 +196,7 @@ export interface LooperPathPnLInput {
   paths: number[][];               // worker output; paths[i][t] = USD/TRY at step t
   lltv: number;
   hfBuffer: number;
-  witryYieldAnnual: number;        // typically witryYieldUSD_7d
+  witryYieldAnnual: number;        // the wiTRY annual yield in USD terms (sidebar `witryYieldAnnual` on home; `witryYield7d` or `witryYield30d` on /utilization)
   borrowAPY: number;               // adaptiveCurveIRM(targetUtilization, rTarget)
   perLoopSlippageBps: number;
 }
@@ -295,12 +295,16 @@ export function looperPathPnL(i: LooperPathPnLInput): LooperPathPnLResult {
     const ratio = terminalEquity / equity0;
     // Simple-interest annualization keeps parity with looperNetAPY's
     // additive convention; compounding inflates short-horizon returns.
-    const apy =
+    const rawApy =
       horizonForAnnualize > 0
         ? ratio > 0
           ? (ratio - 1) * (365 / horizonForAnnualize)
           : -1
         : 0;
+    // Economic floor: a levered position cannot lose more than 100% of
+    // principal. Early-liquidation annualization can extrapolate past −1;
+    // downstream consumers (histogram with lo=−1.0) rely on this floor.
+    const apy = Math.max(-1, rawApy);
     apyByPath.push(apy);
     liquidatedByPath.push(liquidated);
   }

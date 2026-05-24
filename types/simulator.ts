@@ -85,8 +85,18 @@ export interface LiquidityStrategyOutput {
   totalSupplyAPY: number;
   borrowerIncentiveAPY: number;
   netBorrowAPY: number;
-  leverageLoopAPY: number;
+  netLoopAPY: number;                       // carry-only loop APY
+  netLoopAPY_withIncentives: number;        // borrower-incentive overlay
+  effectiveLeverage: number;
+  loopDebtPerCollateral: number;
   leverageLoopsViable: boolean;
+  loopPath?: {                              // populated by worker
+    apyP5: number;
+    apyP50: number;
+    apyP95: number;
+    liquidationRate: number;
+    apyHistogram: Array<{ bucketLo: number; bucketHi: number; count: number }>;
+  };
 }
 
 export interface LiquidationOutput {

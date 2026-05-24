@@ -8,10 +8,10 @@ import {
   CartesianGrid,
   BarChart,
   Bar,
+  Cell,
 } from 'recharts';
 import { useMemo } from 'react';
 import { Kpi, formatPct, formatUSD } from '../Kpi';
-import { HelpPopover } from '../help/HelpPopover';
 
 const COMPETING_BENCHMARKS: Array<{ name: string; apy: number }> = [
   { name: 'Aave USDC', apy: 0.055 },
@@ -19,7 +19,7 @@ const COMPETING_BENCHMARKS: Array<{ name: string; apy: number }> = [
 ];
 
 export function LiquidityStrategy() {
-  const { strategy, inputs } = useSimulator();
+  const { strategy, inputs, running } = useSimulator();
 
   const apyComparison = useMemo(
     () => [
@@ -30,17 +30,17 @@ export function LiquidityStrategy() {
     [strategy.netSupplyAPY, strategy.totalSupplyAPY],
   );
 
-  // Stacked horizontal bar: base + supply incentive
-  const supplyComponents: Array<{ component: string; value: number; pct: number }> = [
-    { component: 'Net base APY', value: strategy.netSupplyAPY, pct: strategy.netSupplyAPY },
-    { component: 'Supply incentives', value: strategy.supplyIncentiveAPY, pct: strategy.supplyIncentiveAPY },
-  ];
-
-  // Borrower-side stack: gross borrow − borrower incentives = net borrow
-  const borrowComponents: Array<{ component: string; value: number; pct: number }> = [
-    { component: 'Borrow APY', value: strategy.borrowAPY, pct: strategy.borrowAPY },
-    { component: 'Borrower incentives', value: -strategy.borrowerIncentiveAPY, pct: -strategy.borrowerIncentiveAPY },
-  ];
+  const loopBars = useMemo(
+    () => [
+      { name: 'Hold wiTRY',        apy: inputs.witryYieldAnnual,             color: '#6b7280' },
+      { name: 'Loop wiTRY',        apy: strategy.netLoopAPY,                 color: '#10b981' },
+      { name: 'Loop + incentives', apy: strategy.netLoopAPY_withIncentives,  color: '#3b82f6' },
+    ],
+    [inputs.witryYieldAnnual, strategy.netLoopAPY, strategy.netLoopAPY_withIncentives],
+  );
+  const impliedLooperDebt_USD = inputs.witryTVL_USD * strategy.loopDebtPerCollateral;
+  const viable = strategy.leverageLoopsViable;
+  const loopPath = strategy.loopPath;
 
   const merklText = useMemo(() => {
     return `Supply-side Merkl: $${(
@@ -60,7 +60,16 @@ export function LiquidityStrategy() {
       strategy.borrowAPY,
       2,
     )}).`;
-  }, [strategy, inputs.supplyIncentiveBudgetMonthly_USD, inputs.borrowerIncentiveBudgetMonthly_USD]);
+  }, [
+    strategy.supplyIncentiveAPY,
+    strategy.totalSupplyAPY,
+    strategy.netSupplyAPY,
+    strategy.borrowerIncentiveAPY,
+    strategy.netBorrowAPY,
+    strategy.borrowAPY,
+    inputs.supplyIncentiveBudgetMonthly_USD,
+    inputs.borrowerIncentiveBudgetMonthly_USD,
+  ]);
 
   return (
     <section id="section-liquidity-strategy" className="space-y-6">
@@ -72,114 +81,101 @@ export function LiquidityStrategy() {
         </p>
       </div>
 
-      <div className="grid grid-cols-4 gap-4">
-        <Kpi label="Gross supply APY" value={formatPct(strategy.grossSupplyAPY, 2)} helpKey="grossSupplyAPY" />
-        <Kpi label="Net supply APY" value={formatPct(strategy.netSupplyAPY, 2)} hint="post-fees" helpKey="netSupplyAPY" />
-        <Kpi
-          label="Supply incentive APY"
-          value={formatPct(strategy.supplyIncentiveAPY, 2)}
-          hint={`${formatUSD(inputs.supplyIncentiveBudgetMonthly_USD)}/mo`}
-          helpKey="supplyIncentiveAPY"
-        />
-        <Kpi
-          label="Total supply APY"
-          value={formatPct(strategy.totalSupplyAPY, 2)}
-          tone="good"
-          helpKey="totalSupplyAPY"
-        />
-      </div>
-
-      <div className="grid grid-cols-3 gap-4">
-        <Kpi label="Gross borrow APY" value={formatPct(strategy.borrowAPY, 2)} helpKey="borrowAPY" />
-        <Kpi
-          label="Borrower incentive APY"
-          value={formatPct(strategy.borrowerIncentiveAPY, 2)}
-          hint={`${formatUSD(inputs.borrowerIncentiveBudgetMonthly_USD)}/mo`}
-          helpKey="borrowerIncentiveAPY"
-        />
-        <Kpi
-          label="Net borrow APY"
-          value={formatPct(strategy.netBorrowAPY, 2)}
-          hint={strategy.netBorrowAPY < 0 ? 'paid to borrow' : 'post-incentive'}
-          {...(strategy.netBorrowAPY < 0 ? { tone: 'good' as const } : {})}
-          helpKey="netBorrowAPY"
-        />
-      </div>
-
-      <div className="grid grid-cols-2 gap-4">
-        <div>
-          <h3 className="text-sm font-semibold mb-2">Supply APY composition</h3>
-          <div className="border border-brix-border rounded p-2 bg-brix-card">
-            <ResponsiveContainer width="100%" height={120}>
-              <BarChart layout="vertical" data={supplyComponents} margin={{ left: 110 }}>
-                <XAxis type="number" tickFormatter={(v: number) => `${(v * 100).toFixed(1)}%`} />
-                <YAxis type="category" dataKey="component" />
-                <Tooltip formatter={(v) => `${(Number(v) * 100).toFixed(2)}%`} />
-                <Bar dataKey="pct" fill="#3b82f6" />
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
+      {/* Row 1: Supplier APY */}
+      <div>
+        <h3 className="text-sm font-semibold mb-2">Supplier APY</h3>
+        <div className="grid grid-cols-4 gap-4">
+          <Kpi label="Gross supply APY" value={formatPct(strategy.grossSupplyAPY, 2)} helpKey="grossSupplyAPY" />
+          <Kpi label="Net supply APY" value={formatPct(strategy.netSupplyAPY, 2)} hint="post-fees" helpKey="netSupplyAPY" />
+          <Kpi
+            label="Supply incentive APY"
+            value={formatPct(strategy.supplyIncentiveAPY, 2)}
+            hint={`${formatUSD(inputs.supplyIncentiveBudgetMonthly_USD)}/mo`}
+            helpKey="supplyIncentiveAPY"
+          />
+          <Kpi
+            label="Total supply APY"
+            value={formatPct(strategy.totalSupplyAPY, 2)}
+            tone="good"
+            helpKey="totalSupplyAPY"
+          />
         </div>
-        <div>
-          <h3 className="text-sm font-semibold mb-2">Borrow APY composition</h3>
-          <div className="border border-brix-border rounded p-2 bg-brix-card">
-            <ResponsiveContainer width="100%" height={120}>
-              <BarChart layout="vertical" data={borrowComponents} margin={{ left: 110 }}>
-                <XAxis type="number" tickFormatter={(v: number) => `${(v * 100).toFixed(1)}%`} />
-                <YAxis type="category" dataKey="component" />
-                <Tooltip formatter={(v) => `${(Number(v) * 100).toFixed(2)}%`} />
-                <Bar dataKey="pct" fill="#f59e0b" />
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-          <div className="text-xs text-neutral-500 mt-1">
-            Net borrow = gross − borrower incentives. Negative net = borrowers paid (incentive APY {'>'} borrow APY).
-          </div>
+        <div className="border border-brix-border rounded p-2 bg-brix-card mt-3">
+          <ResponsiveContainer width="100%" height={180}>
+            <BarChart data={apyComparison}>
+              <CartesianGrid strokeDasharray="3 3" opacity={0.3} />
+              <XAxis dataKey="name" tick={{ fontSize: 10 }} />
+              <YAxis tickFormatter={(v: number) => `${(v * 100).toFixed(0)}%`} />
+              <Tooltip formatter={(v) => `${(Number(v) * 100).toFixed(2)}%`} />
+              <Bar dataKey="apy" fill="#10b981" />
+            </BarChart>
+          </ResponsiveContainer>
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-4">
-        <div>
-          <h3 className="text-sm font-semibold mb-2">
-            Borrow / leverage-loop viability
-          </h3>
-          <div
-            className={`p-4 rounded border ${
-              strategy.leverageLoopsViable
-                ? 'border-emerald-500 bg-emerald-50 dark:bg-emerald-950/30'
-                : 'border-red-500 bg-red-50 dark:bg-red-950/30'
+      {/* Row 2: Loop economics (deterministic, carry-only) */}
+      <div>
+        <div className="flex items-center gap-2 mb-2">
+          <h3 className="text-sm font-semibold">Loop economics (carry-only)</h3>
+          <span
+            className={`px-2 py-0.5 rounded text-xs font-medium ${
+              viable ? 'bg-emerald-500/20 text-emerald-300' : 'bg-rose-500/20 text-rose-300'
             }`}
           >
-            <div className="text-2xl font-semibold">
-              {strategy.leverageLoopsViable ? 'Viable' : 'Not viable'}
-            </div>
-            <div className="text-sm mt-1">
-              Loop APY = wiTRY yield − borrow × (1 + TRY depreciation) ={' '}
-              {formatPct(strategy.leverageLoopAPY, 2)}
-            </div>
-            <div className="text-xs text-neutral-500 mt-2">
-              Assumes 30% annual TRY depreciation; wiTRY yield {formatPct(inputs.witryYieldAnnual, 0)}.
-            </div>
-          </div>
+            {viable ? 'Loop beats hold' : 'Loop loses to hold'}
+          </span>
         </div>
+        <div className="grid grid-cols-3 gap-4 mb-3">
+          <Kpi label="Effective leverage" value={`${strategy.effectiveLeverage.toFixed(2)}×`} />
+          <Kpi label="Debt / collateral" value={formatPct(strategy.loopDebtPerCollateral, 1)} />
+          <Kpi label="Implied looper debt" value={formatUSD(impliedLooperDebt_USD)} />
+        </div>
+        <div className="border border-brix-border rounded p-2 bg-brix-card">
+          <ResponsiveContainer width="100%" height={180}>
+            <BarChart data={loopBars}>
+              <CartesianGrid strokeDasharray="3 3" opacity={0.3} />
+              <XAxis dataKey="name" tick={{ fontSize: 10 }} />
+              <YAxis tickFormatter={(v: number) => `${(v * 100).toFixed(0)}%`} />
+              <Tooltip formatter={(v) => `${(Number(v) * 100).toFixed(2)}%`} />
+              <Bar dataKey="apy">
+                {loopBars.map((b, i) => (
+                  <Cell key={i} fill={b.color} />
+                ))}
+              </Bar>
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+      </div>
 
-        <div>
-          <div className="flex items-center gap-1 mb-2">
-            <h3 className="text-sm font-semibold">Competitive benchmark</h3>
-            <HelpPopover chartKey="competitiveBenchmark" />
-          </div>
+      {/* Row 3: Realized P&L histogram */}
+      <div>
+        <h3 className="text-sm font-semibold mb-2">Loop realized P&amp;L (Monte Carlo)</h3>
+        <div className="grid grid-cols-4 gap-4 mb-3">
+          <Kpi label="P5 loop APY" value={loopPath ? formatPct(loopPath.apyP5, 1) : running ? '…' : '—'} />
+          <Kpi label="P50 loop APY" value={loopPath ? formatPct(loopPath.apyP50, 1) : running ? '…' : '—'} />
+          <Kpi label="P95 loop APY" value={loopPath ? formatPct(loopPath.apyP95, 1) : running ? '…' : '—'} />
+          <Kpi label="Liquidation rate" value={loopPath ? formatPct(loopPath.liquidationRate, 1) : running ? '…' : '—'} />
+        </div>
+        {loopPath && (
           <div className="border border-brix-border rounded p-2 bg-brix-card">
             <ResponsiveContainer width="100%" height={180}>
-              <BarChart data={apyComparison}>
+              <BarChart data={loopPath.apyHistogram}>
                 <CartesianGrid strokeDasharray="3 3" opacity={0.3} />
-                <XAxis dataKey="name" tick={{ fontSize: 10 }} />
-                <YAxis tickFormatter={(v: number) => `${(v * 100).toFixed(0)}%`} />
-                <Tooltip formatter={(v) => `${(Number(v) * 100).toFixed(2)}%`} />
-                <Bar dataKey="apy" fill="#10b981" />
+                <XAxis
+                  dataKey="bucketLo"
+                  tickFormatter={(v: number) => `${(v * 100).toFixed(0)}%`}
+                  tick={{ fontSize: 10 }}
+                />
+                <YAxis allowDecimals={false} />
+                <Tooltip
+                  labelFormatter={(v) => `${(Number(v) * 100).toFixed(0)}% – APY bucket`}
+                  formatter={(c) => `${Number(c)} paths`}
+                />
+                <Bar dataKey="count" fill="#3b82f6" />
               </BarChart>
             </ResponsiveContainer>
           </div>
-        </div>
+        )}
       </div>
 
       <div className="p-4 rounded border border-brix-accent/40 bg-brix-accent/10">

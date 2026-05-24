@@ -17,7 +17,7 @@ import {
 import { buildLadderFromInputs, effectiveDepthFromPreset } from './poolPreset';
 import { LIF, adaptiveCurveIRM } from './morphoMath';
 import { quantile } from './stats';
-import { GOV_LLTVS, type SidebarInputs } from '@/types/simulator';
+import { GOV_LLTVS, type SidebarInputs, type LiquidityStrategyOutput } from '@/types/simulator';
 
 // --- Policy dials surfaced as constants -----------------------------------
 // These are NOT user-tunable today; they encode Morpho governance defaults
@@ -29,7 +29,6 @@ import { GOV_LLTVS, type SidebarInputs } from '@/types/simulator';
 // the URL/localStorage state as `rTargetIRM` (editable on /utilization,
 // default 0.04 = Morpho governance) so the page's slider actually feeds
 // home's Strategy borrowAPY and IRM curve.
-const DEFAULT_TRY_DEPRECIATION_ANNUAL = 0.30;     // rough estimate, out of scope
 const DEFAULT_DEAD_DEPOSIT_COST_USD = 1;          // gas-cost proxy for one dead deposit
 const DEFAULT_GAS_COST_USD = 5;                   // nominal cushion (MegaETH gas ≈ 0)
 export const P95_LIQUIDATION_FRACTION_OF_BORROWS = 0.01; // 1% of expected borrows
@@ -67,17 +66,17 @@ export function useSimulator() {
     return dailyLogReturns(rows);
   }, [s.historicalPeriod]);
 
-  // Trigger worker run when relevant inputs change
-  useEffect(() => {
-    run({ inputs: s as unknown as SidebarInputs, returnsWindow });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [s, returnsWindow]);
-
   // borrowAPY derives from the static AdaptiveCurveIRM at the chosen target utilization.
   const borrowAPY = useMemo(
     () => adaptiveCurveIRM(s.targetUtilization, s.rTargetIRM),
     [s.targetUtilization, s.rTargetIRM],
   );
+
+  // Trigger worker run when relevant inputs change
+  useEffect(() => {
+    run({ inputs: s as unknown as SidebarInputs, returnsWindow, borrowAPY });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [s, returnsWindow, borrowAPY]);
 
   // Stage 1: compute requiredUSDM + expected borrow ahead of time so strategy
   // + liquidity can both consume the same values without a useMemo cycle.
@@ -104,7 +103,9 @@ export function useSimulator() {
         borrowerIncentiveBudgetMonthly_USD: s.borrowerIncentiveBudgetMonthly_USD,
         expectedBorrow_USD: expectedBorrowPrecursor,
         witryYieldAnnual: s.witryYieldAnnual,
-        expectedTRYDepreciation_annual: DEFAULT_TRY_DEPRECIATION_ANNUAL,
+        hfBuffer: s.hfBuffer,
+        perLoopSlippageBps: 30,
+        lltv: s.lltv,
       }),
     [s, requiredUSDMPrecursor, expectedBorrowPrecursor, borrowAPY],
   );
@@ -266,12 +267,36 @@ export function useSimulator() {
     [s, liquidity],
   );
 
+  const loopPathOverlay = useMemo(() => {
+    if (!result?.loopPath) return undefined;
+    const { apyByPath, apyP5, apyP50, apyP95, liquidationRate } = result.loopPath;
+    // 12 fixed buckets from −100% to +200% APY (liquidated paths land in the leftmost bucket).
+    const buckets = 12;
+    const lo = -1.0;
+    const hi = 2.0;
+    const step = (hi - lo) / buckets;
+    const apyHistogram = Array.from({ length: buckets }, (_, k) => {
+      const bucketLo = lo + k * step;
+      const bucketHi = bucketLo + step;
+      const count = apyByPath.filter(
+        (a) => a >= bucketLo && (k === buckets - 1 ? a <= bucketHi : a < bucketHi),
+      ).length;
+      return { bucketLo, bucketHi, count };
+    });
+    return { apyP5, apyP50, apyP95, liquidationRate, apyHistogram };
+  }, [result]);
+
+  const strategyWithLoopPath = useMemo<LiquidityStrategyOutput>(
+    () => (loopPathOverlay ? { ...strategy, loopPath: loopPathOverlay } : { ...strategy }),
+    [strategy, loopPathOverlay],
+  );
+
   return {
     inputs: s,
     running,
     fx: result,
     liquidity,
-    strategy,
+    strategy: strategyWithLoopPath,
     lltvDerivation,
     riskTier: classifyRiskTier(s.lltv, lltvDerivation.snapped || 0),
     vaultJson,
