@@ -1,31 +1,67 @@
 'use client';
 import { useEffect, useState } from 'react';
-import type { AnchorHTMLAttributes } from 'react';
+import type { AnchorHTMLAttributes, MouseEvent, KeyboardEvent } from 'react';
 
 type Props = AnchorHTMLAttributes<HTMLAnchorElement> & { href: string };
 
 /**
  * Cross-page link that preserves the current URL query string on navigation.
  *
- * The app keeps sidebar state in the URL via nuqs, and falls back to
- * localStorage when the URL is bare. Plain `<a href="/lltv">` triggers a
- * full reload to a bare URL, which forces every destination page to wait
- * for a post-render useEffect to read localStorage — causing a visible
- * flash of default values (or stale values if the write hasn't flushed).
+ * The app keeps sidebar state in the URL via nuqs; a plain `<a href="/lltv">`
+ * drops the search on a full reload, forcing the destination page to wait
+ * for a post-render localStorage hydration that may flash defaults or pick
+ * up a stale snapshot.
  *
- * This helper appends `window.location.search` to the destination href
- * after mount, so URL state survives the reload. The bare href is emitted
- * during static build / first client render to avoid hydration mismatch;
- * a useEffect updates it before the user can plausibly click.
+ * Two-phase href synchronization:
+ *   1. Mount-time `useEffect` captures `window.location.search` so the
+ *      hover-preview href is correct after hydration. Render-time bare href
+ *      keeps SSR/CSR byte-identical to avoid hydration mismatch.
+ *   2. **JIT update on `onMouseDown` / `onKeyDown(Enter|Space)`** rewrites
+ *      `e.currentTarget.href` against the *current* `window.location.search`
+ *      right before navigation. This is the only path that captures URL
+ *      mutations that happened after mount (e.g. user edited a sidebar
+ *      value via nuqs between page load and link click) — useEffect with
+ *      `[]` deps fires once and cannot see those later URL writes.
+ *   `onMouseDown` (not `onClick`) is chosen because it fires for all
+ *   mouse buttons (left / middle / ctrl-click → new tab) before the
+ *   navigation gesture commits.
  */
-export function CrossPageLink({ href, children, ...rest }: Props) {
-  const [search, setSearch] = useState('');
+export function CrossPageLink({
+  href,
+  children,
+  onMouseDown,
+  onKeyDown,
+  ...rest
+}: Props) {
+  const [mountSearch, setMountSearch] = useState('');
   useEffect(() => {
-    setSearch(window.location.search);
+    setMountSearch(window.location.search);
   }, []);
-  const finalHref = search ? insertSearch(href, search) : href;
+  const renderedHref = mountSearch ? insertSearch(href, mountSearch) : href;
+
+  const syncHrefNow = (el: HTMLAnchorElement) => {
+    const live = window.location.search;
+    el.href = live ? insertSearch(href, live) : href;
+  };
+
+  const handleMouseDown = (e: MouseEvent<HTMLAnchorElement>) => {
+    syncHrefNow(e.currentTarget);
+    onMouseDown?.(e);
+  };
+  const handleKeyDown = (e: KeyboardEvent<HTMLAnchorElement>) => {
+    if (e.key === 'Enter' || e.key === ' ') {
+      syncHrefNow(e.currentTarget);
+    }
+    onKeyDown?.(e);
+  };
+
   return (
-    <a href={finalHref} {...rest}>
+    <a
+      {...rest}
+      href={renderedHref}
+      onMouseDown={handleMouseDown}
+      onKeyDown={handleKeyDown}
+    >
       {children}
     </a>
   );
@@ -39,7 +75,5 @@ export function CrossPageLink({ href, children, ...rest }: Props) {
 function insertSearch(href: string, search: string): string {
   const hashIdx = href.indexOf('#');
   if (hashIdx === -1) return `${href}${search}`;
-  const path = href.slice(0, hashIdx);
-  const hash = href.slice(hashIdx);
-  return `${path}${search}${hash}`;
+  return `${href.slice(0, hashIdx)}${search}${href.slice(hashIdx)}`;
 }
