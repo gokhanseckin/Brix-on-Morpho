@@ -3,6 +3,7 @@ import { useUrlState } from '@/lib/useUrlState';
 import { GOV_LLTVS, type LLTV } from '@/types/simulator';
 import { useState } from 'react';
 import { InfoTooltip } from './help/InfoTooltip';
+import { CrossPageLink } from './CrossPageLink';
 import { PARAM_HELP, PARAM_SECTION } from '@/lib/help/registry';
 
 function paramTooltip(helpKey: keyof typeof PARAM_HELP) {
@@ -74,9 +75,9 @@ export function Sidebar() {
           step={0.01}
           format={(v) => `${(v * 100).toFixed(0)}%`}
         />
-        <a href="/utilization" className="text-xs text-brix-accent hover:text-brix-accentHover -mt-1 block">
+        <CrossPageLink href="/utilization" className="text-xs text-brix-accent hover:text-brix-accentHover -mt-1 block">
           → calibrate in utilization tool
-        </a>
+        </CrossPageLink>
         <NumberField
           label="Borrower LTV α"
           helpKey="borrowerLTVAlpha"
@@ -211,9 +212,9 @@ export function Sidebar() {
         <div className="space-y-1.5 pb-2 border-b border-neutral-800">
           <p className="text-[11px] text-neutral-500 leading-snug">
             Pool config is read-only here. Tune it on the{' '}
-            <a href="/swapliquidity" className="text-brix-accent underline">
+            <CrossPageLink href="/swapliquidity" className="text-brix-accent underline">
               swap-liquidity page
-            </a>.
+            </CrossPageLink>.
           </p>
           <div className="flex items-center justify-between text-xs">
             <span className="text-neutral-500">Single-side AMM TVL</span>
@@ -231,7 +232,7 @@ export function Sidebar() {
         <div className="text-[11px] text-neutral-500 leading-snug">
           Pre-liquidation parameters (toggle, preLLTV offset, preLCF, preLIF)
           edited on the{' '}
-          <a href="/lltv" className="text-brix-accent underline">LLTV page</a>.
+          <CrossPageLink href="/lltv" className="text-brix-accent underline">LLTV page</CrossPageLink>.
         </div>
       </Group>
 
@@ -258,7 +259,7 @@ export function Sidebar() {
         />
         <div className="text-[11px] text-neutral-500 leading-snug pt-2">
           Safety margin (calibration only) edited on the{' '}
-          <a href="/lltv" className="text-brix-accent underline">LLTV page</a>.
+          <CrossPageLink href="/lltv" className="text-brix-accent underline">LLTV page</CrossPageLink>.
         </div>
       </Group>
 
@@ -269,9 +270,9 @@ export function Sidebar() {
       >
         {copied ? 'Copied!' : 'Copy share link'}
       </button>
-      <a href="/swapliquidity" className="block mt-4 text-xs text-brix-accent hover:text-brix-accentHover">
+      <CrossPageLink href="/swapliquidity" className="block mt-4 text-xs text-brix-accent hover:text-brix-accentHover">
         → Swap liquidity lab
-      </a>
+      </CrossPageLink>
     </div>
   );
 }
