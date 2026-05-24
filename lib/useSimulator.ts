@@ -25,7 +25,10 @@ import { GOV_LLTVS, type SidebarInputs } from '@/types/simulator';
 // Surface them in the help system as "fixed assumptions" rather than
 // "derived". See docs/superpowers/specs/2026-05-20-formula-validation-report.md
 // entries 35–36 for the rationale.
-const MORPHO_IRM_RTARGET = 0.04;                  // 4% APR @ u=90% target
+// MORPHO_IRM_RTARGET used to be a hardcoded 0.04 here. It is now sourced from
+// the URL/localStorage state as `rTargetIRM` (editable on /utilization,
+// default 0.04 = Morpho governance) so the page's slider actually feeds
+// home's Strategy borrowAPY and IRM curve.
 const DEFAULT_TRY_DEPRECIATION_ANNUAL = 0.30;     // rough estimate, out of scope
 const COMPETING_STABLECOIN_APY = 0.05;            // typical USDC supply APY
 const DEFAULT_DEAD_DEPOSIT_COST_USD = 1;          // gas-cost proxy for one dead deposit
@@ -73,8 +76,8 @@ export function useSimulator() {
 
   // borrowAPY derives from the static AdaptiveCurveIRM at the chosen target utilization.
   const borrowAPY = useMemo(
-    () => adaptiveCurveIRM(s.targetUtilization, MORPHO_IRM_RTARGET),
-    [s.targetUtilization],
+    () => adaptiveCurveIRM(s.targetUtilization, s.rTargetIRM),
+    [s.targetUtilization, s.rTargetIRM],
   );
 
   // Stage 1: compute requiredUSDM ahead of time so strategy + liquidity can
@@ -117,7 +120,7 @@ export function useSimulator() {
       baseSupplyAPY: strategy.netSupplyAPY,
       deadDepositCost: DEFAULT_DEAD_DEPOSIT_COST_USD,
     });
-    const irmCurve = irmCurvePoints(MORPHO_IRM_RTARGET);
+    const irmCurve = irmCurvePoints(s.rTargetIRM);
     const sensitivity = GOV_LLTVS.slice(2, 6).map((lv) => ({
       lltv: lv,
       requiredUSDM:

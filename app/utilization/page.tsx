@@ -14,13 +14,16 @@ import { HelpPopover } from '@/app/components/help/HelpPopover';
 import type { KpiKey } from '@/lib/help/kpiKeys';
 
 export default function UtilizationPage() {
-  const [urlState] = useUrlState();
+  const [urlState, setUrlState] = useUrlState();
   // Page-local sliders — calibration knobs that exist only on this page.
   // Market params (TVL, LLTV, wiTRY yields) are pulled from useUrlState
   // and rendered read-only below; edit them on the Market Simulator (home).
+  // rTargetIRM lives in URL state (default 0.04) because it feeds home's
+  // Strategy borrowAPY + IRM curve too — see useSimulator.ts.
   const [stressPct, setStressPct] = useState(0.20);
   const [hfBuffer, setHfBuffer] = useState(1.5);
-  const [rTarget, setRTarget] = useState(0.04);
+  const rTarget = urlState.rTargetIRM;
+  const setRTarget = (v: number) => setUrlState({ rTargetIRM: v });
 
   const analysis = useUtilizationAnalysis({
     tvlUSDM_USD: urlState.witryTVL_USD,
