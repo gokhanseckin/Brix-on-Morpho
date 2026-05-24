@@ -23,7 +23,6 @@ const MODES = ['Bootstrap', 'GBM', 'GBM+Jumps', 'Scenario'] as const;
 const HORIZONS = [7, 30, 60, 90] as const;
 const PATH_COUNTS = [100, 1000, 5000] as const;
 const HISTORICAL_PERIODS = [1, 3, 5] as const;
-const LOCK_PERIODS = [30, 60, 90, 180] as const;
 
 export function Sidebar() {
   const [s, setS] = useUrlState();
@@ -181,30 +180,22 @@ export function Sidebar() {
 
       <Group title="Section 3 · Strategy">
         <NumberField
-          label="Incentive budget/month (USD)"
-          helpKey="incentiveBudgetMonthly_USD"
-          value={s.incentiveBudgetMonthly_USD}
-          onChange={(v) => setS({ incentiveBudgetMonthly_USD: v })}
+          label="Supply incentive budget/month (USD)"
+          helpKey="supplyIncentiveBudgetMonthly_USD"
+          value={s.supplyIncentiveBudgetMonthly_USD}
+          onChange={(v) => setS({ supplyIncentiveBudgetMonthly_USD: v })}
           min={0}
           max={500_000}
           step={1_000}
         />
-        <RangeField
-          label="Attraction rate"
-          helpKey="attractionRate"
-          value={s.attractionRate}
-          onChange={(v) => setS({ attractionRate: v })}
-          min={1}
-          max={10}
-          step={0.1}
-          format={(v) => v.toFixed(1)}
-        />
-        <SelectField
-          label="Lock period (days)"
-          helpKey="lockPeriodDays"
-          value={String(s.lockPeriodDays)}
-          onChange={(v) => setS({ lockPeriodDays: parseInt(v, 10) })}
-          options={LOCK_PERIODS.map((p) => ({ value: String(p), label: `${p}d` }))}
+        <NumberField
+          label="Borrower incentive budget/month (USD)"
+          helpKey="borrowerIncentiveBudgetMonthly_USD"
+          value={s.borrowerIncentiveBudgetMonthly_USD}
+          onChange={(v) => setS({ borrowerIncentiveBudgetMonthly_USD: v })}
+          min={0}
+          max={500_000}
+          step={1_000}
         />
       </Group>
 
@@ -297,6 +288,11 @@ function NumberField(props: {
   step?: number;
   helpKey?: keyof typeof PARAM_HELP;
 }) {
+  // Keep a local string buffer so users can clear / type intermediate states
+  // (empty, "-", "1.") without the controlled-input forcing the old number
+  // back into the field on every keystroke.
+  const [draft, setDraft] = useState<string | null>(null);
+  const display = draft ?? String(props.value);
   return (
     <label className="flex flex-col gap-1">
       <span className="text-xs text-neutral-400">
@@ -305,14 +301,17 @@ function NumberField(props: {
       </span>
       <input
         type="number"
-        value={props.value}
+        value={display}
         min={props.min}
         max={props.max}
         step={props.step}
         onChange={(e) => {
-          const parsed = parseFloat(e.target.value);
+          const raw = e.target.value;
+          setDraft(raw);
+          const parsed = parseFloat(raw);
           if (Number.isFinite(parsed)) props.onChange(parsed);
         }}
+        onBlur={() => setDraft(null)}
         className="rounded-md border border-brix-border bg-brix-surface text-neutral-200 px-2 py-1 text-sm focus:border-brix-accent focus:outline-none"
       />
     </label>
