@@ -19,7 +19,7 @@ const COMPETING_BENCHMARKS: Array<{ name: string; apy: number }> = [
 ];
 
 export function LiquidityStrategy() {
-  const { strategy, inputs, running } = useSimulator();
+  const { strategy, inputs } = useSimulator();
 
   const apyComparison = useMemo(
     () => [
@@ -39,7 +39,6 @@ export function LiquidityStrategy() {
     [inputs.witryYieldAnnual, strategy.netLoopAPY, strategy.netLoopAPY_withIncentives],
   );
   const viable = strategy.leverageLoopsViable;
-  const loopPath = strategy.loopPath;
 
   const merklText = useMemo(() => {
     return `Supply-side Merkl: $${(
@@ -145,36 +144,6 @@ export function LiquidityStrategy() {
         </div>
       </div>
 
-      {/* Row 3: Realized P&L histogram */}
-      <div>
-        <h3 className="text-sm font-semibold mb-2">Loop realized P&amp;L (Monte Carlo)</h3>
-        <div className="grid grid-cols-4 gap-4 mb-3">
-          <Kpi label="P5 loop APY" value={loopPath ? formatPct(loopPath.apyP5, 1) : running ? '…' : '—'} helpKey="loopAPYP5" />
-          <Kpi label="P50 loop APY" value={loopPath ? formatPct(loopPath.apyP50, 1) : running ? '…' : '—'} helpKey="loopAPYP50" />
-          <Kpi label="P95 loop APY" value={loopPath ? formatPct(loopPath.apyP95, 1) : running ? '…' : '—'} helpKey="loopAPYP95" />
-          <Kpi label="Liquidation rate" value={loopPath ? formatPct(loopPath.liquidationRate, 1) : running ? '…' : '—'} helpKey="loopLiquidationRate" />
-        </div>
-        {loopPath && (
-          <div className="border border-brix-border rounded p-2 bg-brix-card">
-            <ResponsiveContainer width="100%" height={180}>
-              <BarChart data={loopPath.apyHistogram}>
-                <CartesianGrid strokeDasharray="3 3" opacity={0.3} />
-                <XAxis
-                  dataKey="bucketLo"
-                  tickFormatter={(v: number) => `${(v * 100).toFixed(0)}%`}
-                  tick={{ fontSize: 10 }}
-                />
-                <YAxis allowDecimals={false} />
-                <Tooltip
-                  labelFormatter={(v) => `${(Number(v) * 100).toFixed(0)}% – APY bucket`}
-                  formatter={(c) => `${Number(c)} paths`}
-                />
-                <Bar dataKey="count" fill="#3b82f6" />
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-        )}
-      </div>
 
       <div className="p-4 rounded border border-brix-accent/40 bg-brix-accent/10">
         <div className="text-xs uppercase tracking-wide text-brix-accent mb-1">
