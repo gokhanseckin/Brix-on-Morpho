@@ -338,6 +338,128 @@ describe('bad debt cascade', () => {
     expect(vol).toBeLessThanOrEqual(1_000_000 * 1.1);
   });
 
+  it('honors caller-supplied preLLTVOffset (deeper offset → earlier trigger, more seized volume)', () => {
+    // Drifting path that only crosses preLLTV when the offset is wide enough.
+    // With a narrow 1pp offset, preLLTV = 0.85; the position never reaches it
+    // in this gentle drift. With a wide 10pp offset, preLLTV = 0.76; the
+    // position enters the band early and triggers pre-liq.
+    const args = {
+      paths: [[1.0, 1.02, 1.04, 1.06, 1.08]],
+      ltvFractions: [0.85],
+      lltv: 0.86,
+      tvl_USD: 1_000_000,
+      preset: presetWithTVL(5_000_000, 1),
+      spot: 1,
+      gasCost_USD: 5,
+      witryYieldAnnual: 0,
+      preLiquidationEnabled: true,
+      preLCF1: 0.05,
+      preLCF2: 0.5,
+      preLIF1: 1.01,
+    };
+    const narrow = simulateBadDebt({ ...args, preLLTVOffset: 0.01 });
+    const wide = simulateBadDebt({ ...args, preLLTVOffset: 0.10 });
+    expect(narrow.liquidatedVolumeByPath[0]!).toBe(0);
+    expect(wide.liquidatedVolumeByPath[0]!).toBeGreaterThan(0);
+  });
+
+  it('honors caller-supplied preLCF2 (more aggressive close → more seized volume)', () => {
+    // Same drift, same preLLTV — only the close factor differs. With LCF2
+    // dialed up, the partial close at trigger seizes more of the position.
+    const args = {
+      paths: [[1.0, 1.05, 1.10, 1.15]],
+      ltvFractions: [0.85],
+      lltv: 0.86,
+      tvl_USD: 1_000_000,
+      preset: presetWithTVL(5_000_000, 1),
+      spot: 1,
+      gasCost_USD: 5,
+      witryYieldAnnual: 0,
+      preLiquidationEnabled: true,
+      preLLTVOffset: 0.05,
+      preLCF1: 0.05,
+      preLIF1: 1.01,
+    };
+    const gentle = simulateBadDebt({ ...args, preLCF2: 0.10 });
+    const aggressive = simulateBadDebt({ ...args, preLCF2: 0.90 });
+    expect(aggressive.liquidatedVolumeByPath[0]!).toBeGreaterThan(
+      gentle.liquidatedVolumeByPath[0]!,
+    );
+  });
+
+  it('honors caller-supplied preLIF1 (higher bonus → more seized USD at constant close factor)', () => {
+    // ltvFrac=0.99 places effLTV (= 0.99·0.86 = 0.8514) inside the pre-liq
+    // band [0.81, 0.86] from the first step, no FX move required. preLCF1 =
+    // preLCF2 zeroes out the close-factor interpolation so only lifNow
+    // (= preLIF1 + tFrac·(LIF(LLTV) − preLIF1)) varies with preLIF1.
+    const args = {
+      paths: [[1.0, 1.0]],
+      ltvFractions: [0.99],
+      lltv: 0.86,
+      tvl_USD: 1_000_000,
+      preset: presetWithTVL(50_000_000, 1),
+      spot: 1,
+      gasCost_USD: 5,
+      witryYieldAnnual: 0,
+      preLiquidationEnabled: true,
+      preLLTVOffset: 0.05,
+      preLCF1: 0.20,
+      preLCF2: 0.20,
+    };
+    const low = simulateBadDebt({ ...args, preLIF1: 1.01 });
+    const high = simulateBadDebt({ ...args, preLIF1: 1.05 });
+    expect(low.liquidatedVolumeByPath[0]!).toBeGreaterThan(0);
+    expect(high.liquidatedVolumeByPath[0]!).toBeGreaterThan(
+      low.liquidatedVolumeByPath[0]!,
+    );
+  });
+
+  it('linear interpolation: deeper trigger inside the band uses larger close factor', () => {
+    // Position A triggers near preLLTV (gentle); position B triggers near
+    // LLTV (aggressive). Same close-factor endpoints; pick widely separated
+    // anchors so the interpolation gap is large.
+    const lltv = 0.86;
+    const preLLTVOffset = 0.05;
+    const baseArgs = {
+      lltv,
+      tvl_USD: 1_000_000,
+      preset: presetWithTVL(50_000_000, 1),
+      spot: 1,
+      gasCost_USD: 5,
+      witryYieldAnnual: 0,
+      preLiquidationEnabled: true,
+      preLLTVOffset,
+      preLCF1: 0.05,
+      preLCF2: 0.95,
+      preLIF1: 1.01,
+    };
+    // Position A: ltvFrac=0.95, no FX move → effLTV = 0.95·0.86 = 0.817
+    //   (just above preLLTV=0.81; tFrac ≈ 0.14)
+    const gentleTrigger = simulateBadDebt({
+      ...baseArgs,
+      paths: [[1.0, 1.0]],
+      ltvFractions: [0.95],
+    });
+    // Position B: ltvFrac=0.99, no FX move → effLTV = 0.99·0.86 = 0.851
+    //   (deep in band; tFrac ≈ 0.82)
+    const deepTrigger = simulateBadDebt({
+      ...baseArgs,
+      paths: [[1.0, 1.0]],
+      ltvFractions: [0.99],
+    });
+    // Both fire pre-liq once; deeper trigger uses larger close factor →
+    // larger seized USD per unit of debt-at-trigger.
+    const gentleVol = gentleTrigger.liquidatedVolumeByPath[0]!;
+    const deepVol = deepTrigger.liquidatedVolumeByPath[0]!;
+    expect(gentleVol).toBeGreaterThan(0);
+    expect(deepVol).toBeGreaterThan(0);
+    // Normalise by debt at trigger so the comparison is on close-factor share,
+    // not on the absolute debt difference between the two positions.
+    const debtA = 0.95 * lltv * 1_000_000;
+    const debtB = 0.99 * lltv * 1_000_000;
+    expect(deepVol / debtB).toBeGreaterThan(gentleVol / debtA);
+  });
+
   it('pre-liquidation contributes to liquidatedVolumeByPath even when no hard liquidation fires', () => {
     // Position drifts into the preLLTV band but never crosses the hard LLTV.
     // With pre-liq on, the partial close should register seized volume.

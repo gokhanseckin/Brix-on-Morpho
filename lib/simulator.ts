@@ -307,6 +307,14 @@ export interface BadDebtArgs {
   gasCost_USD: number;
   witryYieldAnnual: number;
   preLiquidationEnabled: boolean;
+  // Pre-liquidation parameters per Morpho spec §4D. All optional; omitted
+  // values fall back to the module defaults (PRE_LIQUIDATION_LLTV_OFFSET,
+  // PRE_LIQUIDATION_LCF, PRE_LIQUIDATION_LIF_MIN). Plumbed through from
+  // SidebarInputs so user edits on /lltv actually drive the simulation.
+  preLLTVOffset?: number;
+  preLCF1?: number;
+  preLCF2?: number;
+  preLIF1?: number;
 }
 
 export interface BadDebtOut {
@@ -333,10 +341,16 @@ export function simulateBadDebt(a: BadDebtArgs): BadDebtOut {
   }
   const S0 = firstPath[0]!;
 
-  // Pre-liquidation parameters per spec §4D.
-  const preLLTV = Math.max(0, a.lltv - PRE_LIQUIDATION_LLTV_OFFSET);
-  const preLIF1 = PRE_LIQUIDATION_LIF_MIN;
-  const preLCF2 = PRE_LIQUIDATION_LCF[1];
+  // Pre-liquidation parameters per spec §4D. Caller-supplied values from
+  // /lltv (SidebarInputs) win; defaults fall back to module constants so
+  // simulator-internal tests stay green.
+  const preLLTVOffset = a.preLLTVOffset ?? PRE_LIQUIDATION_LLTV_OFFSET;
+  const preLCF1 = a.preLCF1 ?? PRE_LIQUIDATION_LCF[0];
+  const preLCF2 = a.preLCF2 ?? PRE_LIQUIDATION_LCF[1];
+  const preLIF1 = a.preLIF1 ?? PRE_LIQUIDATION_LIF_MIN;
+  const preLLTV = Math.max(0, a.lltv - preLLTVOffset);
+  const preLIF2 = LIF(a.lltv);
+  const preBandWidth = Math.max(1e-9, a.lltv - preLLTV);
 
   const badDebtByPath: number[] = [];
   const liquidatedCountByPath: number[] = [];
@@ -366,16 +380,24 @@ export function simulateBadDebt(a: BadDebtArgs): BadDebtOut {
         const effLTV = pos.debt_USD / Math.max(1e-9, collNow);
 
         // Pre-liquidation: position has drifted between preLLTV and LLTV.
-        // Simplification: one-shot 50% close at LIF=1.01. The remaining
-        // half continues; if it crosses hard LLTV later it gets liquidated.
+        // Spec §4D: close factor and LIF are piecewise-linear in effLTV
+        // across the [preLLTV, LLTV] band, anchored at
+        //   (preLLTV, preLCF1, preLIF1)  and  (LLTV, preLCF2, LIF(LLTV)).
+        // We keep the one-shot trigger (preLiquidated flag prevents repeat
+        // firing) but use the interpolated close factor + LIF at the
+        // moment the position enters the band, so gentler drifts produce
+        // gentler closes and deep drifts approach hard-liquidation bonus.
         if (
           a.preLiquidationEnabled &&
           !pos.preLiquidated &&
           effLTV >= preLLTV &&
           effLTV < a.lltv
         ) {
-          const closeDebt = pos.debt_USD * preLCF2;
-          const seized = closeDebt * preLIF1;
+          const tFrac = Math.max(0, Math.min(1, (effLTV - preLLTV) / preBandWidth));
+          const closeFactor = preLCF1 + tFrac * (preLCF2 - preLCF1);
+          const lifNow = preLIF1 + tFrac * (preLIF2 - preLIF1);
+          const closeDebt = pos.debt_USD * closeFactor;
+          const seized = closeDebt * lifNow;
           pathSeizedVolume_USD += seized;
           const { revenue_USD, newPool } = quoteSellUSD(pool, spotNow, seized);
           pool = newPool;
@@ -384,15 +406,12 @@ export function simulateBadDebt(a: BadDebtArgs): BadDebtOut {
           const repaid = Math.min(closeDebt, revenue_USD);
           pos.debt_USD -= repaid;
           // Report #2 entry #27 fix: the fraction of collateral seized is
-          // seized_USD / collNow_USD, NOT preLCF2 · preLIF1 (which only
+          // seized_USD / collNow_USD, NOT closeFactor · lifNow (which only
           // happens to equal the fraction when debt = collateral).
           const fractionSeized = Math.min(1, seized / Math.max(1e-9, collNow));
           pos.collateralBaseUSD *= 1 - fractionSeized;
           if (pos.collateralBaseUSD < 0) pos.collateralBaseUSD = 0;
           pos.preLiquidated = true;
-          // Spec §4D defines a full piecewise-linear LCF/LIF schedule
-          // interpolated by effLTV in [preLLTV, LLTV]; this is a coarse
-          // one-shot approximation. Continue to hard-LLTV check below.
         }
 
         const collAfter = pos.collateralBaseUSD * rel;

@@ -131,6 +131,10 @@ const api = {
       gasCost_USD: DEFAULT_GAS_COST_USD,
       witryYieldAnnual: inputs.witryYieldAnnual,
       preLiquidationEnabled: inputs.preLiquidationEnabled,
+      preLLTVOffset: inputs.preLLTVOffset,
+      preLCF1: inputs.preLCF1,
+      preLCF2: inputs.preLCF2,
+      preLIF1: inputs.preLIF1,
     });
     const loopPathOut = looperPathPnL({
       paths,
