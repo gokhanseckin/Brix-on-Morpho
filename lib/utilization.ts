@@ -1,5 +1,6 @@
 // lib/utilization.ts
 import { adaptiveCurveIRM, LIF } from './morphoMath';
+import { quantileSorted } from './stats';
 export interface LooperEconomicsInput {
   uTarget: number;
   rTarget: number;
@@ -361,14 +362,7 @@ export function looperPathPnL(i: LooperPathPnLInput): LooperPathPnLResult {
   }
 
   const sorted = [...apyByPath].sort((x, y) => x - y);
-  const at = (q: number): number => {
-    if (sorted.length === 0) return 0;
-    const idx = Math.min(
-      sorted.length - 1,
-      Math.max(0, Math.floor(q * (sorted.length - 1))),
-    );
-    return sorted[idx]!;
-  };
+  const at = (q: number): number => quantileSorted(sorted, q);
   const liqRate = liquidatedByPath.filter(Boolean).length / Math.max(1, liquidatedByPath.length);
 
   return {
