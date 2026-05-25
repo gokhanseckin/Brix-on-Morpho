@@ -7,7 +7,6 @@ import { useUrlState } from '@/lib/useUrlState';
 import { historicalAnnualizedVol, loadFxRows } from '@/lib/fxData';
 import { RecommendationCard } from './components/RecommendationCard';
 import { LooperViabilityCurve } from './components/LooperViabilityCurve';
-import { LiquidityStressSection } from './components/LiquidityStressSection';
 import { FXRiskCard } from './components/FXRiskCard';
 import { IRMHeatmap } from './components/IRMHeatmap';
 import { RecommendationTable } from './components/RecommendationTable';
@@ -168,7 +167,6 @@ export default function UtilizationPage() {
 
       <RecommendationCard analysis={analysis} />
       <LooperViabilityCurve analysis={analysis} />
-      <LiquidityStressSection analysis={analysis} />
       <FXRiskCard analysis={analysis} fxAnnualVol={fxAnnualVol} fxStressZ={fxStressZ} />
       <IRMHeatmap analysis={analysis} />
       <RecommendationTable analysis={analysis} />
