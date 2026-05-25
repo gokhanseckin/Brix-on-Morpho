@@ -1,4 +1,5 @@
 import { adaptiveCurveIRM, BETA, healthFactor, LIF, LIF_CAP } from './morphoMath';
+import { carryLoopAPY } from './utilization';
 import { createRng, gauss, type Rng } from './rng';
 import { GOV_LLTVS, type LLTV } from '@/types/simulator';
 import type { PoolPreset } from './poolPreset';
@@ -666,20 +667,15 @@ export function computeStrategy(a: StrategyArgs): StrategyOut {
       : 0;
   const netBorrowAPY = a.borrowAPY - borrowerIncentiveAPY;
 
-  // Carry-only loop economics. Mirrors looperNetAPY (lib/utilization.ts) but
-  // uses the caller-supplied borrowAPY directly (looperNetAPY would re-derive
-  // it from uTarget/rTarget; redundant here). FX risk is NOT subtracted as
-  // expected cost — it's handled separately via the Monte Carlo loopPath.
-  const borrowFraction = a.lltv / a.hfBuffer;
-  const effectiveLeverage = borrowFraction >= 1
-    ? 50
-    : Math.min(50, 1 / (1 - borrowFraction));
-  const borrowedShare = effectiveLeverage - 1;
-  const grossLoopAPY = effectiveLeverage * a.witryYieldAnnual;
-  const borrowCost   = borrowedShare * a.borrowAPY;
-  const slippageCost = borrowedShare * (a.perLoopSlippageBps / 10_000);
-  const hfIdleCost   = a.witryYieldAnnual * (1 - 1 / a.hfBuffer) * borrowedShare;
-  const netLoopAPY   = grossLoopAPY - borrowCost - slippageCost - hfIdleCost;
+  // Carry-only loop economics — shared helper (lib/utilization.ts). FX risk
+  // is handled separately via the Monte Carlo loopPath, not subtracted here.
+  const { effectiveLeverage, borrowedShare, netLoopAPY } = carryLoopAPY({
+    lltv: a.lltv,
+    hfBuffer: a.hfBuffer,
+    witryYieldAnnual: a.witryYieldAnnual,
+    borrowAPY: a.borrowAPY,
+    perLoopSlippageBps: a.perLoopSlippageBps,
+  });
 
   // Borrower-incentive overlay: paid on the looper's debt notional.
   const netLoopAPY_withIncentives = netLoopAPY + borrowerIncentiveAPY * borrowedShare;

@@ -7,6 +7,10 @@ export interface LooperEconomicsInput {
   hfBuffer: number;            // ≥ 1.0
   witryYieldAnnual: number;    // USD APY used for the loop math (typically 7d figure)
   perLoopSlippageBps: number;  // basis points lost per loop step (round-trip swap cost)
+  // Optional caller-supplied borrow APY. When provided, used directly;
+  // otherwise derived from adaptiveCurveIRM(uTarget, rTarget). Lets the
+  // home page reuse a memoized borrowAPY without drift risk.
+  borrowAPY?: number;
   // FX risk overlay — vol only, no drift. Loopers are TRY-native carry
   // traders; their expected return is the carry (wiTRY yield − borrow
   // rate), and FX vol enters separately as a stress test on leverage.
@@ -78,27 +82,54 @@ export interface RecommendResult {
   bestEffort: number;
 }
 
-export function looperNetAPY(i: LooperEconomicsInput): LooperEconomicsResult {
+export interface CarryLoopInput {
+  lltv: number;
+  hfBuffer: number;            // ≥ 1.0
+  witryYieldAnnual: number;
+  borrowAPY: number;
+  perLoopSlippageBps: number;
+}
+
+export interface CarryLoopOut {
+  effectiveLeverage: number;
+  borrowedShare: number;
+  grossLoopAPY: number;
+  borrowCost: number;
+  slippageCost: number;
+  hfIdleCost: number;
+  netLoopAPY: number;
+}
+
+// Carry-only loop economics. Shared by /utilization (looperNetAPY) and the
+// home-page strategy (lib/simulator.ts → computeStrategy). No FX overlay,
+// no incentives — pure deterministic carry math.
+export function carryLoopAPY(i: CarryLoopInput): CarryLoopOut {
   const borrowFraction = i.lltv / i.hfBuffer;
   // Closed-form geometric-sum leverage. Capped at 50× for numerical safety
   // (HF buffer ≥ 1.1 makes that ceiling unreachable in practice).
   const effectiveLeverage = borrowFraction >= 1
     ? 50
     : Math.min(50, 1 / (1 - borrowFraction));
-
-  const borrowAPY = adaptiveCurveIRM(i.uTarget, i.rTarget);
-  const borrowedShare = effectiveLeverage - 1;            // levered debt / equity
-
+  const borrowedShare = effectiveLeverage - 1;
   const grossLoopAPY = effectiveLeverage * i.witryYieldAnnual;
-  // Carry math is TRY-native. wiTRY yield IS the compensation for FX risk;
-  // we do NOT subtract expected TRY depreciation here. FX appears below as
-  // a separate stress-test on leverage.
-  const borrowCost   = borrowedShare * borrowAPY;
+  const borrowCost   = borrowedShare * i.borrowAPY;
   const slippageCost = borrowedShare * (i.perLoopSlippageBps / 10_000);
   // Capital held back to maintain HF buffer earns nothing.
   const hfIdleCost   = i.witryYieldAnnual * (1 - 1 / i.hfBuffer) * borrowedShare;
+  const netLoopAPY   = grossLoopAPY - borrowCost - slippageCost - hfIdleCost;
+  return { effectiveLeverage, borrowedShare, grossLoopAPY, borrowCost, slippageCost, hfIdleCost, netLoopAPY };
+}
 
-  const netLoopAPY = grossLoopAPY - borrowCost - slippageCost - hfIdleCost;
+export function looperNetAPY(i: LooperEconomicsInput): LooperEconomicsResult {
+  const borrowAPY = i.borrowAPY ?? adaptiveCurveIRM(i.uTarget, i.rTarget);
+  const carry = carryLoopAPY({
+    lltv: i.lltv,
+    hfBuffer: i.hfBuffer,
+    witryYieldAnnual: i.witryYieldAnnual,
+    borrowAPY,
+    perLoopSlippageBps: i.perLoopSlippageBps,
+  });
+  const { effectiveLeverage, grossLoopAPY, borrowCost, slippageCost, hfIdleCost, netLoopAPY } = carry;
   const loopMargin = netLoopAPY - i.witryYieldAnnual;
 
   // FX stress: 30-day P95 USD/TRY move under a normal-vol assumption.

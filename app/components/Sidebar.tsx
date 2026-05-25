@@ -119,8 +119,8 @@ export function Sidebar() {
           helpKey="hfBuffer"
           value={s.hfBuffer}
           onChange={(v) => setS({ hfBuffer: v })}
-          min={1.0}
-          max={3.0}
+          min={1.1}
+          max={2.5}
           step={0.05}
           format={(v) => `${v.toFixed(2)}×`}
         />
