@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { buildAsymmetricLadder, DEFAULT_BAND_SPLIT } from '@/lib/poolPreset';
+import { materializedPositionValueUSD } from '@/lib/univ3/quoteLiquidatorSell';
 
 describe('buildAsymmetricLadder', () => {
   it('produces three positions with descending tick lowers', () => {
@@ -28,5 +29,25 @@ describe('buildAsymmetricLadder', () => {
     const preset = buildAsymmetricLadder(spot, 10_000_000, DEFAULT_BAND_SPLIT, 3000);
     const absorb = preset.positions[1]!;
     expect(Math.pow(1.0001, absorb.tickUpper)).toBeLessThanOrEqual(spot);
+  });
+
+  it('materializes each band at its configured marked USD allocation', () => {
+    const spot = 1 / 45;
+    const preset = buildAsymmetricLadder(spot, 500_000, DEFAULT_BAND_SPLIT, 3000);
+
+    for (const position of preset.positions) {
+      expect(materializedPositionValueUSD(position, spot)).toBeCloseTo(position.liquidityUSD, 0);
+    }
+  });
+
+  it('materializes total default pool capital at the stated TVL', () => {
+    const spot = 1 / 45;
+    const preset = buildAsymmetricLadder(spot, 500_000, DEFAULT_BAND_SPLIT, 3000);
+    const actualTVL = preset.positions.reduce(
+      (sum, position) => sum + materializedPositionValueUSD(position, spot),
+      0,
+    );
+
+    expect(actualTVL).toBeCloseTo(500_000, 0);
   });
 });
