@@ -51,6 +51,28 @@ function bandTicks(spot: number, loPct: number, hiPct: number, spacing: number) 
   return { tickLower, tickUpper };
 }
 
+function requireUsableBandRange(
+  spot: number,
+  range: BandRange,
+  spacing: number,
+  label: string,
+) {
+  if (
+    !Number.isFinite(range.lowerPct) ||
+    !Number.isFinite(range.upperPct) ||
+    range.lowerPct <= -1 ||
+    range.upperPct <= -1 ||
+    range.lowerPct >= range.upperPct
+  ) {
+    throw new RangeError(`${label} must have a valid usable tick range`);
+  }
+  const ticks = bandTicks(spot, range.lowerPct, range.upperPct, spacing);
+  if (ticks.tickLower >= ticks.tickUpper) {
+    throw new RangeError(`${label} must have a valid usable tick range`);
+  }
+  return ticks;
+}
+
 export function buildAsymmetricLadder(
   spot: number,
   totalTVL_USD: number,
@@ -58,10 +80,22 @@ export function buildAsymmetricLadder(
   feeTier: 3000 | 10000,
   ranges: BandRanges = DEFAULT_BAND_RANGES,
 ): PoolPreset {
+  if (!Number.isFinite(spot) || spot <= 0) throw new RangeError('spot must be > 0');
+  if (!Number.isFinite(totalTVL_USD) || totalTVL_USD < 0) {
+    throw new RangeError('total TVL must be non-negative');
+  }
+  const shares = [split.core, split.absorb, split.tail];
+  const splitSum = shares.reduce((sum, share) => sum + share, 0);
+  if (
+    shares.some((share) => !Number.isFinite(share) || share < 0 || share > 1) ||
+    Math.abs(splitSum - 1) > 1e-9
+  ) {
+    throw new RangeError('band shares must be non-negative and sum to 1');
+  }
   const spacing = SPACING[feeTier];
-  const core = bandTicks(spot, ranges.core.lowerPct, ranges.core.upperPct, spacing);
-  const absorb = bandTicks(spot, ranges.absorb.lowerPct, ranges.absorb.upperPct, spacing);
-  const tail = bandTicks(spot, ranges.tail.lowerPct, ranges.tail.upperPct, spacing);
+  const core = requireUsableBandRange(spot, ranges.core, spacing, 'core range');
+  const absorb = requireUsableBandRange(spot, ranges.absorb, spacing, 'absorb range');
+  const tail = requireUsableBandRange(spot, ranges.tail, spacing, 'tail range');
   return {
     feeTier,
     tickSpacing: spacing,
@@ -93,6 +127,14 @@ export interface LadderInputs {
   bandTailUpperPct?: number;
 }
 
+export interface NormalizedLadderInputs {
+  totalTVL_USD: number;
+  split: BandSplit;
+  feeTier: 3000 | 10000;
+  ranges: BandRanges;
+  adjustments: string[];
+}
+
 export function ladderRangesFromInputs(s: LadderInputs): BandRanges {
   return {
     core: {
@@ -110,15 +152,60 @@ export function ladderRangesFromInputs(s: LadderInputs): BandRanges {
   };
 }
 
-export function buildLadderFromInputs(spot: number, s: LadderInputs): PoolPreset {
-  const tail = Math.max(0, 1 - s.bandSplitCore - s.bandSplitAbsorb);
+function clampShare(value: number): number {
+  return Number.isFinite(value) ? Math.max(0, Math.min(1, value)) : 0;
+}
+
+export function normalizeLadderInputs(spot: number, s: LadderInputs): NormalizedLadderInputs {
+  if (!Number.isFinite(spot) || spot <= 0) throw new RangeError('spot must be > 0');
+  const adjustments: string[] = [];
+  const totalTVL_USD =
+    Number.isFinite(s.poolTVL_USD) && s.poolTVL_USD >= 0 ? s.poolTVL_USD : 0;
+  if (totalTVL_USD !== s.poolTVL_USD) {
+    adjustments.push('Pool TVL reset to a non-negative value.');
+  }
+
+  let core = clampShare(s.bandSplitCore);
+  let absorb = clampShare(s.bandSplitAbsorb);
+  if (core !== s.bandSplitCore || absorb !== s.bandSplitAbsorb) {
+    adjustments.push('Band shares clamped to valid percentages.');
+  }
+  const allocated = core + absorb;
+  if (allocated > 1) {
+    core /= allocated;
+    absorb /= allocated;
+    adjustments.push('Band shares normalized to 100% of pool TVL.');
+  }
+  const split = { core, absorb, tail: Math.max(0, 1 - core - absorb) };
   const feeTier: 3000 | 10000 = s.poolFeeTier === 10000 ? 10000 : 3000;
+  const candidateRanges = ladderRangesFromInputs(s);
+  const ranges: BandRanges = { ...candidateRanges };
+  const labels: Array<{ key: keyof BandRanges; label: string }> = [
+    { key: 'core', label: 'Core' },
+    { key: 'absorb', label: 'Absorb' },
+    { key: 'tail', label: 'Tail' },
+  ];
+
+  for (const { key, label } of labels) {
+    try {
+      requireUsableBandRange(spot, ranges[key], SPACING[feeTier], `${key} range`);
+    } catch {
+      ranges[key] = DEFAULT_BAND_RANGES[key];
+      adjustments.push(`${label} range reset to its default.`);
+    }
+  }
+
+  return { totalTVL_USD, split, feeTier, ranges, adjustments };
+}
+
+export function buildLadderFromInputs(spot: number, s: LadderInputs): PoolPreset {
+  const normalized = normalizeLadderInputs(spot, s);
   return buildAsymmetricLadder(
     spot,
-    s.poolTVL_USD,
-    { core: s.bandSplitCore, absorb: s.bandSplitAbsorb, tail },
-    feeTier,
-    ladderRangesFromInputs(s),
+    normalized.totalTVL_USD,
+    normalized.split,
+    normalized.feeTier,
+    normalized.ranges,
   );
 }
 
