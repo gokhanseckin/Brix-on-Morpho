@@ -38,7 +38,6 @@ export function LiquidityStrategy() {
     ],
     [inputs.witryYieldAnnual, strategy.netLoopAPY, strategy.netLoopAPY_withIncentives],
   );
-  const impliedLooperDebt_USD = inputs.witryTVL_USD * strategy.loopDebtPerCollateral;
   const viable = strategy.leverageLoopsViable;
   const loopPath = strategy.loopPath;
 
@@ -125,10 +124,9 @@ export function LiquidityStrategy() {
             {viable ? 'Loop beats hold' : 'Loop loses to hold'}
           </span>
         </div>
-        <div className="grid grid-cols-3 gap-4 mb-3">
+        <div className="grid grid-cols-2 gap-4 mb-3">
           <Kpi label="Effective leverage" value={`${strategy.effectiveLeverage.toFixed(2)}×`} helpKey="effectiveLeverageStrategy" />
           <Kpi label="Debt / collateral" value={formatPct(strategy.loopDebtPerCollateral, 1)} helpKey="loopDebtPerCollateral" />
-          <Kpi label="Implied looper debt" value={formatUSD(impliedLooperDebt_USD)} helpKey="loopDebtPerCollateral" />
         </div>
         <div className="border border-brix-border rounded p-2 bg-brix-card">
           <ResponsiveContainer width="100%" height={180}>
