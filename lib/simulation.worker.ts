@@ -139,6 +139,7 @@ const api = {
       witryYieldAnnual: inputs.witryYieldAnnual,
       borrowAPY: input.borrowAPY,
       perLoopSlippageBps: 30,
+      loopCount: inputs.loopCount,
     });
     // annualized vol
     const dailyMean =

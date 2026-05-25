@@ -124,6 +124,16 @@ export function Sidebar() {
           step={0.05}
           format={(v) => `${v.toFixed(2)}×`}
         />
+        <RangeField
+          label="Number of loops"
+          helpKey="loopCount"
+          value={s.loopCount}
+          onChange={(v) => setS({ loopCount: Math.round(v) })}
+          min={1}
+          max={10}
+          step={1}
+          format={(v) => `${Math.round(v)}`}
+        />
         <NumberField
           label="USD/TRY baseline"
           helpKey="usdtryBaseline"

@@ -34,6 +34,7 @@ export function useUrlState() {
     witryYieldUSD_7d:  parseAsFloat.withDefault(0.0631),
     witryYieldUSD_30d: parseAsFloat.withDefault(0.1931),
     hfBuffer:          parseAsFloat.withDefault(1.5),
+    loopCount:         parseAsInteger.withDefault(10),
     usdtryBaseline: parseAsFloat.withDefault(45),
     historicalPeriod: parseAsInteger.withDefault(5),
     simulationMode: parseAsStringLiteral(MODES).withDefault('Bootstrap'),

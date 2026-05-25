@@ -14,6 +14,7 @@ export interface SidebarInputs {
   witryYieldUSD_7d: number;
   witryYieldUSD_30d: number;
   hfBuffer: number;            // looper health-factor safety buffer (≥ 1.0)
+  loopCount: number;           // number of explicit loop iterations (1..10); finite partial sum, not converged
   usdtryBaseline: number;
   historicalPeriod: HistoricalPeriod;
   simulationMode: SimulationMode;

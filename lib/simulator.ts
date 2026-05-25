@@ -636,6 +636,7 @@ export interface StrategyArgs {
   hfBuffer: number;
   perLoopSlippageBps: number;
   lltv: number;
+  loopCount: number;
 }
 
 export interface StrategyOut {
@@ -675,6 +676,7 @@ export function computeStrategy(a: StrategyArgs): StrategyOut {
     witryYieldAnnual: a.witryYieldAnnual,
     borrowAPY: a.borrowAPY,
     perLoopSlippageBps: a.perLoopSlippageBps,
+    loopCount: a.loopCount,
   });
 
   // Borrower-incentive overlay: paid on the looper's debt notional.

@@ -81,6 +81,7 @@ const SECTION_PARAMS: Partial<Record<string, ParamHelp>> = {
   witryYieldUSD_7d:  { oneLiner: 'Trailing-7-day USD APY of holding wiTRY. Used by /utilization as the conservative loop-viability threshold.' },
   witryYieldUSD_30d: { oneLiner: 'Trailing-30-day USD APY of holding wiTRY. Shown as the optimistic reference on /utilization.' },
   hfBuffer:          { oneLiner: 'Looper health-factor safety buffer (≥ 1.0). A buffer of 1.5 means each loop step caps LTV at LLTV/1.5 so the position starts at HF = 1.5× the liquidation threshold. Lower = more leverage, less margin to absorb FX moves.' },
+  loopCount:         { oneLiner: 'Number of explicit loop iterations (1–10). Each step: supply wiTRY → borrow USDM at LLTV/hfBuffer → swap to wiTRY. At n=10 the position is ≈99% converged to the closed-form limit; lower values model partial loops with less leverage and a wider FX safety margin.' },
   // ── SwapLiquidity section ────────────────────────────────────────────────
   ...SWAP_LIQUIDITY_PARAMS,
 };
@@ -834,6 +835,7 @@ export const PARAM_HELP: Record<keyof SidebarInputs, ParamHelp> = {
   witryYieldUSD_7d: sectionParam('witryYieldUSD_7d'),
   witryYieldUSD_30d: sectionParam('witryYieldUSD_30d'),
   hfBuffer: sectionParam('hfBuffer'),
+  loopCount: sectionParam('loopCount'),
   usdtryBaseline: sectionParam('usdtryBaseline'),
   historicalPeriod: sectionParam('historicalPeriod'),
   simulationMode: sectionParam('simulationMode'),
@@ -888,6 +890,7 @@ export const PARAM_SECTION: Record<keyof SidebarInputs, HelpSection> = {
   witryYieldUSD_7d: 'utilization',
   witryYieldUSD_30d: 'utilization',
   hfBuffer: 'utilization',
+  loopCount: 'utilization',
   usdtryBaseline: 'fx-risk',
   historicalPeriod: 'fx-risk',
   simulationMode: 'fx-risk',
