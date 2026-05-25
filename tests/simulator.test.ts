@@ -19,6 +19,8 @@ import {
   classifyRiskTier,
   bufferPctFromIncentive,
   irmCurvePoints,
+  recommendedPoolDepth,
+  RECOMMENDED_POOL_DEPTH_FLOOR_USD,
   BUFFER_PCT_BASE,
   BUFFER_PCT_INCENTIVE_SLOPE,
 } from '@/lib/simulator';
@@ -631,6 +633,61 @@ describe('bufferPctFromIncentive (report #2 entry 7)', () => {
   it('caps at 0.50 when incentive dwarfs base APY', () => {
     // Huge incentive vs tiny positive base would otherwise push buffer past 100%.
     expect(bufferPctFromIncentive(10, 0.001)).toBeCloseTo(0.50, 10);
+  });
+});
+
+describe('recommendedPoolDepth', () => {
+  it('uses the LIF buffer (1 − 1/LIF) — not LIF − 1 — and tracks LLTV', () => {
+    // At LLTV=0.86: LIF ≈ 1.04384, LIF buffer ≈ 0.04199 (NOT 0.0438 = LIF − 1).
+    const seized = 100_000;
+    const lltv = 0.86;
+    const got = recommendedPoolDepth({
+      seizedConcurrent_USD: seized,
+      lltv,
+      effectiveDepth_USD: 0,
+      floor_USD: 0,
+    });
+    const lif = LIF(lltv);
+    const expected = seized / (1 - 1 / lif);
+    expect(got).toBeCloseTo(expected, 6);
+  });
+
+  it('changes with LLTV (regression: the old constant was static at 0.0438)', () => {
+    const seized = 100_000;
+    const at_77 = recommendedPoolDepth({
+      seizedConcurrent_USD: seized,
+      lltv: 0.77,
+      effectiveDepth_USD: 0,
+      floor_USD: 0,
+    });
+    const at_86 = recommendedPoolDepth({
+      seizedConcurrent_USD: seized,
+      lltv: 0.86,
+      effectiveDepth_USD: 0,
+      floor_USD: 0,
+    });
+    // Lower LLTV → larger LIF buffer → smaller required pool depth.
+    expect(at_77).toBeLessThan(at_86);
+  });
+
+  it('respects the effectiveDepth_USD lower bound', () => {
+    // Stress sizing alone says $50k; current pool already at $1M → recommend $1M.
+    const got = recommendedPoolDepth({
+      seizedConcurrent_USD: 2_000,
+      lltv: 0.86,
+      effectiveDepth_USD: 1_000_000,
+      floor_USD: 100_000,
+    });
+    expect(got).toBe(1_000_000);
+  });
+
+  it('respects the $250k default floor for tiny stress', () => {
+    const got = recommendedPoolDepth({
+      seizedConcurrent_USD: 100,
+      lltv: 0.86,
+      effectiveDepth_USD: 0,
+    });
+    expect(got).toBe(RECOMMENDED_POOL_DEPTH_FLOOR_USD);
   });
 });
 

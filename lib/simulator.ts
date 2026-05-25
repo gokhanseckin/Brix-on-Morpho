@@ -769,3 +769,37 @@ export function classifyRiskTier(chosen: number, recommended: number): RiskTier 
   if (chosen <= recommended + RISK_TIER_MODERATE_BAND_LLTV) return 'Moderate';
   return 'Aggressive';
 }
+
+/** Floor for the recommended wTRY/USDM pool depth, $USD. Sub-floor pools are
+ *  considered unusable regardless of stress sizing. */
+export const RECOMMENDED_POOL_DEPTH_FLOOR_USD = 250_000;
+
+/**
+ * Recommended wTRY/USDM pool depth to absorb a concurrent-stress dump.
+ *
+ * Heuristic: a liquidator dumping `seized_USD` of seized wTRY into a v3 pool
+ * loses at most the LIF buffer (= 1 − 1/LIF(LLTV)) of effective slippage
+ * before going negative. So `poolDepth ≥ seized / lifBuffer` is the depth
+ * at which the linearised slip ≤ buffer. Two further constraints:
+ *   • never recommend below the current `effectiveDepth_USD` (don't ask
+ *     operators to remove liquidity);
+ *   • a hard floor (`floor_USD`) for tiny markets where the stress
+ *     amount is itself small.
+ *
+ * Previously hardcoded as `seized / 0.0438` — that constant was tuned for
+ * LLTV=0.86 only (and was actually `LIF − 1`, not `1 − 1/LIF`; the two
+ * differ by a factor of LIF). This helper picks the right buffer for the
+ * current LLTV.
+ */
+export function recommendedPoolDepth(a: {
+  seizedConcurrent_USD: number;
+  lltv: number;
+  effectiveDepth_USD: number;
+  floor_USD?: number;
+}): number {
+  const floor = a.floor_USD ?? RECOMMENDED_POOL_DEPTH_FLOOR_USD;
+  const lif = LIF(a.lltv);
+  const lifBuffer = lif > 1 ? 1 - 1 / lif : 0;
+  const fromStress = lifBuffer > 0 ? a.seizedConcurrent_USD / lifBuffer : Infinity;
+  return Math.max(fromStress, a.effectiveDepth_USD, floor);
+}

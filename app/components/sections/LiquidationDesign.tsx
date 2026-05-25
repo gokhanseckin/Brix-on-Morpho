@@ -10,7 +10,7 @@ import {
   Bar,
 } from 'recharts';
 import { useMemo } from 'react';
-import { sampleBetaLtvFractions } from '@/lib/simulator';
+import { sampleBetaLtvFractions, recommendedPoolDepth } from '@/lib/simulator';
 import { LIF } from '@/lib/morphoMath';
 import { quantile } from '@/lib/stats';
 import { GOV_LLTVS } from '@/types/simulator';
@@ -255,11 +255,16 @@ export function LiquidationDesign() {
           {fx?.badDebt ? formatUSD(fx.badDebt.expectedLiquidationVolumeP95_USD) : '—'}) is LP-LVR
           burden, not liquidator-skip risk. Recommended wiTRY/USDM pool depth ≥{' '}
           {formatUSD(
-            Math.max(concurrentStress.seizedConcurrent_USD / 0.0438, effectiveDepth_USD, 250_000),
+            recommendedPoolDepth({
+              seizedConcurrent_USD: concurrentStress.seizedConcurrent_USD,
+              lltv: inputs.lltv,
+              effectiveDepth_USD,
+            }),
           )}{' '}
-          (concurrent seized ÷ LIF cliff; $250k floor). Keep pre-liquidation enabled (preLLTV ={' '}
-          {(Math.max(0, inputs.lltv - 0.05) * 100).toFixed(1)}%); governance-snapped LLTV from FX
-          P95 drawdown is{' '}
+          (concurrent seized ÷ LIF buffer = {formatPct(1 - 1 / LIF(inputs.lltv), 2)}; $250k floor).
+          Keep pre-liquidation enabled (preLLTV ={' '}
+          {(Math.max(0, inputs.lltv - inputs.preLLTVOffset) * 100).toFixed(1)}%);
+          governance-snapped LLTV from FX P95 drawdown is{' '}
           {lltvDerivation.snapped ? `${(lltvDerivation.snapped * 100).toFixed(1)}%` : '—'}.
         </div>
         <div className="text-xs text-neutral-500 mt-2">
