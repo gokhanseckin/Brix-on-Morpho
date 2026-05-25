@@ -9,10 +9,9 @@ import {
   percentilesAtEachStep,
   rolling3DayMaxDrawdown,
 } from './fxModel';
-import { simulateBadDebt, sampleBetaLtvFractions } from './simulator';
+import { buildPreLiquidationScenario, simulateBadDebt, sampleBetaLtvFractions } from './simulator';
 import { buildLadderFromInputs } from './poolPreset';
 import { quantile } from './stats';
-import { LIF } from './morphoMath';
 import type { SidebarInputs } from '@/types/simulator';
 
 // --- Simulation constants (see report #2 entry 36) ------------------------
@@ -121,14 +120,14 @@ const api = {
       spot,
       gasCost_USD: DEFAULT_GAS_COST_USD,
       witryYieldAnnual: inputs.witryYieldAnnual,
-      preLiquidation: {
+      preLiquidation: buildPreLiquidationScenario({
         enabled: inputs.preLiquidationEnabled,
-        preLLTV: Math.max(0, inputs.lltv - inputs.preLLTVOffset),
+        lltv: inputs.lltv,
+        preLLTVOffset: inputs.preLLTVOffset,
         preLCF1: inputs.preLCF1,
         preLCF2: inputs.preLCF2,
         preLIF1: inputs.preLIF1,
-        preLIF2: LIF(inputs.lltv),
-      },
+      }),
     });
     // annualized vol
     const dailyMean =

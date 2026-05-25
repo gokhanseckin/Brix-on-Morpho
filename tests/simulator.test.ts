@@ -10,6 +10,7 @@ import {
   quoteSellUSD,
   simulateBadDebt,
   preLiquidationTerms,
+  buildPreLiquidationScenario,
   deriveRecommendedLLTV,
   snapToGovernanceLLTV,
   computeStrategy,
@@ -433,6 +434,26 @@ describe('bad debt cascade', () => {
     });
 
     expect(result.liquidatedVolumeByPath[0]!).toBe(0);
+  });
+});
+
+describe('pre-liquidation configuration', () => {
+  it('derives one deployable scenario from editable inputs', () => {
+    expect(buildPreLiquidationScenario({
+      enabled: true,
+      lltv: 0.86,
+      preLLTVOffset: 0.04,
+      preLCF1: 0.1,
+      preLCF2: 0.45,
+      preLIF1: 1.012,
+    })).toEqual({
+      enabled: true,
+      preLLTV: 0.82,
+      preLCF1: 0.1,
+      preLCF2: 0.45,
+      preLIF1: 1.012,
+      preLIF2: LIF(0.86),
+    });
   });
 });
 

@@ -312,6 +312,28 @@ export interface PreLiquidationScenario {
   preLIF2: number;
 }
 
+export interface BuildPreLiquidationScenarioArgs {
+  enabled: boolean;
+  lltv: number;
+  preLLTVOffset: number;
+  preLCF1: number;
+  preLCF2: number;
+  preLIF1: number;
+}
+
+export function buildPreLiquidationScenario(
+  a: BuildPreLiquidationScenarioArgs,
+): PreLiquidationScenario {
+  return {
+    enabled: a.enabled,
+    preLLTV: Math.max(0, a.lltv - a.preLLTVOffset),
+    preLCF1: a.preLCF1,
+    preLCF2: a.preLCF2,
+    preLIF1: a.preLIF1,
+    preLIF2: LIF(a.lltv),
+  };
+}
+
 export function preLiquidationTerms(
   effectiveLTV: number,
   lltv: number,

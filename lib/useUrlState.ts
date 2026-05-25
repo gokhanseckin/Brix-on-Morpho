@@ -13,6 +13,7 @@ import { GOV_LLTVS, type LLTV } from '@/types/simulator';
 const MODES = ['Bootstrap', 'GBM', 'GBM+Jumps', 'Scenario'] as const;
 
 const STORAGE_KEY = 'brix:sidebar-state:v1';
+export const DEFAULT_PRE_LIQUIDATION_ENABLED = false;
 
 // Reject any LLTV not in the Morpho governance-allowed set.
 const parseAsLLTV = createParser({
@@ -45,7 +46,7 @@ export function useUrlState() {
     performanceFee: parseAsFloat.withDefault(0.1),
     managementFee: parseAsFloat.withDefault(0),
     safetyMargin: parseAsFloat.withDefault(0.01),
-    preLiquidationEnabled: parseAsBoolean.withDefault(true),
+    preLiquidationEnabled: parseAsBoolean.withDefault(DEFAULT_PRE_LIQUIDATION_ENABLED),
     // Morpho pre-liquidation parameters (spec §4D). preLIF2 auto = LIF(LLTV).
     preLLTVOffset: parseAsFloat.withDefault(0.05),
     preLCF1: parseAsFloat.withDefault(0.05),

@@ -14,6 +14,7 @@ import {
   minMaxProfitableLiquidation,
   slippageFromPreset,
   betaMean,
+  buildPreLiquidationScenario,
 } from './simulator';
 import { buildLadderFromInputs, effectiveDepthFromPreset } from './poolPreset';
 import { LIF, adaptiveCurveIRM } from './morphoMath';
@@ -198,8 +199,16 @@ export function useSimulator() {
   ]);
 
   const vaultJson = useMemo(
-    () =>
-      buildVaultConfigJson({
+    () => {
+      const preLiquidation = buildPreLiquidationScenario({
+        enabled: s.preLiquidationEnabled,
+        lltv: s.lltv,
+        preLLTVOffset: s.preLLTVOffset,
+        preLCF1: s.preLCF1,
+        preLCF2: s.preLCF2,
+        preLIF1: s.preLIF1,
+      });
+      return buildVaultConfigJson({
         lltv: s.lltv,
         oracle: '0xORACLE',
         irm: '0xIRM',
@@ -207,11 +216,12 @@ export function useSimulator() {
         managementFee: s.managementFee,
         timelockSeconds: DEFAULT_VAULT_TIMELOCK_SECONDS,
         cap_USD: liquidity.requiredUSDM + liquidity.withdrawalBuffer_USD,
-        // Editable on /lltv. preLIF2 stays capped at LIF(LLTV) per Morpho.
-        preLLTV: Math.max(0, s.lltv - s.preLLTVOffset),
-        preLCF: [s.preLCF1, s.preLCF2],
-        preLIF: [s.preLIF1, LIF(s.lltv)],
-      }),
+        // Editable on /lltv; simulation and export share this scenario.
+        preLLTV: preLiquidation.preLLTV,
+        preLCF: [preLiquidation.preLCF1, preLiquidation.preLCF2],
+        preLIF: [preLiquidation.preLIF1, preLiquidation.preLIF2],
+      });
+    },
     [s, liquidity],
   );
 
