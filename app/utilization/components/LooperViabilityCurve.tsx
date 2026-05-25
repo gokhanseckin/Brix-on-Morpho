@@ -21,15 +21,28 @@ export function LooperViabilityCurve({ analysis }: { analysis: UtilizationAnalys
     <section className="rounded-lg border border-brix-border bg-brix-card p-4">
       <h2 className="font-semibold inline-flex items-center gap-1">Looper Viability Curve<HelpPopover chartKey="looperViabilityCurve" /></h2>
       <p className="text-sm text-neutral-400">
-        Carry view: borrow APY vs wiTRY 7d / 30d yields. Crossings are honest carry
-        thresholds (no FX adjustment). Dashed band = ±σ√(30/365) noise around borrow.
+        Where does looping stop paying? Blue = USDM borrow APY at each utilization
+        target. Green / orange = wiTRY supply yield (7d and 30d windows). The loop
+        is profitable in TRY terms wherever blue stays below the dashed lines;
+        the crossing is the carry break-even — the highest u_target a looper can
+        tolerate before borrow cost eats the supply yield. Red vertical = IRM kink
+        (90%) where borrow APY accelerates. Dashed blue band = ±1σ monthly FX-vol
+        envelope on borrow. FX depreciation not included — see FX Risk below.
       </p>
       <div className="h-64 mt-3">
         <ResponsiveContainer>
-          <LineChart data={data}>
+          <LineChart data={data} margin={{ top: 5, right: 30, left: 10, bottom: 20 }}>
             <CartesianGrid strokeDasharray="3 3" />
-            <XAxis dataKey="u" tickFormatter={v => `${(v * 100).toFixed(0)}%`} />
-            <YAxis domain={[0, yMax]} tickFormatter={v => `${v.toFixed(1)}%`} />
+            <XAxis
+              dataKey="u"
+              tickFormatter={v => `${(v * 100).toFixed(0)}%`}
+              label={{ value: 'Utilization target (u)', position: 'insideBottom', offset: -10, fill: '#a3a3a3' }}
+            />
+            <YAxis
+              domain={[0, yMax]}
+              tickFormatter={v => `${v.toFixed(1)}%`}
+              label={{ value: 'APY', angle: -90, position: 'insideLeft', fill: '#a3a3a3' }}
+            />
             <Tooltip formatter={(v) => typeof v === 'number' ? `${v.toFixed(2)}%` : v} labelFormatter={l => `u_target ${(Number(l)*100).toFixed(0)}%`} />
             <Legend />
             <ReferenceLine y={wY7}  stroke="#16a34a" strokeDasharray="4 4" label={{ value: 'wiTRY 7d', position: 'right' }} />
