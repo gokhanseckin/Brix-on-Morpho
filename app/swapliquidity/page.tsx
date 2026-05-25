@@ -30,7 +30,8 @@ export default function SwapLiquidityPage() {
           <p id="page-subtitle" className="text-sm text-neutral-400 mt-3 max-w-2xl leading-relaxed">
             Uniswap v3 pool design for liquidators. Models a kumbaya.xyz pool with an asymmetric
             LP ladder biased to absorb seized wTRY. The ladder you configure here feeds Section 4
-            of the market simulator — slippage and bad-debt math both consume this preset.
+            of the market simulator; this page reports liquidator execution economics, while the
+            home cascade reports unresolved protocol debt.
           </p>
         </header>
         <PoolStatePanel />
