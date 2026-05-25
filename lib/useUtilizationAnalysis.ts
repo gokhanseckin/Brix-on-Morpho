@@ -6,7 +6,6 @@ import {
   looperNetAPY, liquidityStress, sweepUtilizationTargets, recommendUTarget,
   type RecommendInput, type RecommendResult, type SweepRow, type LooperEconomicsResult,
 } from './utilization';
-import { adaptiveCurveIRM } from './morphoMath';
 
 export interface PageSliders {
   tvlUSDM_USD: number;
@@ -87,9 +86,14 @@ export function useUtilizationAnalysis(s: PageSliders): UtilizationAnalysisOutpu
     const heatmap: UtilizationAnalysisOutput['heatmap'] = [];
     for (const u of HEATMAP_U) {
       for (const rT of HEATMAP_R) {
-        const borrowAPY = adaptiveCurveIRM(u, rT);
-        const feasible = borrowAPY < inputs.witryYield7d;
-        heatmap.push({ u, r: rT, borrowAPY, feasible });
+        const econ = looperNetAPY({
+          uTarget: u, rTarget: rT, lltv: inputs.lltv,
+          hfBuffer: inputs.hfBuffer, witryYieldAnnual: inputs.witryYield7d,
+          perLoopSlippageBps: inputs.perLoopSlippageBps,
+          fxAnnualVol: inputs.fxAnnualVol, fxStressZ: inputs.fxStressZ,
+        });
+        const feasible = econ.loopMargin > 0;
+        heatmap.push({ u, r: rT, borrowAPY: econ.borrowAPY, feasible });
       }
     }
 

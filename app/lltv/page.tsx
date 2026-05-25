@@ -71,12 +71,6 @@ function formatUSDshort(usd: number): string {
 
 type Row = { date: string; rate: number };
 
-function quantile(sorted: number[], p: number): number {
-  if (sorted.length === 0) return 0;
-  const idx = Math.min(sorted.length - 1, Math.max(0, Math.floor((sorted.length - 1) * p)));
-  return sorted[idx] ?? 0;
-}
-
 function maxKDayDrawdown(wiUSD: number[], k: number): { p50: number; p90: number; p95: number; p99: number; max: number } {
   const out: number[] = [];
   for (let i = k; i < wiUSD.length; i++) {
@@ -90,10 +84,10 @@ function maxKDayDrawdown(wiUSD: number[], k: number): { p50: number; p90: number
   }
   out.sort((a, b) => a - b);
   return {
-    p50: quantile(out, 0.5),
-    p90: quantile(out, 0.9),
-    p95: quantile(out, 0.95),
-    p99: quantile(out, 0.99),
+    p50: quantileSorted(out, 0.5),
+    p90: quantileSorted(out, 0.9),
+    p95: quantileSorted(out, 0.95),
+    p99: quantileSorted(out, 0.99),
     max: out[out.length - 1] ?? 0,
   };
 }
