@@ -139,15 +139,20 @@ export function percentilesAtEachStep(
 }
 
 /**
- * For each USD/TRY path, the largest rolling `window`-day **upward** move
- * in S (USD/TRY), reported as a positive fraction.
+ * For each USD/TRY path, the largest rolling `window`-day drawdown of
+ * **wiTRY USD value** (= 1/S), reported as a positive fraction in [0, 1).
  *
- * Report #2 entry #23 fix: the previous implementation measured the largest
- * downward move (TRY *strengthening*), which is the opposite of the event
- * spec §2 cares about. wiTRY collateral is denominated in TRY, valued in
- * USD as `~1/S`; an upward move in S = TRY weakening = collateral USD
- * value falling = "drawdown" for the lender. The 3-day window proxies the
- * secondary-market exit risk window for liquidators.
+ * wiTRY collateral is denominated in TRY, valued in USD as ~1/S; an upward
+ * move in S = TRY weakening = collateral USD value falling. The 3-day
+ * window proxies the secondary-market exit risk window for liquidators.
+ *
+ * Formula: per window starting at index i with peak USD/TRY = maxAfter,
+ *   dd_wiUSD = (1/S_i − 1/maxAfter) / (1/S_i) = (maxAfter − S_i) / maxAfter
+ * That is, divide by maxAfter, NOT S_i. The previous implementation used
+ * S_i in the denominator and over-stated drawdown — a +20% S move was
+ * reported as 20% drawdown when actual collateral USD value lost only
+ * ~16.7%. This now matches the empirical p95 fallback in useSimulator,
+ * which is computed directly on 1/S.
  *
  * The yield-accrual offset over a 3-day window is ≤ 0.3% even at iTRY APY
  * = 38% (`1.38^(3/365) ≈ 1.0028`), well below the FX magnitudes that
@@ -160,7 +165,10 @@ export function rolling3DayMaxDrawdown(paths: Path[], window: number): number[] 
       const start = p[i]!;
       let maxAfter = start;
       for (let j = i + 1; j <= i + window; j++) if (p[j]! > maxAfter) maxAfter = p[j]!;
-      const dd = (maxAfter - start) / start;
+      // Normalise by the peak S over the window (= wiUSD_min), which yields
+      // the collateral-USD drawdown fraction. Falls through to 0 cleanly
+      // when no upward move occurred (maxAfter === start ⇒ dd = 0).
+      const dd = maxAfter > 0 ? (maxAfter - start) / maxAfter : 0;
       if (dd > maxDd) maxDd = dd;
     }
     return maxDd;

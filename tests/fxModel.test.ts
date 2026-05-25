@@ -82,16 +82,50 @@ describe('summaries', () => {
     }
   });
 
-  it('rolling 3-day max drawdown measures upward S moves (TRY weakening)', () => {
+  it('rolling 3-day max drawdown measures wiUSD loss (= ΔS / maxAfter)', () => {
     // Monotonically rising USD/TRY = TRY weakening = collateral USD drawdown.
+    // wiUSD_start = 1/1, wiUSD_min = 1/1.15 → dd = (1 − 1/1.15) = 0.13043…
+    // i.e. (maxAfter − start) / maxAfter = (1.15 − 1) / 1.15.
     const rising = [[1, 1.05, 1.10, 1.15, 1.20]];
     const ddUp = rolling3DayMaxDrawdown(rising, 3);
-    // Worst 3-day move from t=0: (1.15-1)/1 = 0.15; from t=1: (1.20-1.05)/1.05 ≈ 0.143.
-    expect(ddUp[0]).toBeCloseTo(0.15, 6);
+    expect(ddUp[0]).toBeCloseTo((1.15 - 1) / 1.15, 6);
 
     // Falling path (TRY strengthening) is GOOD for collateral → 0 drawdown.
     const falling = [[1, 0.95, 0.9, 0.85, 0.8]];
     const ddDown = rolling3DayMaxDrawdown(falling, 3);
     expect(ddDown[0]).toBe(0);
+  });
+
+  it('rolling drawdown matches the closed-form 1 − 1/(1+ΔS/S₀) for monotone rises', () => {
+    // 1-day window on a 1-step jump from S₀=45 to S₁=54 (20% up in S).
+    // wiUSD drawdown = 1 − 1/1.2 = 0.16666…, NOT 0.20.
+    const path = [[45, 54]];
+    const dd = rolling3DayMaxDrawdown(path, 1);
+    expect(dd[0]).toBeCloseTo(1 - 1 / 1.2, 8);
+    expect(dd[0]).toBeLessThan(0.20); // regression guard against ΔS/S₀ denominator
+  });
+
+  it('agrees with direct wiUSD-drawdown computation on random USD/TRY paths', () => {
+    // Build a few random monotone-rising paths; the worker output must
+    // numerically match the empirical-fallback metric computed on 1/S.
+    const paths = [
+      [10, 11, 12, 13, 14, 15],
+      [45, 45.5, 46.2, 47.0, 47.8, 50.0],
+      [38, 39, 38.5, 40, 41, 41.2],
+    ];
+    const dd = rolling3DayMaxDrawdown(paths, 3);
+    for (let p = 0; p < paths.length; p++) {
+      const path = paths[p]!;
+      const wiUSD = path.map((s) => 1 / s);
+      let expected = 0;
+      for (let i = 0; i + 3 < wiUSD.length; i++) {
+        const peak = wiUSD[i]!;
+        let trough = peak;
+        for (let j = i + 1; j <= i + 3; j++) if (wiUSD[j]! < trough) trough = wiUSD[j]!;
+        const d = (peak - trough) / peak;
+        if (d > expected) expected = d;
+      }
+      expect(dd[p]).toBeCloseTo(expected, 10);
+    }
   });
 });
