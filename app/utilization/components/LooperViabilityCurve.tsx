@@ -31,12 +31,12 @@ export function LooperViabilityCurve({ analysis }: { analysis: UtilizationAnalys
       </p>
       <div className="h-64 mt-3">
         <ResponsiveContainer>
-          <LineChart data={data} margin={{ top: 5, right: 30, left: 10, bottom: 20 }}>
+          <LineChart data={data} margin={{ top: 5, right: 30, left: 10, bottom: 24 }}>
             <CartesianGrid strokeDasharray="3 3" />
             <XAxis
               dataKey="u"
               tickFormatter={v => `${(v * 100).toFixed(0)}%`}
-              label={{ value: 'Utilization target (u)', position: 'insideBottom', offset: -10, fill: '#a3a3a3' }}
+              label={{ value: 'Utilization target (u)', position: 'insideBottom', offset: -12, fill: '#a3a3a3' }}
             />
             <YAxis
               domain={[0, yMax]}
@@ -44,7 +44,7 @@ export function LooperViabilityCurve({ analysis }: { analysis: UtilizationAnalys
               label={{ value: 'APY', angle: -90, position: 'insideLeft', fill: '#a3a3a3' }}
             />
             <Tooltip formatter={(v) => typeof v === 'number' ? `${v.toFixed(2)}%` : v} labelFormatter={l => `u_target ${(Number(l)*100).toFixed(0)}%`} />
-            <Legend />
+            <Legend verticalAlign="top" align="right" wrapperStyle={{ paddingBottom: 4 }} />
             <ReferenceLine y={wY7}  stroke="#16a34a" strokeDasharray="4 4" label={{ value: 'wiTRY 7d', position: 'right' }} />
             <ReferenceLine y={wY30} stroke="#f97316" strokeDasharray="4 4" label={{ value: 'wiTRY 30d', position: 'right' }} />
             <ReferenceLine x={0.9}  stroke="#ef4444" strokeDasharray="2 2" label={{ value: 'IRM kink', position: 'top' }} />
