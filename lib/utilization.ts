@@ -11,6 +11,8 @@ export interface LooperEconomicsInput {
   // otherwise derived from adaptiveCurveIRM(uTarget, rTarget). Lets the
   // home page reuse a memoized borrowAPY without drift risk.
   borrowAPY?: number;
+  // Optional explicit loop count (finite partial sum). Omit for converged.
+  loopCount?: number;
   // FX risk overlay — vol only, no drift. Loopers are TRY-native carry
   // traders; their expected return is the carry (wiTRY yield − borrow
   // rate), and FX vol enters separately as a stress test on leverage.
@@ -88,6 +90,10 @@ export interface CarryLoopInput {
   witryYieldAnnual: number;
   borrowAPY: number;
   perLoopSlippageBps: number;
+  // Number of explicit loop iterations. Omit (or pass Infinity) for the
+  // closed-form converged sum; pass an integer 1..N for a finite partial
+  // geometric sum 1 + b + b² + … + bⁿ where b = lltv/hfBuffer.
+  loopCount?: number;
 }
 
 export interface CarryLoopOut {
@@ -105,11 +111,17 @@ export interface CarryLoopOut {
 // no incentives — pure deterministic carry math.
 export function carryLoopAPY(i: CarryLoopInput): CarryLoopOut {
   const borrowFraction = i.lltv / i.hfBuffer;
-  // Closed-form geometric-sum leverage. Capped at 50× for numerical safety
-  // (HF buffer ≥ 1.1 makes that ceiling unreachable in practice).
-  const effectiveLeverage = borrowFraction >= 1
-    ? 50
-    : Math.min(50, 1 / (1 - borrowFraction));
+  const n = i.loopCount;
+  // Finite partial geometric sum if n is a positive integer; otherwise the
+  // closed-form converged sum. Capped at 50× for numerical safety.
+  const finite = typeof n === 'number' && Number.isFinite(n) && n >= 1;
+  const effectiveLeverage = finite
+    ? (borrowFraction >= 1
+        ? Math.min(50, n! + 1)
+        : Math.min(50, (1 - Math.pow(borrowFraction, n! + 1)) / (1 - borrowFraction)))
+    : (borrowFraction >= 1
+        ? 50
+        : Math.min(50, 1 / (1 - borrowFraction)));
   const borrowedShare = effectiveLeverage - 1;
   const grossLoopAPY = effectiveLeverage * i.witryYieldAnnual;
   const borrowCost   = borrowedShare * i.borrowAPY;
@@ -128,6 +140,7 @@ export function looperNetAPY(i: LooperEconomicsInput): LooperEconomicsResult {
     witryYieldAnnual: i.witryYieldAnnual,
     borrowAPY,
     perLoopSlippageBps: i.perLoopSlippageBps,
+    ...(i.loopCount !== undefined ? { loopCount: i.loopCount } : {}),
   });
   const { effectiveLeverage, grossLoopAPY, borrowCost, slippageCost, hfIdleCost, netLoopAPY } = carry;
   const loopMargin = netLoopAPY - i.witryYieldAnnual;
@@ -230,6 +243,7 @@ export interface LooperPathPnLInput {
   witryYieldAnnual: number;        // the wiTRY annual yield in USD terms (sidebar `witryYieldAnnual` on home; `witryYield7d` or `witryYield30d` on /utilization)
   borrowAPY: number;               // adaptiveCurveIRM(targetUtilization, rTarget)
   perLoopSlippageBps: number;
+  loopCount?: number;              // explicit finite loop count; omit for converged
 }
 
 export interface LooperPathPnLResult {
@@ -255,9 +269,15 @@ export interface LooperPathPnLResult {
  */
 export function looperPathPnL(i: LooperPathPnLInput): LooperPathPnLResult {
   const borrowFraction = i.lltv / i.hfBuffer;
-  const effectiveLeverage = borrowFraction >= 1
-    ? 50
-    : Math.min(50, 1 / (1 - borrowFraction));
+  const n = i.loopCount;
+  const finite = typeof n === 'number' && Number.isFinite(n) && n >= 1;
+  const effectiveLeverage = finite
+    ? (borrowFraction >= 1
+        ? Math.min(50, n! + 1)
+        : Math.min(50, (1 - Math.pow(borrowFraction, n! + 1)) / (1 - borrowFraction)))
+    : (borrowFraction >= 1
+        ? 50
+        : Math.min(50, 1 / (1 - borrowFraction)));
   const borrowedShare = effectiveLeverage - 1;
   const slippageDragAnnual = borrowedShare * (i.perLoopSlippageBps / 10_000);
 

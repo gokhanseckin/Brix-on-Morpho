@@ -106,6 +106,7 @@ export function useSimulator() {
         hfBuffer: s.hfBuffer,
         perLoopSlippageBps: 30,
         lltv: s.lltv,
+        loopCount: s.loopCount,
       }),
     [s, requiredUSDMPrecursor, expectedBorrowPrecursor, borrowAPY],
   );

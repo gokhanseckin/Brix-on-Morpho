@@ -452,12 +452,15 @@ describe('strategy', () => {
       hfBuffer: 1.5,
       perLoopSlippageBps: 30,
       lltv: 0.86,
+      loopCount: 10,
     });
     expect(out.grossSupplyAPY).toBeCloseTo(0.07, 4);
     expect(out.totalSupplyAPY).toBeGreaterThan(out.netSupplyAPY);
     expect(out.borrowerIncentiveAPY).toBe(0);
     expect(out.netBorrowAPY).toBeCloseTo(0.10, 6);
-    expect(out.effectiveLeverage).toBeCloseTo(1 / (1 - 0.86 / 1.5), 6);
+    // n=10 finite partial sum: (1 − b^11) / (1 − b) where b = 0.86/1.5
+    const b = 0.86 / 1.5;
+    expect(out.effectiveLeverage).toBeCloseTo((1 - Math.pow(b, 11)) / (1 - b), 6);
     expect(out.loopDebtPerCollateral).toBeCloseTo(0.86 / 1.5, 6);
     expect(out.netLoopAPY).toBeGreaterThan(0);
     expect(out.netLoopAPY_withIncentives).toBeCloseTo(out.netLoopAPY, 10);
@@ -477,6 +480,7 @@ describe('strategy', () => {
       hfBuffer: 1.5,
       perLoopSlippageBps: 30,
       lltv: 0.86,
+      loopCount: 10,
     });
     expect(out.borrowerIncentiveAPY).toBeCloseTo(0.24, 6);
     expect(out.netBorrowAPY).toBeCloseTo(-0.14, 6);

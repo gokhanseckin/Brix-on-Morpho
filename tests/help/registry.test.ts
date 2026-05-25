@@ -17,6 +17,7 @@ const EXPECTED_PARAM_KEYS = [
   'witryYieldUSD_7d',
   'witryYieldUSD_30d',
   'hfBuffer',
+  'loopCount',
   'usdtryBaseline',
   'historicalPeriod',
   'simulationMode',

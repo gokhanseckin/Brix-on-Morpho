@@ -22,6 +22,7 @@ const baseInputs: SidebarInputs = {
   witryYieldUSD_7d: 0,
   witryYieldUSD_30d: 0,
   hfBuffer: 1.5,
+  loopCount: 10,
   usdtryBaseline: 100,
   historicalPeriod: 5,
   simulationMode: 'GBM+Jumps',
