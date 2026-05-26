@@ -132,13 +132,13 @@ export function LiquidationDesign() {
 
       <div className="grid grid-cols-4 gap-4">
         <Kpi
-          label="P95 Morpho debt — single (USD)"
+          label="P95 residual Morpho debt (USD)"
           value={fx?.badDebt ? formatUSD(fx.badDebt.badDebtP95_USD) : '—'}
-          hint="Cascade with each liquidation priced as its own swap. Lower bound — assumes liquidators clear positions one at a time."
+          hint="Per path, profitable liquidations consume the same AMM ladder in sequence; unprofitable debt remains exposed to later FX losses."
           helpKey="badDebtP95USD"
         />
         <Kpi
-          label="P95 Morpho debt — single (% TVL)"
+          label="P95 residual Morpho debt (% TVL)"
           value={fx?.badDebt ? formatPct(fx.badDebt.badDebtP95Pct, 2) : '—'}
           tone={
             fx?.badDebt && fx.badDebt.badDebtP95Pct > 0.05
@@ -158,6 +158,7 @@ export function LiquidationDesign() {
           }
           hint={`At ${formatPct(concurrentStress.dd_p95, 1)} 1-day drawdown, ${concurrentStress.positionsAtRisk}/${concurrentStress.population} borrowers (Beta tail with f ≥ ${concurrentStress.fMin.toFixed(2)}) cross LLTV. Aggregate seized ${formatUSD(concurrentStress.seizedConcurrent_USD)}. With ~30-min arb refill cycle, AMM clears ~${formatUSD(concurrentStress.ammCapacity_1d_USD)} per day (single-swap max ${formatUSD(concurrentStress.breakevenPerSwap_USD)} × 48). ${concurrentStress.viable ? 'Liquidators fire freely.' : 'Cluster risk: arrivals may outpace arb refill.'}`}
           tone={concurrentStress.viable ? 'good' : 'bad'}
+          helpKey="concurrentStressP95"
         />
         <Kpi
           label="Profitable debt range (gas-aware)"
@@ -242,7 +243,7 @@ export function LiquidationDesign() {
           Recommendation
         </div>
         <div className="text-sm">
-          At LLTV={(inputs.lltv * 100).toFixed(1)}%, P95 Morpho debt (single) ={' '}
+          At LLTV={(inputs.lltv * 100).toFixed(1)}%, P95 residual Morpho debt ={' '}
           {fx?.badDebt ? formatUSD(fx.badDebt.badDebtP95_USD) : '—'} (
           {fx?.badDebt ? formatPct(fx.badDebt.badDebtP95Pct, 2) : '—'} of TVL).
           Concurrent stress at P95 1-day move ({formatPct(concurrentStress.dd_p95, 1)}):{' '}

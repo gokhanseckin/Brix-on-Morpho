@@ -23,7 +23,7 @@ export const FX_RISK_PARAMS: Partial<Record<string, ParamHelp>> = {
         {
           section: 'Section 3 — Strategy',
           effects: [
-            'Leverage-loop card: Loop APY = wiTRY yield − borrow × (1 + TRY depreciation). The green "Viable" / red "Not viable" badge flips if Loop APY crosses zero',
+            'Carry-only loop card: wiTRY yield is one input to deterministic loop APY. The badge compares Loop wiTRY against Hold wiTRY; it does not subtract an assumed FX depreciation surcharge.',
           ],
         },
         {
@@ -31,7 +31,7 @@ export const FX_RISK_PARAMS: Partial<Record<string, ParamHelp>> = {
           effects: [
             'Bad-debt cascade re-runs with the new yield-adjusted collateral → P95 bad-debt USD and % TVL move',
             'Bad-debt histogram redistributes',
-            'Path-aggregated P95 liquidation volume updates → recommended pool depth hint shifts',
+            'Full-horizon cumulative executed liquidation volume updates; the homepage labels it as LP/LVR burden rather than the 1-day liquidity gate',
           ],
         },
       ],
@@ -51,14 +51,14 @@ export const FX_RISK_PARAMS: Partial<Record<string, ParamHelp>> = {
   },
   historicalPeriod: {
     oneLiner:
-      'How many years of daily USD/TRY history to draw from when resampling for Bootstrap or fitting GBM drift/vol. 1Y captures the recent regime; 3Y (default) balances recent behavior with past crises; 5Y includes more tail events. Note: GBM+Jumps jump parameters (frequency, size) are calibrated from the full 2015–2025 decade and do NOT change when you switch this window.',
+      'How many years of daily USD/TRY history to use for Bootstrap or to fit GBM drift and volatility. 1Y emphasizes the recent regime; 5Y is the current default and includes more tail events. GBM+Jumps adds fixed jump assumptions after fitting the selected window.',
   },
   simulationMode: {
     oneLiner:
-      'How the simulator generates 1000 imaginary TRY futures. Bootstrap (default) shuffles real history; GBM uses a math model; GBM+Jumps adds sudden crisis shocks on top; Scenario lets you hardcode a specific crash.',
+      'How the simulator generates TRY futures. Bootstrap resamples real history; GBM uses a fitted diffusion; GBM+Jumps adds fixed crisis-jump assumptions; Scenario runs one deterministic TRY-weakening path.',
     details: {
       description:
-        'The simulator runs 1000 parallel "what if" futures for USD/TRY to answer: how often do positions go underwater, how fast, and how much bad debt accumulates? All four modes feed Sections 2 (FX Risk), 4 (Liquidation), and 5 (Deployment Recommendations). Section 1 (Liquidity Need) and Section 3 (Strategy) are pre-FX and do not depend on the simulation.',
+        'The simulator runs the chosen number of "what if" USD/TRY futures, except Scenario mode which creates one deterministic path. Paths feed FX Risk, Liquidation, and Deployment Recommendations. Liquidity Need and the deterministic Strategy cards do not use these paths.',
       options: [
         {
           name: 'Bootstrap (default)',
@@ -84,14 +84,14 @@ export const FX_RISK_PARAMS: Partial<Record<string, ParamHelp>> = {
         {
           name: 'GBM+Jumps (Merton jump-diffusion)',
           description:
-            'GBM with random disasters added on top. Same smooth daily noise as GBM, but roughly 4 times per year (≈1.1% chance each day) a sudden extra "jump" hits — an additional TRY drop of about −5% on average (drawn from a normal distribution with mean −5%, std 4%). So a mild jump is −1% to −3%, a typical one −5%, and a severe one −9% to −13%. The jump parameters are calibrated from a decade of TRY history (2015–2025) and are fixed constants — they do NOT change when you adjust the historicalPeriod window.',
+            'GBM with occasional upward USD/TRY jumps added on top. The implementation uses fixed assumptions of about four jumps per year with mean log jump 5% and standard deviation 4%; an upward USD/TRY jump means TRY weakened and collateral lost USD value.',
           bestFor:
             'Captures fat tails (sudden currency crises, central bank moves) without relying purely on resampling history. Good complement to Bootstrap.',
         },
         {
           name: 'Scenario',
           description:
-            'Not random at all. You define one specific future: TRY weakens linearly by `tryShockPct` over the simulation horizon. All 1000 "paths" follow the same deterministic glide. Ignores all historical data and volatility estimates.',
+            'Not random at all. You define one specific future: TRY weakens linearly by `tryShockPct` over the simulation horizon. The worker returns one deterministic glide, regardless of the path-count setting, and ignores historical data for that path.',
           bestFor:
             '"What if the 2018 crisis happens again?" stress tests. Answers "would we survive X?" with certainty under that assumption, rather than giving a probability. Use to validate the LLTV against a specific scenario the team wants to defend.',
         },
@@ -110,7 +110,7 @@ export const FX_RISK_PARAMS: Partial<Record<string, ParamHelp>> = {
           effects: [
             'Bad-debt cascade re-runs against the new paths → P95 bad-debt USD and % TVL move',
             'Bad-debt histogram redistributes',
-            'Path-aggregated P95 liquidation volume updates → recommended pool depth shifts',
+            'Cumulative executed liquidation volume across a path updates; it is reported as AMM burden, while the 1-day concurrent-stress card checks clustered capacity',
           ],
         },
         {
@@ -158,7 +158,7 @@ export const FX_RISK_PARAMS: Partial<Record<string, ParamHelp>> = {
 
 const oneDayMaxDrawdownP50: KpiHelp = {
   title: '1-day max drawdown — P50',
-  oneLiner: 'In each of the 1000 simulated futures, find the single worst 1-day TRY crash. This is the median of those worst single-day crashes — the "typical" hit a liquidator faces inside the realistic execution window. Half of simulated futures had a worse 1-day crash, half had a milder one.',
+  oneLiner: 'In each generated FX path, find the single worst 1-day TRY weakening. This is the median of those per-path worst moves: half the paths are milder and half are worse.',
   formula: {
     plain: 'for each path:\n  perPath = max over t of (S[t+1] − S[t]) / S[t]\noneDayDD_P50 = median(perPath across paths)',
     latex: 'P50\\big(\\max_{t} \\tfrac{S_{t+1} - S_t}{S_t}\\big)',
@@ -201,30 +201,30 @@ const oneDayMaxDrawdownP95: KpiHelp = {
 };
 
 const expectedLiquidationVolumeP95: KpiHelp = {
-  title: 'Expected liquidation volume — P95',
-  oneLiner: 'The P95 dollar volume of liquidations triggered across a single simulated horizon. Sizes the wiTRY/USDM secondary-pool depth recommendation in Section 4.',
+  title: 'Cumulative executed liquidation volume — P95',
+  oneLiner: 'The 95th-percentile total AMM proceeds from profitable pre-liquidations and hard liquidations executed over one full simulated path. It describes AMM turnover and LP/LVR burden, not a single-day capacity requirement.',
   formula: {
-    plain: 'for each path:\n  perPath = Σ liquidatedSeizedUSD across all triggered liquidations\nP95 = 95th-percentile of perPath',
-    latex: 'P95\\big(\\sum_{\\text{triggered liqs}} \\text{seized USD}\\big)',
+    plain: 'for each path:\n  volume = sum(executed pre-liq seized USD + executed hard-liq AMM revenue)\nP95 = 95th percentile of volume across paths',
+    latex: 'P95\\big(\\sum_{\\text{executed liquidations}} \\text{AMM volume USD}\\big)',
   },
   params: [
-    { name: 'simulateBadDebt result', source: 'derived', note: 'Per-path total seized collateral, in USD.' },
+    { name: 'simulateBadDebt result', source: 'derived', note: 'Per-path executed liquidation AMM volume in USD; unprofitable attempts are not counted.' },
   ],
   definitions: [
-    { term: 'Per-path total', definition: 'Sum of seized collateral USD across every triggered (profitable) liquidation in that single path.' },
-    { term: 'Section 4 dependency', definition: 'Recommended pool depth: ≥ this P95 volume / 2% slippage cap. Sizes the AMM so even a tail liquidation can clear without hurting the liquidator.' },
+    { term: 'Per-path total', definition: 'The worker adds profitable pre-liquidation seized amounts and profitable hard-liquidation AMM revenue during the whole simulated horizon. An unprofitable attempted liquidation contributes no executed volume.' },
+    { term: 'Different from concurrent stress', definition: 'A pool can process volume over many rebalanced swaps. The homepage concurrent-stress tile instead compares one day of clustered seized collateral with an assumed refill capacity.' },
   ],
   impact: {
-    health: 'Tail event sizing for the AMM that liquidators dump into. Underestimating leaves liquidators upside-down and grows bad debt.',
-    sustainability: 'Determines minimum DEX TVL Brix needs to bootstrap alongside the lending market.',
-    profitability: 'Pool depth is supplier capital. Bigger pool ⇒ more capital locked at AMM yield instead of Morpho yield.',
+    health: 'High cumulative volume signals that many positions require intervention, even if each individual liquidation clears.',
+    sustainability: 'Useful for assessing whether LPs face repeated adverse-flow exposure through the simulation horizon.',
+    profitability: 'Executed liquidation flow creates fees but also potential loss-versus-rebalancing exposure for LPs.',
   },
   // NOTE: type field exists but worker does not yet populate it; see GH issue #4.
 };
 
 const annualizedVol: KpiHelp = {
   title: 'Annualized USD/TRY volatility',
-  oneLiner: 'The realized standard deviation of daily USD/TRY log-returns over the selected historical window, scaled to a 1-year horizon. Cross-check anchor — should land in the 15–35% range (NYU V-Lab GARCH estimates).',
+  oneLiner: 'The realized standard deviation of daily USD/TRY log-returns over the selected historical window, scaled to a one-year trading horizon.',
   formula: {
     plain: 'σ_ann = stdev(daily log returns) × √252',
     latex: '\\sigma_{\\text{ann}} = \\sigma_{\\text{daily}} \\cdot \\sqrt{252}',
@@ -258,10 +258,10 @@ export const FX_RISK_KPIS = {
 
 const fxBands: ChartHelp = {
   title: 'USD/TRY paths (P5 / P50 / P95 / P99)',
-  oneLiner: 'The 1000 simulated TRY futures summarized as four lines at each day: the median outcome (P50), the optimistic and pessimistic tails (P5 / P95), and the deep tail (P99 dashed purple). The fan shape widens over time because uncertainty compounds — the further into the future, the more the paths diverge.',
+  oneLiner: 'The generated TRY futures summarized as four lines at each day: median (P50), optimistic and pessimistic tails (P5 / P95), and deep tail (P99). When more than one path exists, the fan generally widens over time as uncertainty accumulates.',
   axes: { x: 'Day (0 = today, Day N = N calendar days from now)', y: 'USD/TRY rate (TRY per 1 USD — higher = TRY weaker)' },
   definitions: [
-    { term: 'P50 (blue) — median', definition: 'Half of the 1000 simulations were worse than this, half better. The "most likely" scenario.' },
+    { term: 'P50 (blue) — median', definition: 'Half of the generated paths are worse than this and half are better. In Scenario mode, all percentile lines come from the same one path.' },
     { term: 'P5 (green) — optimistic tail', definition: 'Only 5% of simulations had TRY stronger than this. TRY held up well.' },
     { term: 'P95 (red) — pessimistic tail', definition: 'Only 5% of simulations had TRY weaker than this. The "things got really bad" tail — the number that drives the default LLTV recommendation on /lltv.' },
     { term: 'P99 (purple, dashed) — deep tail', definition: 'Only 1% of simulations had TRY weaker than this. Use /lltv\'s P99 selector to size LLTV against this tighter tail when you want extra margin for rare events.' },
@@ -283,11 +283,11 @@ const fxBands: ChartHelp = {
 const netWitryUsdPaths: ChartHelp = {
   title: 'Net wiTRY USD value paths',
   oneLiner: 'The USD value of wiTRY collateral over time — two forces fighting each other: wiTRY accrual pushes it up (yield compounds daily), TRY depreciation pushes it down. Shown as P1 / P5 / P50 / P95 percentiles OF NET VALUE (P1 dashed purple is the deepest adverse tail).',
-  axes: { x: 'Day (0 = today, Day N = N calendar days from now)', y: 'wiTRY USD value, normalized to 1.0 at Day 0' },
+  axes: { x: 'Day (0 = today, Day N = N calendar days from now)', y: 'wiTRY value proxy = accrual / USDTRY; starts at 1 / baseline, not 1.0' },
   definitions: [
     { term: 'Two competing forces', definition: 'wiTRY earns yield every day (the Turkish MMF NAV grows, giving you more TRY per wiTRY). At the same time TRY itself loses value against USD. The net USD value = (TRY per wiTRY) × (USD per TRY). If yield > depreciation rate, the value drifts up. If depreciation > yield, it drifts down. On the median path, TRY historically depreciates faster than the yield compensates, so the P50 line drifts downward.' },
     { term: 'Break-even rate', definition: 'wiTRY USD value stays flat when TRY depreciates exactly at the annualized wiTRY yield rate (e.g. 38%/yr). This is the threshold — above that depreciation rate, USD value falls; below it, USD value rises.' },
-    { term: 'Reading the chart', definition: 'A value of 0.85 at Day 30 on the P5 line means: in the worst 5% of futures, the collateral is worth 85% of its original USD value after 30 days. If the loan was sized at 75% LLTV and collateral drops to 75% of original value, that position is exactly at the liquidation threshold.' },
+    { term: 'Reading the chart', definition: 'The chart plots (1 + wiTRY yield)^(days/365) / USDTRY, so at a baseline of 45 its day-zero level is 1/45. To read a percentage gain or loss, compare a later point with its day-zero point.' },
     { term: 'Color flip vs fxBands', definition: 'Because wiTRY USD ≈ 1/S, percentiles of USD/TRY invert when mapped to net wiTRY USD value: the P95 USD/TRY (TRY weak, bad for the lender) becomes the P5 of net wiTRY value, and the P99 USD/TRY tail (worst FX) becomes the P1 of net wiTRY value. Colors are remapped so green = good (high wiTRY USD value), red = bad. The P1 net-value line — the deepest adverse tail — is drawn dashed purple.' },
   ],
   impact: {
@@ -299,16 +299,16 @@ const netWitryUsdPaths: ChartHelp = {
 
 const drawdownDistribution: ChartHelp = {
   title: '1-day max drawdown distribution',
-  oneLiner: 'A histogram showing how often each crash size appeared across all 1000 simulated futures. Each bar answers: "in how many of our simulated futures did the worst single-day TRY crash fall in this range?"',
+  oneLiner: 'A histogram of the worst one-day TRY weakening in each generated path. Each bar counts how many paths have their worst daily move in that range.',
   axes: {
     x: 'Crash size bucket — how much TRY dropped in its single worst 1-day window within that path (0–2%, 2–5%, … 30%+)',
-    y: 'Count — number of simulated paths (out of 1000) whose worst 1-day crash landed in that bucket',
+    y: 'Count — number of generated paths whose worst 1-day crash landed in that bucket',
   },
   definitions: [
     {
       term: 'What one bar means',
       definition:
-        'A bar of height 320 in the "5–10%" bucket means 320 of the 1000 simulated futures had their single worst 1-day TRY crash somewhere between 5% and 10%. The other 680 paths had a worst crash either smaller or larger.',
+        'A bar of height 32 in the "5-10%" bucket means 32 generated paths had their worst one-day TRY crash somewhere between 5% and 10%.',
     },
     {
       term: 'How to read the shape',
@@ -318,7 +318,7 @@ const drawdownDistribution: ChartHelp = {
     {
       term: 'Connection to P95 / P99 KPIs',
       definition:
-        'The P95 drawdown is the x-value where 95% of the histogram area sits to the LEFT. Visually: find the bar where the running total of counts hits 950 out of 1000 — that bucket\'s right edge is roughly the P95. /lltv exposes P95/P99/P99.9 selectors that calibrate LLTV against this same histogram at successively deeper tails.',
+        'The P95 drawdown is the x-value where about 95% of the path count lies to the left. /lltv exposes P95/P99/P99.9 selectors that calibrate LLTV against this same distribution at successively deeper tails.',
     },
     {
       term: 'Why 1 day specifically',

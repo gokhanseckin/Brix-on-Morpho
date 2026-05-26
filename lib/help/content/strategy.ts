@@ -21,7 +21,7 @@ export const STRATEGY_PARAMS: Partial<Record<string, ParamHelp>> = {
   },
   managementFee: {
     oneLiner:
-      'Vault management fee, as a decimal annual APR. Subtracted ADDITIVELY from netSupplyAPY (not multiplicatively — see validation report #10). Default 1% APR.',
+      'Vault management fee, as a decimal annual APR. Subtracted additively from netSupplyAPY, not multiplied. The current default is 0%.',
   },
 };
 
@@ -46,16 +46,16 @@ const borrowAPY: KpiHelp = {
   oneLiner:
     'The borrow rate the IRM produces at the configured target utilization. This is the static AdaptiveCurveIRM value (slow Rate at Target drift ignored) — it sets the ceiling on supplier yield.',
   formula: {
-    plain: 'borrowAPY = adaptiveCurveIRM(targetUtilization, r_target = 4%)',
-    latex: 'borrowAPY = \\text{adaptiveCurveIRM}(u_{\\text{target}},\\; r_{\\text{target}} = 0.04)',
+    plain: 'borrowAPY = adaptiveCurveIRM(targetUtilization, rTargetIRM)\n(default rTargetIRM = 4%; editable on /utilization)',
+    latex: 'borrowAPY = \\text{adaptiveCurveIRM}(u_{\\text{target}},\\; r_{\\text{TargetIRM}})',
   },
   params: [
     COMMON_PARAMS.uTarget!,
-    { name: 'r_target', source: 'constant', value: '0.04', note: 'Morpho governance default target APR at u=90%.' },
+    { name: 'rTargetIRM', source: 'derived', note: 'Shared setting edited on /utilization; default 4% APR at the fixed 90% kink.' },
   ],
   definitions: [
-    { term: 'AdaptiveCurveIRM', definition: 'Morpho\'s only governance-approved interest-rate model. Anchored at r/4 at u=0, r at u=90% (target), and 4r at u=100%, with two exponential segments interpolating between.' },
-    { term: 'Rate at Target', definition: 'Morpho\'s official name (code: rateAtTarget; written as r_target in formulas) for the target borrow APY at the target utilization. Currently fixed at 4% APR — the "adaptive" drift converges much slower than the parameters we are tuning, so we treat Rate at Target as static.' },
+    { term: 'AdaptiveCurveIRM', definition: 'The interest-rate curve evaluated here: r/4 at u=0, r at the fixed 90% kink, and 4r at u=100%, with exponential interpolation between.' },
+    { term: 'Rate at Target', definition: 'The borrow-rate anchor at the fixed 90% IRM kink. The simulator keeps it static during one run, but the shared rTargetIRM setting is editable on /utilization and defaults to 4% APR.' },
     { term: 'Section 1 chart', definition: 'The full curve and where targetUtilization lands on it are visualized in Section 1\'s "Borrow APY curve" chart.' },
   ],
   impact: {
@@ -101,7 +101,7 @@ const netSupplyAPY: KpiHelp = {
   definitions: [
     { term: 'Performance fee', definition: 'Skimmed as a percentage of interest earned (multiplicative). 10% perf fee with 5% gross APY → suppliers see 4.5% before mgmt fee.' },
     { term: 'Management fee', definition: 'Flat annual APR subtracted from supplier yield regardless of interest. 1% mgmt fee with 4.5% post-perf → 3.5% net. NOT a multiplier — see validation report #10 for the sign convention.' },
-    { term: 'Pre-incentive', definition: 'This is the sustainable yield once Merkl rewards end. Compare against the "retention after incentives" KPI to judge how much sticky capital this number will hold.' },
+    { term: 'Pre-incentive', definition: 'This is the sustainable yield once Merkl rewards end. Compare it directly with the benchmark bars on the page.' },
   ],
   impact: {
     health: 'The yield suppliers can rely on once the campaign ends. If this is below competing stablecoin rates, capital leaves.',
@@ -109,11 +109,11 @@ const netSupplyAPY: KpiHelp = {
     profitability: 'Direct lever on supplier economics. Lower fees = stickier capital but lower vault take.',
   },
   workedExample: {
-    description: 'Defaults: targetUtilization 70%, borrowAPY ≈ 2.1% (IRM at 70%), perfFee 10%, mgmtFee 1%.',
+    description: 'Current defaults: targetUtilization 80%, rTargetIRM 4%, borrowAPY about 3.43%, performanceFee 10%, managementFee 0%.',
     steps: [
-      { label: 'gross supply APY', expression: '2.1% × 0.70 = 1.47%', usesInputs: ['targetUtilization'] },
-      { label: 'after performance fee', expression: '1.47% × (1 − 0.10) = 1.32%', usesInputs: ['performanceFee'] },
-      { label: 'after management fee', expression: '1.32% − 1.00% = 0.32%', usesInputs: ['managementFee'] },
+      { label: 'gross supply APY', expression: '3.43% x 0.80 = 2.74%', usesInputs: ['targetUtilization'] },
+      { label: 'after performance fee', expression: '2.74% x (1 - 0.10) = 2.47%', usesInputs: ['performanceFee'] },
+      { label: 'after management fee', expression: '2.47% - 0.00% = 2.47%', usesInputs: ['managementFee'] },
     ],
   },
 };
@@ -169,7 +169,7 @@ const netBorrowAPY: KpiHelp = {
   },
   params: [COMMON_PARAMS.borrowAPY!, { name: 'borrowerIncentiveAPY', source: 'derived' }],
   definitions: [
-    { term: 'Negative net rate', definition: 'Live example: USP/USDC market on Morpho with PIKU rewards shows net borrow ≈ -0.18% (borrow 8.10% − PIKU 8.28%). Same mechanism — borrowers paid to borrow.' },
+    { term: 'Negative net rate', definition: 'If borrower rewards exceed borrow interest, the computed net rate is negative: the incentive more than reimburses the interest paid.' },
     { term: 'Used in carry-only loop APY', definition: 'netLoopAPY depends on borrowAPY through the carry term (effectiveLeverage − 1) × borrowAPY. Borrower incentives lower this effective cost via netLoopAPYWithIncentives; expected TRY depreciation is NOT subtracted (wiTRY yield already compensates it on average).' },
   ],
   impact: {
@@ -193,7 +193,7 @@ const totalSupplyAPY: KpiHelp = {
   ],
   definitions: [
     { term: 'Additive layering', definition: 'Both pieces are in the same APR units (USD yield per USD deposited per year), so they add directly. No compounding adjustment needed for this scale.' },
-    { term: 'Campaign-window only', definition: 'Drops to netSupplyAPY when the Merkl campaign ends. The "retention after incentives" KPI estimates how much capital survives that step-down.' },
+    { term: 'Campaign-window only', definition: 'Drops to netSupplyAPY when the Merkl campaign ends. The gap between the two supplier bars shows dependence on rewards.' },
   ],
   impact: {
     health: 'Must clear competing stablecoin yields (default 5%) to attract capital at all. Below that, the campaign stalls.',
@@ -205,22 +205,23 @@ const totalSupplyAPY: KpiHelp = {
 const netLoopAPY: KpiHelp = {
   title: 'Net loop APY (carry-only)',
   oneLiner:
-    'Annualized USD return for a wiTRY → USDM → wiTRY looper, computed as the carry differential (wiTRY yield − borrow rate − slippage − HF-idle cost) at the deterministic effective leverage. FX risk is NOT subtracted as expected cost; it appears separately as a Monte Carlo P&L distribution.',
+    'Annualized return for a wiTRY -> USDM -> wiTRY loop, using yield, borrow cost, slippage and health-factor idle cost. FX is not charged as an extra expected cost here; FX outcomes are analyzed in the FX and liquidation sections.',
   formula: {
     plain:
-      'netLoopAPY = effectiveLeverage × y_iTRY − (effectiveLeverage − 1) × (borrowAPY + slippage) − y_iTRY × (1 − 1/hfBuffer) × (effectiveLeverage − 1)',
+      'b = LLTV / hfBuffer\neffectiveLeverage = 1 + b + ... + b^loopCount\nborrowedShare = effectiveLeverage - 1\nnetLoopAPY = effectiveLeverage x witryYieldAnnual\n  - borrowedShare x (borrowAPY + 0.003)\n  - witryYieldAnnual x (1 - 1/hfBuffer) x borrowedShare',
     latex:
       'netLoopAPY = \\ell \\cdot y_{\\text{iTRY}} - (\\ell - 1)(r + s) - y_{\\text{iTRY}}(1 - 1/H)(\\ell - 1)',
   },
   params: [
     COMMON_PARAMS.iTRY!,
-    { name: 'effectiveLeverage', source: 'derived', note: '1 / (1 − LLTV / hfBuffer).' },
+    { name: 'effectiveLeverage', source: 'derived', note: 'Finite geometric sum controlled by the Number of loops sidebar input.' },
     { name: 'borrowAPY', source: 'derived', note: 'IRM at target utilization; the carry borrow cost.' },
     { name: 'perLoopSlippageBps', source: 'constant', value: '30 bps', note: 'Per-loop round-trip swap cost; matches /utilization.' },
     { name: 'hfBuffer', source: 'derived', note: 'Sidebar slider; ≥ 1.0.' },
+    { name: 'loopCount', source: 'derived', note: 'Sidebar slider; explicit iterations from 1 to 10.' },
   ],
   definitions: [
-    { term: 'Why no TRY-depreciation surcharge', definition: 'wiTRY is a TRY-denominated MMF; its yield already compensates for the average rate at which TRY depreciates. Charging an extra (1 + d_TRY) factor on the borrow cost double-counts FX risk. Realized FX impact appears in the path-aware P&L below.' },
+    { term: 'Why no TRY-depreciation surcharge', definition: 'This card is a carry calculation. Adding an assumed TRY depreciation multiplier to the USD borrowing cost would mix expected carry with FX stress. FX loss risk is examined in Sections 2 and 4.' },
     { term: 'leverageLoopsViable flag', definition: 'Green when netLoopAPY > witryYieldAnnual — looping beats holding wiTRY. Borrower incentives are NOT used to flip this gate; they enter only as an additive overlay on the next bar.' },
   ],
   impact: {
@@ -244,7 +245,7 @@ const netLoopAPYWithIncentives: KpiHelp = {
     { name: 'effectiveLeverage', source: 'derived' },
   ],
   definitions: [
-    { term: 'Why multiply by (effectiveLeverage − 1)', definition: 'Borrower incentives are paid on the looper\'s debt notional, which equals (effectiveLeverage − 1) × equity for a fully-looped position.' },
+    { term: 'Why multiply by (effectiveLeverage - 1)', definition: 'Borrower incentives are paid on debt notional. Under the selected finite-loop model, debt per unit of starting equity is effectiveLeverage - 1.' },
     { term: 'Campaign-window only', definition: 'Reverts to netLoopAPY when borrower-side rewards stop. The gap between the two bars is the cliff loopers face at campaign end.' },
   ],
   impact: {
@@ -257,23 +258,25 @@ const netLoopAPYWithIncentives: KpiHelp = {
 const effectiveLeverageStrategy: KpiHelp = {
   title: 'Effective leverage (looper)',
   oneLiner:
-    'Geometric-sum cap on how much wiTRY a looper can stack from 1 unit of equity, given an LLTV and a self-imposed HF buffer.',
+    'How much wiTRY exposure is built from 1 unit of equity after the selected finite number of borrow-and-redeposit loops.',
   formula: {
-    plain: 'effectiveLeverage = 1 / (1 − LLTV / hfBuffer)',
-    latex: '\\ell = 1 / (1 - L / H)',
+    plain: 'b = LLTV / hfBuffer\neffectiveLeverage = 1 + b + b^2 + ... + b^loopCount\n                  = (1 - b^(loopCount + 1)) / (1 - b), when b != 1',
+    latex: '\\ell_n = \\sum_{k=0}^{n} b^k,\\quad b = LLTV/H',
   },
   params: [
     { name: 'LLTV', source: 'derived', note: 'Sidebar slider; governance-snapped tier.' },
     { name: 'hfBuffer', source: 'derived', note: 'Sidebar slider; ≥ 1.0.' },
+    { name: 'loopCount', source: 'derived', note: 'Explicit number of loop iterations selected in the sidebar.' },
   ],
   definitions: [
     { term: 'Why a buffer', definition: 'Looping to the bare LLTV maximizes leverage but liquidates on the first adverse FX tick. hfBuffer ≥ 1.1 leaves headroom; typical defaults are 1.3–1.7.' },
-    { term: 'Numerical cap', definition: 'Capped at 50× internally to keep the geometric series numerically stable. Defaults never come near this.' },
+    { term: 'Finite versus converged', definition: 'The homepage uses the selected finite loop count. With enough loops the series approaches 1 / (1 - b), but it does not assume infinite looping.' },
+    { term: 'Numerical cap', definition: 'The implementation caps leverage at 50x for numerical safety. Normal inputs remain far below that limit.' },
   ],
   impact: {
     health: 'Drives both grossLoopAPY (positive) and FX-risk amplification (negative).',
-    sustainability: 'Higher leverage → larger realized P&L distribution width.',
-    profitability: 'Direct multiplier on yield in the carry term; always evaluate against the realized P&L tail.',
+    sustainability: 'Higher leverage increases sensitivity to the FX stress outcomes described in the liquidation section.',
+    profitability: 'Direct multiplier on yield in the carry term, while also multiplying borrow and idle-capital costs.',
   },
 };
 
@@ -299,79 +302,6 @@ const loopDebtPerCollateral: KpiHelp = {
   },
 };
 
-const loopAPYP5: KpiHelp = {
-  title: 'P5 realized loop APY',
-  oneLiner:
-    '5th-percentile annualized return across all Monte Carlo FX paths. The unlucky-tail outcome a looper should expect once in 20 starts.',
-  formula: { plain: 'P5(apyByPath)', latex: 'P_{5}(\\text{apyByPath})' },
-  params: [
-    { name: 'apyByPath', source: 'derived', note: 'Per-path realized loop APY from looperPathPnL.' },
-  ],
-  definitions: [
-    { term: 'Liquidated paths', definition: 'Paths where HF hit 1.0 before horizon are included at their floored −100% APY. They sink the lower tail directly.' },
-    { term: 'Difference from carry-only', definition: 'netLoopAPY is the expected value at flat FX; P5 captures the realized downside under simulated TRY moves.' },
-  ],
-  impact: {
-    health: 'Looper risk-budget anchor.',
-    sustainability: 'A very deep P5 means the loop is structurally fragile to TRY shocks.',
-    profitability: 'Defines the worst-case a rational looper would accept.',
-  },
-};
-
-const loopAPYP50: KpiHelp = {
-  title: 'P50 realized loop APY',
-  oneLiner: 'Median annualized return across Monte Carlo FX paths. The typical outcome.',
-  formula: { plain: 'P50(apyByPath)', latex: 'P_{50}(\\text{apyByPath})' },
-  params: [{ name: 'apyByPath', source: 'derived' }],
-  definitions: [
-    { term: 'P50 vs netLoopAPY', definition: 'For flat FX paths P50 ≈ netLoopAPY. Gaps reveal asymmetric path dynamics (e.g. heavy left tail from liquidations pulls the median below netLoopAPY).' },
-  ],
-  impact: {
-    health: 'Headline expected-value figure for loopers.',
-    sustainability: 'The number that goes in marketing copy.',
-    profitability: 'Anchor for looper acquisition pitches.',
-  },
-};
-
-const loopAPYP95: KpiHelp = {
-  title: 'P95 realized loop APY',
-  oneLiner:
-    '95th-percentile annualized return. The lucky-tail outcome — a strong TRY-stable or TRY-strengthening regime.',
-  formula: { plain: 'P95(apyByPath)', latex: 'P_{95}(\\text{apyByPath})' },
-  params: [{ name: 'apyByPath', source: 'derived' }],
-  definitions: [
-    { term: 'Upside symmetry', definition: 'In a balanced FX regime P95 sits roughly symmetrically opposite P5 around P50; persistent skew indicates a one-sided historical window.' },
-  ],
-  impact: {
-    health: 'Marketing upside number.',
-    sustainability: 'High P95 with low P5 = high-variance strategy; do not mislead users with P95 alone.',
-    profitability: 'Sets the realistic best-case expectation.',
-  },
-};
-
-const loopLiquidationRate: KpiHelp = {
-  title: 'Loop liquidation rate',
-  oneLiner:
-    'Fraction of Monte Carlo paths where the looper position hit HF = 1.0 before horizon and was forcibly closed.',
-  formula: {
-    plain: 'liquidationRate = |{ path : HF_t ≤ 1 for some t }| / |paths|',
-    latex: 'liquidationRate = |\\{p : HF_t(p) \\le 1 \\text{ for some } t\\}| / |\\text{paths}|',
-  },
-  params: [
-    { name: 'paths', source: 'derived', note: 'Monte Carlo USD/TRY paths from the FX worker.' },
-    { name: 'hfBuffer', source: 'derived', note: 'A larger buffer reduces this rate.' },
-  ],
-  definitions: [
-    { term: 'Difference from bad-debt cascade', definition: 'simulateBadDebt (Section 4) models the protocol\'s residual after liquidator action and AMM slippage; this rate models the looper\'s probability of getting wiped. They are disjoint concerns.' },
-    { term: 'LIF haircut proxy', definition: 'On liquidation, the looper\'s terminal equity is reduced by (LIF − 1) × debt — a constant proxy for the liquidator-bonus seizure. Slippage at liquidation is omitted by design (covered separately in Section 4).' },
-  ],
-  impact: {
-    health: 'A high liquidation rate (>10%) is a structural warning sign even if P50 looks attractive.',
-    sustainability: 'Lowering hfBuffer or raising LLTV pushes this up rapidly.',
-    profitability: 'A 0-rate at a productive netLoopAPY is the goal; rates >5% suggest tightening the buffer.',
-  },
-};
-
 export const STRATEGY_KPIS = {
   borrowAPY,
   grossSupplyAPY,
@@ -384,10 +314,6 @@ export const STRATEGY_KPIS = {
   netLoopAPYWithIncentives,
   effectiveLeverageStrategy,
   loopDebtPerCollateral,
-  loopAPYP5,
-  loopAPYP50,
-  loopAPYP95,
-  loopLiquidationRate,
 };
 
 // ---------------------------------------------------------------------------
@@ -438,7 +364,7 @@ const competitiveBenchmark: ChartHelp = {
     {
       name: 'Brix net < Morpho vaults, Brix + incentives ≥ Morpho vaults',
       meaning:
-        'Incentive-dependent. Launch works because the bonus carries it, but retention after the budget runs out is a question — see "Retention after incentives end" KPI for the projected drop.',
+        'Incentive-dependent. Launch works because the bonus carries it, but the drop from the incentive bar to the net bar shows the post-campaign retention risk.',
     },
     {
       name: 'Brix net < Aave USDC',

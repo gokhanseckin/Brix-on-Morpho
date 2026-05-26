@@ -188,10 +188,6 @@ describe('help registry', () => {
       'netLoopAPYWithIncentives',
       'effectiveLeverageStrategy',
       'loopDebtPerCollateral',
-      'loopAPYP5',
-      'loopAPYP50',
-      'loopAPYP95',
-      'loopLiquidationRate',
     ] as const;
     const SECTION_3_PARAMS = [
       'supplyIncentiveBudgetMonthly_USD',
@@ -224,6 +220,7 @@ describe('help registry', () => {
       'recommendedPoolDepth',
       'badDebtP95USD',
       'badDebtP95Pct',
+      'concurrentStressP95',
       'preLiquidationParams',
     ] as const;
     const SECTION_4_CHARTS = ['badDebtHistogram'] as const;
@@ -295,6 +292,41 @@ describe('help registry', () => {
       for (const [k, v] of Object.entries(CHART_HELP)) {
         expect(v.title, `CHART_HELP.${k} still stubbed`).not.toBe('Coming soon');
       }
+    });
+  });
+
+  describe('homepage help reflects the current simulation surface and math', () => {
+    it('does not publish help entries for the removed realized-loop panel', () => {
+      expect(Object.keys(KPI_HELP)).not.toContain('loopAPYP5');
+      expect(Object.keys(KPI_HELP)).not.toContain('loopAPYP50');
+      expect(Object.keys(KPI_HELP)).not.toContain('loopAPYP95');
+      expect(Object.keys(KPI_HELP)).not.toContain('loopLiquidationRate');
+    });
+
+    it('documents the capped withdrawal buffer and shared editable IRM anchor', () => {
+      expect(KPI_HELP.withdrawalBuffer.formula.plain).toContain('BUFFER_PCT_CEILING');
+      expect(KPI_HELP.withdrawalBuffer.formula.plain).toContain('0.50');
+      expect(CHART_HELP.irmCurve.definitions.map((d) => d.definition).join(' ')).toContain('rTargetIRM');
+      expect(KPI_HELP.borrowAPY.formula.plain).toContain('rTargetIRM');
+    });
+
+    it('describes carry-only strategy without promising the removed Monte Carlo panel', () => {
+      expect(KPI_HELP.netLoopAPY.oneLiner).toContain('FX outcomes are analyzed in the FX and liquidation sections');
+      expect(KPI_HELP.netLoopAPY.oneLiner).not.toContain('Monte Carlo P&L distribution');
+    });
+
+    it('documents configurable repeated pre-liquidation and concurrent capacity', () => {
+      expect(Object.keys(KPI_HELP)).toContain('concurrentStressP95');
+      expect(KPI_HELP.preLiquidationParams.formula.plain).toContain('interpolate');
+      expect(KPI_HELP.preLiquidationParams.definitions.map((d) => d.definition).join(' ')).toContain('repeated');
+      expect(PARAM_HELP.preLiquidationEnabled.oneLiner).not.toContain('one-shot');
+    });
+
+    it('documents tier-scan LLTV selection and configuration-template JSON', () => {
+      expect(KPI_HELP.recommendedLLTV.formula.plain).toContain('for each governance tier');
+      expect(KPI_HELP.recommendedLLTV.formula.plain).not.toContain('fixed-point');
+      expect(KPI_HELP.vaultConfigJson.oneLiner).toContain('configuration template');
+      expect(KPI_HELP.vaultConfigJson.oneLiner).not.toContain('deploy-ready');
     });
   });
 });
