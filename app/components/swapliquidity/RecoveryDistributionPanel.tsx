@@ -22,6 +22,7 @@ import {
   Legend,
 } from 'recharts';
 import { Kpi } from '@/app/components/Kpi';
+import { HelpPopover } from '@/app/components/help/HelpPopover';
 
 const MAX_PATHS = 200;
 const HIST_BINS = 20;
@@ -108,7 +109,7 @@ export function RecoveryDistributionPanel() {
     }
   }, [fixedPool, initialSpot]);
 
-  // ─── Chart A: Deterministic repayment shortfall vs probe size ───────────
+  // ─── Chart B: Deterministic repayment shortfall vs probe size ───────────
   // No Monte Carlo. Sweep probe size against the deployed pool at initial
   // spot. Answers: "as the single-trade liquidation grows, when does the AMM
   // slip eat through the LIF buffer?"
@@ -144,9 +145,9 @@ export function RecoveryDistributionPanel() {
     return { deterministicSweep: raw, breakevenLIFbuffer: breakeven };
   }, [poolTVL_USD, lltv, quoteFixed, bufferPct]);
 
-  // ─── Chart B: MC distribution at the slider's probe size ────────────────
+  // ─── Chart A: MC distribution at the slider's probe size ────────────────
   // FX shifts spot away from the pool center. The pool stays put. Dump the
-  // slider amount at the shifted price → see how bad debt distributes.
+  // slider amount at the shifted price -> see how repayment shortfall distributes.
   const terminalSpots = useMemo<number[]>(() => {
     const paths = fx?.paths;
     if (!paths || paths.length === 0) return [];
@@ -229,6 +230,7 @@ export function RecoveryDistributionPanel() {
           <span className="text-xs text-neutral-500 font-normal">
             (Monte Carlo on terminal FX, pool stays at initial spot)
           </span>
+          <HelpPopover chartKey="repaymentShortfallHistogram" />
         </h3>
         <div className="text-xs text-neutral-500 max-w-3xl">
           Sampled n={mcResults.length} of {pathCount} paths from main-page sim (mode{' '}
@@ -252,14 +254,16 @@ export function RecoveryDistributionPanel() {
           </a>
         </div>
         <div className="grid grid-cols-3 gap-3">
-          <Kpi label="Paths with no shortfall" value={fmtPct(zeroShortfallPct)} />
+          <Kpi label="Paths with no shortfall" value={fmtPct(zeroShortfallPct)} helpKey="pathsWithNoShortfall" />
           <Kpi
             label="Median shortfall rate"
             value={medianShortfall !== null ? fmtPct(medianShortfall) : '—'}
+            helpKey="medianRepaymentShortfallRate"
           />
           <Kpi
             label="95th-percentile shortfall rate"
             value={p95Shortfall !== null ? fmtPct(p95Shortfall) : '—'}
+            helpKey="p95RepaymentShortfallRate"
           />
         </div>
         <div className="border border-brix-border rounded p-2 bg-brix-card">
@@ -298,6 +302,7 @@ export function RecoveryDistributionPanel() {
           <span className="text-xs text-neutral-500 font-normal">
             (deterministic, pool at initial spot — no slider dependency)
           </span>
+          <HelpPopover chartKey="repaymentShortfallSweep" />
         </h3>
         <p className="text-xs text-neutral-500 max-w-3xl">
           As a single liquidator dump grows, slippage in the AMM eats into the LIF buffer ({fmtPct(bufferPct, 2)}).

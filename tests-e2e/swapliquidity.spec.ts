@@ -26,9 +26,9 @@ test('liquidator swap panel shows non-empty USDM output', async ({ page }) => {
   await expect(usdmCard).toContainText('$');
 });
 
-test('homepage section 4 shows P95 Morpho debt KPI (real bad-debt math)', async ({ page }) => {
+test('homepage section 4 shows P95 residual Morpho debt KPI', async ({ page }) => {
   await page.goto('/');
-  await expect(page.locator('text=P95 Morpho debt — single (USD)').first()).toBeVisible();
+  await expect(page.locator('text=P95 residual Morpho debt (USD)').first()).toBeVisible();
 });
 
 test('every sidebar field exposes a help affordance', async ({ page }) => {
@@ -56,6 +56,8 @@ test('/help/swap-liquidity deep-dive page renders', async ({ page }) => {
   await page.goto('/help/swap-liquidity');
   await expect(page.locator('h2', { hasText: 'Swap Liquidity Lab' })).toBeVisible();
   await expect(page.locator('text=The asymmetric ladder we use')).toBeVisible();
+  await expect(page.locator('text=Liquidator execution shortfall')).toBeVisible();
+  await expect(page.locator('text=Preset export schema')).not.toBeVisible();
   await expect(page.locator('text=Glossary')).toBeVisible();
   await expect(page.locator('text=Code map')).toBeVisible();
 });

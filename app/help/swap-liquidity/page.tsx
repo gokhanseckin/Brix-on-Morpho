@@ -11,6 +11,13 @@ export default function HelpSwapLiquidity() {
     'poolTVL_USD',
     'bandSplitCore',
     'bandSplitAbsorb',
+    'bandCoreLowerPct',
+    'bandCoreUpperPct',
+    'bandAbsorbLowerPct',
+    'bandAbsorbUpperPct',
+    'bandTailLowerPct',
+    'bandTailUpperPct',
+    'swapSellUSD',
   ];
 
   return (
@@ -19,21 +26,20 @@ export default function HelpSwapLiquidity() {
         <h2 className="text-xl font-semibold">7. Swap Liquidity Lab</h2>
         <p className="text-sm text-neutral-500 mt-1 max-w-prose">
           A Uniswap v3 pool design lab for the wTRY/USDM pair on a kumbaya.xyz fork.
-          This page walks through the AMM mechanics, the asymmetric LP ladder we built
-          to absorb wTRY liquidations, and the bad-debt math that ties it back to
-          protocol safety. Written for a backend engineer who&apos;s heard of AMMs but
-          hasn&apos;t deployed liquidity before.
+          It explains configured pool capital, active liquidity, and hypothetical
+          seized-wTRY sale probes. The home simulator, not this page, estimates
+          unresolved protocol debt after modeled liquidation behavior.
         </p>
       </header>
 
       <Section title="What this lab is, in one paragraph">
         <p className="text-sm max-w-prose">
-          When a borrower&apos;s position goes underwater, a liquidator seizes their wTRY
-          collateral and immediately dumps it into the wTRY/USDM AMM to repay the
-          USDM debt. If the AMM sale doesn&apos;t cover the debt, the protocol books
-          <em> bad debt</em>. This page lets you design that AMM — pool depth, fee
-          tier, and how capital is split across price bands — and tells you how often
-          bad debt will fire under simulated FX futures.
+          You configure a pool ladder and request hypothetical sales of seized wTRY.
+          The page calculates AMM output, fees, price movement, and whether sale
+          proceeds would cover the liquidator&apos;s repayment before gas. Section 4
+          also repeats that single-trade probe over sampled terminal FX spots. A
+          shortfall here means that probe would not cover repayment; it is not a
+          statement that the protocol has booked bad debt.
         </p>
       </Section>
 
@@ -66,82 +72,84 @@ export default function HelpSwapLiquidity() {
           </li>
           <li>
             <b>Fee tier = LP commission.</b> Every swap pays a fee on the input,
-            distributed pro-rata to in-range LPs. 0.30% is standard for volatile
-            pairs; 1.00% pays LPs enough to bother with a thin book on a fresh
-            launch. Higher fee = wider tick spacing.
+            and this model calculates the resulting output. The available choices
+            are 0.30% with spacing 60 and 1.00% with spacing 200. The page does
+            not estimate trading volume or LP returns.
           </li>
         </ul>
       </Section>
 
       <Section title="The asymmetric ladder we use">
         <p className="text-sm max-w-prose">
-          A standard symmetric LP (e.g. ±20% around spot) wastes capital: the upside
-          half never gets used because wTRY drops, not rises, when liquidations fire.
-          So we split capital across three asymmetric bands:
+          The pool builder divides configured launch capital across three editable
+          positions. These defaults put extra capital below initial spot for the
+          wTRY-sell scenarios modeled on this page:
         </p>
         <ul className="text-sm max-w-prose space-y-2 list-disc list-inside mt-2">
           <li>
-            <b>Core (±5% around spot, ~30% of TVL)</b> — captures normal trading,
-            earns the lion&apos;s share of fees during quiet times.
+            <b>Core (-5% to +5% of spot, 30% by default)</b> - a narrow range
+            around initial spot.
           </li>
           <li>
-            <b>Absorb (−25% → −10%, ~50% of TVL)</b> — sits below spot in pure USDM.
-            When wTRY price crashes into this range (exactly when liquidators are
-            unwinding), the band buys wTRY at a discount and pays out USDM. This is
-            the <em>catch net</em>.
+            <b>Absorb (-15% to -5%, 50% by default)</b> - below initial spot and
+            one-sided in USDM at launch for the default endpoints. It can supply
+            output after a simulated sell reaches this range.
           </li>
           <li>
-            <b>Tail (−50% → +15%, ~20% of TVL)</b> — wide backstop for catastrophic
-            moves. Thin per-tick depth but always present.
+            <b>Tail (-90% to +30%, 20% by default)</b> - a broad range that includes
+            initial spot and therefore contributes to active liquidity at launch.
           </li>
         </ul>
         <p className="text-sm max-w-prose mt-2">
-          The split is controlled by the sidebar sliders. Default 30/50/20 is sized
-          for a small-vault launch; production deployments should tune to expected
-          liquidation flow.
+          The `USD` amounts in the band table are configured launch marked values.
+          They sum to configured pool capital. Active liquidity `L` is different:
+          it includes only ranges containing the current modeled spot.
         </p>
       </Section>
 
-      <Section title="How a liquidation actually flows through this pool">
+      <Section title="How a seized-collateral probe flows through this pool">
         <ol className="text-sm max-w-prose space-y-2 list-decimal list-inside">
           <li>
-            wTRY price falls. A position&apos;s loan-to-value crosses LLTV. Anyone can
-            liquidate it.
+            The scenario starts with a collateral value representing seized wTRY.
           </li>
           <li>
             The liquidator repays the borrower&apos;s debt in USDM and receives{' '}
             <code>collateral_USD = debt × LIF(lltv)</code> in seized wTRY. LIF
-            (Liquidation Incentive Factor) is a small bonus, e.g. LIF(0.86) ≈ 1.044
-            → 4.4% bonus. See{' '}
+            (Liquidation Incentive Factor) is a bonus, e.g. LIF(0.86) is about
+            1.04384, which corresponds to a 4.20% effective-slip repayment buffer. See{' '}
             <a className="text-brix-accent hover:underline" href="/help/liquidation">
               /help/liquidation
             </a>{' '}
             for the formula.
           </li>
           <li>
-            The liquidator immediately dumps the seized wTRY into this AMM (function{' '}
+            The page requests a wTRY-to-USDM sale through the configured AMM (function{' '}
             <code>quoteLiquidatorSell</code> in{' '}
             <code>lib/univ3/quoteLiquidatorSell.ts</code>).
           </li>
           <li>
-            The AMM returns <code>usdmOut</code>. Slippage + fee eat into the LIF
-            bonus.
+            The quote returns <code>usdmOut</code>. Effective slip includes fee,
+            execution price movement, and any unfilled requested notional after
+            represented liquidity is exhausted.
           </li>
           <li>
-            Bad debt = <code>max(0, debt − usdmOut)</code>. Helper:{' '}
-            <code>badDebtFromAMMSale</code> in <code>lib/badDebtMath.ts</code>.
+            Repayment shortfall = <code>max(0, debtToRepay - usdmOut)</code>.
+            Helper: <code>liquidatorExecutionShortfall</code> in{' '}
+            <code>lib/liquidatorShortfallMath.ts</code>.
           </li>
         </ol>
         <p className="text-sm max-w-prose mt-2">
-          The healthy case is <code>usdmOut ≥ debt</code> — slippage + fee stayed
-          inside the LIF buffer, the liquidator pocketed the spread, the protocol
-          ate zero loss.
+          A zero-shortfall probe has <code>usdmOut &gt;= debtToRepay</code>. It says
+          the hypothetical AMM sale covers repayment before gas. The homepage
+          cascade separately calculates residual Morpho debt.
         </p>
       </Section>
 
       <Section title="Worked example: a default-config liquidation">
         <p className="text-sm max-w-prose">
-          Concrete numbers using the page&apos;s default settings. Open{' '}
+          Concrete numbers using the default pool configuration, with the sell-size
+          slider manually set to a $25,000 seized-collateral probe instead of its
+          $1,000,000 URL-state default. Open{' '}
           <a className="text-brix-accent hover:underline" href="/swapliquidity">
             /swapliquidity
           </a>{' '}
@@ -150,14 +158,15 @@ export default function HelpSwapLiquidity() {
         <table className="text-xs mt-3 max-w-prose">
           <tbody>
             {[
-              ['Sidebar settings', '$500k pool, 30/50/20 split, fee 0.30%, LLTV 86%'],
+              ['Scenario inputs', '$500k configured capital, 30/50/20 split, fee 0.30%, LLTV 86%'],
+              ['Default band ranges', 'Core -5% to +5%; Absorb -15% to -5%; Tail -90% to +30%'],
               ['USD/TRY baseline', '= 45 (default) → spot wTRY/USDM ≈ 0.0222'],
-              ['LIF(0.86)', '≈ 1.044 → LIF buffer ≈ 4.4%'],
-              ['Liquidation event', '$25,000 of seized wTRY notional'],
-              ['Debt repaid (at trigger)', '$25,000 / 1.044 ≈ $23,946'],
-              ['AMM quote (default ladder)', 'slippage ≈ 0.6%, USDM out ≈ $24,850'],
-              ['Bad debt', 'max(0, 23,946 − 24,850) = $0'],
-              ['Liquidator profit', '24,850 − 23,946 = $904 minus gas'],
+              ['LIF(0.86)', '≈ 1.04384 → LIF buffer = 4.20%'],
+              ['Probe input', '$25,000 of seized wTRY notional'],
+              ['Debt to repay', '$25,000 / 1.04384 = $23,950'],
+              ['Calculated AMM output', 'USDM received ≈ $24,726; effective slip ≈ 1.094%'],
+              ['Marginal price movement', 'Marginal price slip ≈ 1.587%; fee on filled input = $75'],
+              ['Calculated shortfall', 'max(0, 23,950 - 24,726) = $0 before gas'],
             ].map(([k, v]) => (
               <tr key={k} className="border-b border-neutral-200 dark:border-neutral-800">
                 <td className="font-medium pr-4 py-1">{k}</td>
@@ -167,36 +176,39 @@ export default function HelpSwapLiquidity() {
           </tbody>
         </table>
         <p className="text-sm max-w-prose mt-3">
-          Bad debt would have fired if AMM proceeds fell below $23,946 — i.e. if
-          slippage + fee exceeded 4.4%. That requires either much deeper price impact
-          (pool drained, or a $100k+ sell), or a higher LLTV with a thinner buffer
-          (LIF(0.945) ≈ 1.017 → only a 1.7% buffer).
+          In this probe, proceeds cover repayment before gas because effective slip
+          is below the 4.20% LIF buffer. If effective slip crosses that buffer, the
+          page reports a liquidator repayment shortfall. It does not claim whether a
+          real transaction executes or whether unresolved protocol debt remains.
         </p>
       </Section>
 
       <Section title="How to read the charts">
         <ul className="text-sm max-w-prose space-y-3 list-disc list-inside">
           <li>
-            <b>Liquidity by tick (§1):</b> each bar marks a tick where an LP position
-            begins or ends. The big positive bars below current spot are the Absorb
-            band opening — that&apos;s the depth the AMM offers when wTRY crashes.
-            Negative bars are the upper edges of bands (liquidity removed when price
-            crosses going up).
+            <b>Net liquidity changes by tick (§1):</b> each bar marks a tick boundary where `L`
+            changes. The sign is stored for price moving upward. A wTRY sell moves
+            downward, so the swap crosses these boundaries in reverse order.
           </li>
           <li>
-            <b>Band allocation table (§1):</b> per-band breakdown of where the
-            pool&apos;s capital sits. Sums to the sidebar&apos;s Total TVL.
+            <b>Band allocation table (§1):</b> configured launch marked allocation.
+            Its USD column sums to configured pool capital, not active liquidity `L`.
           </li>
           <li>
-            <b>Liquidator swap KPIs (§2):</b> single-swap quote for the sell-size you
-            pick with the slider. Move the slider to feel slippage rise with size.
+            <b>Slippage curve (§2):</b> deterministic requested-sell sweep at initial
+            spot. The 1% line is a comparison reference; the LIF-buffer line is a
+            before-gas repayment reference for seized-collateral interpretation.
           </li>
           <li>
-            <b>Bad-debt distribution (§3):</b> histogram of bad-debt rate across the
-            Monte-Carlo FX paths from the homepage. A tall bar at 0% on the left =
-            healthy. A long right tail = stressed paths the LIF buffer didn&apos;t
-            cover. The p95 KPI is the worst 1-in-20 future and is what the insurance
-            buffer must size against.
+            <b>Liquidator swap KPIs (§3):</b> one requested-sale quote at initial
+            spot. `USDM received` is output; effective slip includes fee and impact;
+            marginal slip is final-price movement.
+          </li>
+          <li>
+            <b>Liquidator execution shortfall (§4):</b> the histogram repeats the
+            slider probe at sampled terminal-FX sizes against a pool fixed at initial
+            spot. The second chart is a deterministic size sweep. Both report
+            hypothetical before-gas repayment shortfall, not protocol bad debt.
           </li>
         </ul>
       </Section>
@@ -274,20 +286,28 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 
 const paramLabels: Partial<Record<string, string>> = {
   poolFeeTier: 'Fee tier',
-  poolTVL_USD: 'Pool TVL (USD)',
+  poolTVL_USD: 'Configured pool capital (USD)',
   bandSplitCore: 'Core band share',
   bandSplitAbsorb: 'Absorb band share',
+  bandCoreLowerPct: 'Core lower range edge',
+  bandCoreUpperPct: 'Core upper range edge',
+  bandAbsorbLowerPct: 'Absorb lower range edge',
+  bandAbsorbUpperPct: 'Absorb upper range edge',
+  bandTailLowerPct: 'Tail lower range edge',
+  bandTailUpperPct: 'Tail upper range edge',
+  swapSellUSD: 'Requested seized-wTRY probe (USD)',
 };
 
 const GLOSSARY: Array<[string, string]> = [
-  ['bad debt', 'Debt that the liquidator could not recover from the AMM sale. The protocol absorbs it as a loss to suppliers (or an insurance buffer).'],
-  ['core / absorb / tail bands', 'The three LP positions that make up the asymmetric ladder. Core sits ±5% around spot, Absorb at −25% → −10%, Tail at −50% → +15%.'],
-  ['fee tier', 'Per-swap commission paid to LPs. 0.30% (spacing 60) or 1.00% (spacing 200). Higher tier means coarser tick grid.'],
-  ['LIF', 'Liquidation Incentive Factor. Multiplier on debt that defines how much collateral the liquidator seizes. LIF(0.86) ≈ 1.044 → liquidator gets 4.4% bonus.'],
+  ['protocol bad debt', 'Residual Morpho debt after modeled liquidation behavior. It is calculated by the home simulator, not by this single-trade probe panel.'],
+  ['repayment shortfall', 'max(0, debtToRepay - AMM proceeds) for a hypothetical sale. A non-zero probe shortfall does not itself mean protocol debt was realized.'],
+  ['core / absorb / tail bands', 'Three configured LP positions. Current defaults are Core -5% to +5%, Absorb -15% to -5%, and Tail -90% to +30% of initial spot.'],
+  ['fee tier', 'Encoded input-fee option. Fee tier 3000 means 0.30% and spacing 60; 10000 means 1.00% and spacing 200.'],
+  ['LIF', 'Liquidation Incentive Factor. LIF(0.86) is about 1.04384, giving a modeled before-gas effective-slip buffer of 4.20%.'],
   ['liquidity (L)', 'Uniswap v3 internal parameter that ties a position\'s reserves to its price range. Bigger L in-range = less slippage.'],
   ['LLTV', 'Liquidation Loan-To-Value. Maximum debt/collateral ratio before liquidation fires. Governance-tier specific. Default 86%.'],
-  ['recovery rate', 'AMM proceeds ÷ debt-at-trigger. 100%+ means liquidator covered the debt. <100% means bad debt.'],
-  ['slippage', 'Price impact of a swap. (entry price − exit price) / entry price. Grows with swap size.'],
+  ['effective slip', 'max(0, 1 - USDM received / requested sell notional). Includes modeled fee, price movement, and unfilled requested notional.'],
+  ['marginal price slip', '(entry price - final price) / entry price for a wTRY sell. This endpoint measure differs from effective slip.'],
   ['sqrtPriceX96', 'Uniswap\'s internal price encoding: √price × 2^96. Not a number you read; just a marker for "this is an encoded price."'],
   ['tick', 'Integer index on the price grid. price = 1.0001 ^ tick. Bounded by MIN_TICK / MAX_TICK.'],
   ['tick spacing', 'How coarse the grid is. 60 for 0.30% fee, 200 for 1.00% fee. LP range endpoints must snap to multiples.'],
@@ -299,8 +319,8 @@ const CODE_MAP: Array<[string, string]> = [
   ['Tick-walking swap engine', 'lib/univ3/swap.ts'],
   ['Materialize a preset into a PoolState', 'lib/univ3/quoteLiquidatorSell.ts (materializePool)'],
   ['Liquidator sell quote', 'lib/univ3/quoteLiquidatorSell.ts (quoteLiquidatorSell)'],
-  ['Asymmetric ladder builder', 'lib/poolPreset.ts (buildAsymmetricLadder)'],
-  ['Bad-debt math (LLTV + LIF aware)', 'lib/badDebtMath.ts (badDebtFromAMMSale)'],
+  ['Asymmetric ladder builder', 'lib/poolPreset.ts (buildLadderFromInputs)'],
+  ['Liquidator repayment-shortfall math', 'lib/liquidatorShortfallMath.ts (liquidatorExecutionShortfall)'],
   ['LIF formula', 'lib/morphoMath.ts (LIF)'],
   ['Page entry', 'app/swapliquidity/page.tsx'],
   ['Sidebar controls', 'app/swapliquidity/SwapliquiditySidebar.tsx'],

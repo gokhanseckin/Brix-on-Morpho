@@ -96,7 +96,7 @@ export function PoolStatePanel() {
       </div>
       <div className="border rounded p-2">
         <div className="flex items-center text-xs text-neutral-500 px-2 pt-1">
-          <span>Liquidity by tick</span>
+          <span>Net liquidity changes by tick</span>
           <HelpPopover chartKey="liquidityByTick" />
         </div>
         <ResponsiveContainer width="100%" height={220}>
@@ -134,7 +134,7 @@ export function PoolStatePanel() {
           <HelpPopover chartKey="bandAllocationTable" />
         </div>
         <table className="text-xs w-full mt-1">
-          <thead><tr><th className="text-left">Band</th><th className="text-left">Range</th><th className="text-left">USD</th></tr></thead>
+          <thead><tr><th className="text-left">Band</th><th className="text-left">Range</th><th className="text-left">Configured USD</th></tr></thead>
           <tbody>
             {preset.positions.map((p) => (
               <tr key={p.label}>

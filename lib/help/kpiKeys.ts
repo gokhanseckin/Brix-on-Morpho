@@ -69,14 +69,15 @@ export const KPI_KEYS = [
   'poolFeeTierKpi',
   // SwapLiquidity — liquidator swap
   'usdmReceived',
+  'effectiveSlip',
   'slippagePctKpi',
   'effectivePrice',
   'feePaidUSD',
   'ticksCrossed',
-  // SwapLiquidity — bad-debt distribution
-  'zeroBadDebtPct',
-  'medianBadDebtRate',
-  'p95BadDebtRate',
+  // SwapLiquidity — liquidator execution-shortfall probe
+  'pathsWithNoShortfall',
+  'medianRepaymentShortfallRate',
+  'p95RepaymentShortfallRate',
 ] as const;
 
 export type KpiKey = (typeof KPI_KEYS)[number];
@@ -136,11 +137,12 @@ export const KPI_SECTION: Record<KpiKey, HelpSection> = {
   activeLiquidityScaled: 'swap-liquidity',
   poolFeeTierKpi: 'swap-liquidity',
   usdmReceived: 'swap-liquidity',
+  effectiveSlip: 'swap-liquidity',
   slippagePctKpi: 'swap-liquidity',
   effectivePrice: 'swap-liquidity',
   feePaidUSD: 'swap-liquidity',
   ticksCrossed: 'swap-liquidity',
-  zeroBadDebtPct: 'swap-liquidity',
-  medianBadDebtRate: 'swap-liquidity',
-  p95BadDebtRate: 'swap-liquidity',
+  pathsWithNoShortfall: 'swap-liquidity',
+  medianRepaymentShortfallRate: 'swap-liquidity',
+  p95RepaymentShortfallRate: 'swap-liquidity',
 };

@@ -17,8 +17,9 @@ export const CHART_KEYS = [
   // SwapLiquidity (section 7)
   'liquidityByTick',
   'bandAllocationTable',
-  'swapBadDebtHistogram',
-  'presetExportSchema',
+  'slippageCurve',
+  'repaymentShortfallHistogram',
+  'repaymentShortfallSweep',
 ] as const;
 
 export type ChartKey = (typeof CHART_KEYS)[number];
@@ -37,6 +38,7 @@ export const CHART_SECTION: Record<ChartKey, HelpSection> = {
   recommendationTable: 'utilization',
   liquidityByTick: 'swap-liquidity',
   bandAllocationTable: 'swap-liquidity',
-  swapBadDebtHistogram: 'swap-liquidity',
-  presetExportSchema: 'swap-liquidity',
+  slippageCurve: 'swap-liquidity',
+  repaymentShortfallHistogram: 'swap-liquidity',
+  repaymentShortfallSweep: 'swap-liquidity',
 };

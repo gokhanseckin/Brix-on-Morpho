@@ -365,4 +365,35 @@ describe('help registry', () => {
       expect(CHART_HELP.irmHeatmap.axes.x).toContain('95%');
     });
   });
+
+  describe('swap-liquidity help reflects the current probe and pool math', () => {
+    it('registers rendered shortfall outputs and removes obsolete bad-debt/export entries', () => {
+      expect(KPI_KEYS).toContain('pathsWithNoShortfall');
+      expect(KPI_KEYS).toContain('medianRepaymentShortfallRate');
+      expect(KPI_KEYS).toContain('p95RepaymentShortfallRate');
+      expect(KPI_KEYS).not.toContain('zeroBadDebtPct');
+      expect(KPI_KEYS).not.toContain('medianBadDebtRate');
+      expect(KPI_KEYS).not.toContain('p95BadDebtRate');
+
+      expect(CHART_KEYS).toContain('slippageCurve');
+      expect(CHART_KEYS).toContain('repaymentShortfallHistogram');
+      expect(CHART_KEYS).toContain('repaymentShortfallSweep');
+      expect(CHART_KEYS).not.toContain('swapBadDebtHistogram');
+      expect(CHART_KEYS).not.toContain('presetExportSchema');
+    });
+
+    it('documents current range defaults and liquidator shortfall rather than protocol debt', () => {
+      const params = PARAM_HELP as Record<string, { oneLiner: string }>;
+      const kpis = KPI_HELP as Record<string, { title: string; oneLiner: string; definitions: Array<{ definition: string }> }>;
+      const charts = CHART_HELP as Record<string, { title: string; oneLiner: string }>;
+
+      expect(params.poolTVL_USD.oneLiner).toContain('configured launch value');
+      expect(params.bandSplitAbsorb.oneLiner).toContain('-15% to -5%');
+      expect(kpis.activeLiquidityScaled.definitions.map((d) => d.definition).join(' ')).toContain('Core and Tail');
+      expect(kpis.pathsWithNoShortfall.title).toBe('Paths with no repayment shortfall');
+      expect(kpis.pathsWithNoShortfall.oneLiner).toContain('not protocol bad debt');
+      expect(charts.repaymentShortfallHistogram.oneLiner).toContain('not protocol bad debt');
+      expect(charts.repaymentShortfallSweep.title).toContain('Repayment shortfall');
+    });
+  });
 });
