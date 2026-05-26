@@ -9,9 +9,11 @@ import { useUrlState } from '@/lib/useUrlState';
 import {
   betaMean,
   slippageFromPreset,
-  deriveRecommendedLLTV,
-  snapToGovernanceLLTV,
 } from '@/lib/simulator';
+import {
+  scanLLTVSensitivity,
+  slippageForGovernanceTier,
+} from '@/lib/lltvPageMath';
 import { quantileSorted } from '@/lib/stats';
 import { buildLadderFromInputs } from '@/lib/poolPreset';
 import { type SidebarInputs } from '@/types/simulator';
@@ -128,9 +130,9 @@ export default function LLTVPage() {
     };
   }, []);
 
-  // Live inputs from useSimulator — same pipeline as the home page. We read
-  // p95Drawdown / slippage from lltvDerivation (not recompute) so this page
-  // is guaranteed to mirror VaultRecommendations on home, byte-for-byte.
+  // Live inputs from useSimulator — same pipeline as the home page. The
+  // selected drawdown percentile and winning-tier slippage come from
+  // lltvDerivation, so the headline mirrors VaultRecommendations on home.
   const p95Drawdown = sim.lltvDerivation.p95Drawdown;
   const slippage = sim.lltvDerivation.slippageEstimate;
   const safetyMargin = sim.inputs.safetyMargin;
@@ -170,24 +172,22 @@ export default function LLTVPage() {
       cells: matrixPercentiles.map(({ p, label: pLabel }) => {
         const dd1d = quantileSorted(sorted, p);
         const ddH = dd1d * Math.sqrt(h / 24);
-        const derived = deriveRecommendedLLTV({
-          p95Drawdown: ddH,
-          slippage,
+        const derived = scanLLTVSensitivity({
+          drawdown: ddH,
           safetyMargin,
+          perTier,
         });
-        const snapped = snapToGovernanceLLTV(derived.raw);
         return {
           p,
           pLabel,
           dd: ddH,
           raw: derived.raw,
-          snapped,
-          converged: derived.converged,
+          snapped: derived.snapped,
         };
       }),
     }));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [sim.fx?.oneDayDD, slippage, safetyMargin]);
+  }, [sim.fx?.oneDayDD, safetyMargin, perTier]);
 
   const fxSource = sim.fx?.oneDayDD
     ? 'Monte Carlo worker'
@@ -201,6 +201,7 @@ export default function LLTVPage() {
   const targetLLTV = sim.inputs.lltv;
   const lifTarget = LIF(targetLLTV);
   const targetRow = perTier.find((t) => t.lltv === targetLLTV);
+  const targetSlippage = slippageForGovernanceTier(perTier, targetLLTV);
   const targetIsSupported = targetLLTV > 0 && (targetRow?.feasible ?? false);
   // Bad-debt knob ceiling: targetLLTV × LIF(target) ≤ 1 − dd − safety
   const ddCeilingForTarget = Math.max(0, 1 - safetyMargin - targetLLTV * lifTarget);
@@ -212,9 +213,12 @@ export default function LLTVPage() {
     0,
     Math.min(
       1 - p95Drawdown - targetLLTV * lifTarget, // bad-debt
-      lifTarget * (1 - slippage) - 1, // profit
+      lifTarget * (1 - targetSlippage) - 1, // profit
     ),
   );
+  const p99HistoricalBadDebtLimit = 1 - historical.dd1.p99 - safetyMargin;
+  const targetPassesHistoricalP99 =
+    targetLLTV * lifTarget <= p99HistoricalBadDebtLimit;
 
   // Combined ceiling — relax safety to TIGHT.
   const slipCeilingTightSafety =
@@ -275,7 +279,8 @@ export default function LLTVPage() {
             </div>
             <p className="text-sm mt-1 text-neutral-300">
               Largest governance tier that satisfies both the no-bad-debt and
-              liquidator-profitability constraints (raw ceiling{' '}
+              liquidator-profitability constraints (continuous ceiling at the winning tier&apos;s
+              slippage: {' '}
               {rawDerived.toFixed(4)} / {pct(rawDerived, 2)}). Chosen LLTV in sidebar:{' '}
               {pct(sim.inputs.lltv, 1)} → risk tier: <strong>{riskTier}</strong>.{' '}
               Binding constraint:{' '}
@@ -441,11 +446,11 @@ export default function LLTVPage() {
             </div>
             <p className="text-xs text-neutral-400 mt-1 max-w-2xl">
               Which point in the 1-day drawdown distribution the LLTV formula
-              must absorb. <strong>p95</strong> covers normal-stress days (1-in-20).
-              <strong> p99</strong> is tail-protective (1-in-100) — produces a more
-              conservative LLTV at the cost of capital efficiency. Switch to p99
-              if you want the formula to survive rarer USD/TRY shocks without
-              relying on safety margin alone.
+              must absorb. <strong>p95</strong> plans against the 95th-percentile sampled
+              one-day loss. <strong> p99</strong> uses a rarer, larger sampled loss and normally
+              lowers the feasible LLTV at the cost of capital efficiency. These percentiles
+              describe the simulated or historical sample; they are not a guarantee against
+              future USD/TRY jumps.
             </p>
             <div className="mt-3 flex gap-2">
               {[
@@ -588,16 +593,16 @@ export default function LLTVPage() {
           <h2 className="text-xl font-semibold">Sensitivity matrix</h2>
           <p className="text-sm text-neutral-300">
             Recommended (snapped) LLTV for every combination of execution horizon and drawdown
-            percentile, holding slippage <code>{pct(slippage, 3)}</code> and safety margin{' '}
-            <code>{pct(safetyMargin, 2)}</code> at the current values. Move the safety-margin
-            slider above and watch the whole grid update.
+            percentile, holding the current pool design and safety margin{' '}
+            <code>{pct(safetyMargin, 2)}</code> fixed. Each cell re-evaluates every governance
+            tier using that tier&apos;s liquidation size and AMM slippage.
           </p>
           <p className="text-xs text-neutral-500 max-w-3xl">
             Sub-daily horizons use Brownian √-scaling from the 1-day series:{' '}
             <code>dd_h = dd_24h × √(h/24)</code>. We do not generate intra-day FX paths — the FX
-            history is daily-close Yahoo data, so finer-grained Monte Carlo would be fabrication.
-            √-scaling is standard practice for sub-daily collateral risk and is conservative for
-            jumpy assets like USD/TRY (real intra-day tails are usually fatter).
+            history contains daily closes only. This square-root scaling is a volatility
+            approximation for exploring shorter execution windows; it can understate abrupt
+            intra-day jumps.
           </p>
           {matrix ? (
             <div className="overflow-x-auto">
@@ -627,9 +632,7 @@ export default function LLTVPage() {
                                 ? 'text-emerald-300 font-semibold'
                                 : 'text-neutral-200'
                             }`}
-                            title={`dd_h = ${pct(c.dd, 3)} · raw L = ${c.raw.toFixed(4)}${
-                              c.converged ? '' : ' (did not converge)'
-                            }`}
+                            title={`dd_h = ${pct(c.dd, 3)} · raw L = ${c.raw.toFixed(4)}`}
                           >
                             {c.snapped > 0 ? pct(c.snapped, 1) : '—'}
                             <span className="block text-[10px] text-neutral-500 font-sans">
@@ -644,8 +647,8 @@ export default function LLTVPage() {
               </table>
               <p className="text-[11px] text-neutral-500 mt-2">
                 The cell highlighted in green is the (horizon, percentile) combo currently driving
-                the main recommendation above. <em>Hover</em> a cell to see the raw L and the
-                horizon-adjusted drawdown.
+                the main recommendation above. <em>Hover</em> a cell to see its continuous ceiling
+                and horizon-adjusted drawdown.
               </p>
             </div>
           ) : (
@@ -673,14 +676,17 @@ export default function LLTVPage() {
                 <td className="py-1 font-sans font-semibold">{ddLabel}</td>
                 <td className="text-right font-semibold">{pct(p95Drawdown, 3)}</td>
                 <td className="font-sans pl-4 text-neutral-400">
-                  {fxSource} · worst-case (no pre-liq cap)
+                  {fxSource} · pre-liquidation excluded from calibration
                 </td>
               </tr>
               <tr className="border-b border-brix-border">
-                <td className="py-1 font-sans">Slippage estimate</td>
+                <td className="py-1 font-sans">
+                  Slippage at {recommended > 0 ? 'recommended' : 'chosen'} tier
+                </td>
                 <td className="text-right">{pct(slippage, 3)}</td>
                 <td className="font-sans pl-4 text-neutral-400">
-                  Pool preset (TVL ${sim.inputs.poolTVL_USD.toLocaleString()}, bands){' '}
+                  {recommended > 0 ? pct(recommended, 1) : pct(targetLLTV, 1)} LLTV sell size;
+                  pool preset (TVL ${sim.inputs.poolTVL_USD.toLocaleString()}, bands){' '}
                   <a href="/swapliquidity" className="underline">edit</a>
                 </td>
               </tr>
@@ -691,7 +697,9 @@ export default function LLTVPage() {
               </tr>
               <tr className="border-b border-brix-border">
                 <td className="py-1 font-sans">LIF(recommended)</td>
-                <td className="text-right">{lifAtRecommended.toFixed(4)}</td>
+                <td className="text-right">
+                  {recommended > 0 ? lifAtRecommended.toFixed(4) : '—'}
+                </td>
                 <td className="font-sans pl-4 text-neutral-400">Morpho canonical (β = 0.3)</td>
               </tr>
             </tbody>
@@ -723,11 +731,11 @@ export default function LLTVPage() {
         <section className="space-y-3 mt-8">
           <h2 className="text-xl font-semibold">Walk-through (live)</h2>
           <pre className="rounded bg-brix-surface p-3 text-sm overflow-x-auto">
-{`${ddLabel.padEnd(26, ' ')} = ${pct(p95Drawdown, 4)}   (${fxSource}; worst-case, no pre-liq cap)
-slippage @ recommended     = ${pct(slippage, 3)}   (pool TVL $${sim.inputs.poolTVL_USD.toLocaleString()} + bands)
+{`${ddLabel.padEnd(26, ' ')} = ${pct(p95Drawdown, 4)}   (${fxSource}; pre-liquidation excluded)
+slippage @ ${recommended > 0 ? 'winning tier'.padEnd(15, ' ') : 'chosen tier'.padEnd(16, ' ')} = ${pct(slippage, 3)}   (pool TVL $${sim.inputs.poolTVL_USD.toLocaleString()} + bands)
 safety margin              = ${pct(safetyMargin, 2)}   (slider above)
 
-raw upper bound L = ${rawDerived.toFixed(4)} (binding: ${binding})
+continuous ceiling using that tier's slippage = ${rawDerived.toFixed(4)} (binding: ${binding})
   LIF(L_raw)               = ${lifAtRaw.toFixed(4)}
   L_raw · LIF(L_raw)       = ${(rawDerived * lifAtRaw).toFixed(4)}   vs   1 − dd − safety = ${(1 - p95Drawdown - safetyMargin).toFixed(4)}
   LIF(L_raw) · (1 − slip)  = ${(lifAtRaw * (1 - slippage)).toFixed(4)}   vs   1 + safety       = ${(1 + safetyMargin).toFixed(4)}
@@ -785,7 +793,8 @@ LIF(snapped)               = ${lifAtRecommended.toFixed(4)}`}
           {targetIsSupported ? (
             <div className="rounded border border-emerald-500/40 bg-emerald-950/30 p-4 text-sm text-neutral-200">
               Your chosen LLTV <strong>{pct(targetLLTV, 1)}</strong> is already supported by the
-              current parameters (raw {rawDerived.toFixed(4)} ≥ {targetLLTV}). No changes needed.
+              current drawdown, safety margin, and tier-specific slippage{' '}
+              (<code>{pct(targetSlippage, 3)}</code>). No changes needed.
               {targetLLTV < recommended && (
                 <>
                   {' '}You have headroom — recommended is{' '}
@@ -808,8 +817,8 @@ LIF(snapped)               = ${lifAtRecommended.toFixed(4)}`}
                   ⚠ Bad-debt constraint already fails at the target (L · LIF(L) ={' '}
                   <code>{(targetLLTV * lifTarget).toFixed(4)}</code> &gt; 1 − dd − safety ={' '}
                   <code>{(1 - p95Drawdown - safetyMargin).toFixed(4)}</code>). Pool deepening only
-                  helps slippage / profitability — to fix bad debt you need lower dd (longer
-                  pre-liq lead time / oracle improvements), lower safety, or a lower LLTV target.
+                  helps slippage / profitability; it cannot repair this check. A passing target
+                  requires a smaller calibrated drawdown, a lower safety margin, or a lower LLTV.
                 </div>
               )}
 
@@ -837,7 +846,7 @@ LIF(snapped)               = ${lifAtRecommended.toFixed(4)}`}
                   </tr>
                   <tr className="border-b border-brix-border">
                     <td className="py-1 font-sans">Slippage</td>
-                    <td className="text-right">{pct(slippage, 3)}</td>
+                    <td className="text-right">{pct(targetSlippage, 3)}</td>
                     <td className="text-right">
                       {slipCeilingForTarget > 0
                         ? `≤ ${pct(slipCeilingForTarget, 3)}`
@@ -859,8 +868,9 @@ LIF(snapped)               = ${lifAtRecommended.toFixed(4)}`}
               <h3 className="text-base font-semibold mt-6">Concrete recipes</h3>
               <p className="text-sm text-neutral-400">
                 Pool-TVL targets below are computed by binary-searching{' '}
-                <code>slippageFromPreset</code> at the expected P95 liquidation size, holding band
-                splits/ranges and fee tier at the values you set on{' '}
+                <code>slippageFromPreset</code> at the representative sell size: 1% of expected
+                borrows, multiplied by <code>LIF(target LLTV)</code>. Band splits/ranges and fee
+                tier stay at the values you set on{' '}
                 <a href="/swapliquidity" className="underline">/swapliquidity</a>.
               </p>
 
@@ -885,7 +895,8 @@ LIF(snapped)               = ${lifAtRecommended.toFixed(4)}`}
                       current).
                     </li>
                     <li>
-                      This brings slippage from <code>{pct(slippage, 2)}</code> down to{' '}
+                      This brings target-tier slippage from <code>{pct(targetSlippage, 2)}</code>{' '}
+                      down to{' '}
                       <code>{pct(recipePoolOnly.achieved, 2)}</code> (≤ target{' '}
                       <code>{pct(slipCeilingForTarget, 2)}</code>).
                     </li>
@@ -896,28 +907,38 @@ LIF(snapped)               = ${lifAtRecommended.toFixed(4)}`}
                   </ul>
                 ) : (
                   <p className="text-sm mt-2 text-neutral-300">
-                    Even at the search ceiling of{' '}
-                    <code>${(MAX_POOL_TVL_SEARCH / 1_000_000).toFixed(0)}M</code> pool TVL, slippage
-                    cannot fall low enough to satisfy the constraint at safety{' '}
-                    {pct(safetyMargin, 2)} and dd {pct(p95Drawdown, 2)}. Use Recipe B below.
+                    {badDebtFeasibleAtTarget ? (
+                      <>
+                        Even at the search ceiling of{' '}
+                        <code>${(MAX_POOL_TVL_SEARCH / 1_000_000).toFixed(0)}M</code> pool TVL,
+                        slippage cannot fall low enough to satisfy the profitability constraint at
+                        safety {pct(safetyMargin, 2)}. Consider Recipe B below.
+                      </>
+                    ) : (
+                      <>
+                        No pool-depth change can make this tier pass because its no-bad-debt
+                        check fails before slippage is considered.
+                      </>
+                    )}
                   </p>
                 )}
               </div>
 
-              {/* Recipe B — pool + tighter safety */}
+              {/* Recipe B — pool + fixed 1% safety */}
               <div className="rounded border border-brix-border bg-brix-surface p-4 mt-2">
                 <div className="flex items-center justify-between">
                   <h4 className="font-semibold">
-                    Recipe B · Pool deepening + tighter safety margin
+                    Recipe B · Pool deepening with 1% safety margin
                   </h4>
                   <span className={`text-xs font-mono ${recipeTightSafety ? 'text-emerald-300' : 'text-amber-400'}`}>
                     {recipeTightSafety ? 'feasible' : 'infeasible'}
                   </span>
                 </div>
                 <p className="text-xs text-neutral-400 mt-1">
-                  Reduce safety margin from <code>{pct(safetyMargin, 2)}</code> to{' '}
-                  <code>{pct(TIGHT_SAFETY_MARGIN, 0)}</code>. Riskiest knob — eats the cushion for
-                  oracle staleness, MEV, gas, modelling error.
+                  Evaluate safety margin at <code>{pct(TIGHT_SAFETY_MARGIN, 0)}</code> instead of{' '}
+                  <code>{pct(safetyMargin, 2)}</code>. This loosens the check only when the
+                  current margin is above 1%; a smaller cushion leaves less room for oracle
+                  staleness, MEV, gas, and modelling error.
                 </p>
                 {recipeTightSafety ? (
                   <ul className="text-sm mt-2 space-y-1 list-disc pl-5 text-neutral-200">
@@ -952,10 +973,15 @@ LIF(snapped)               = ${lifAtRecommended.toFixed(4)}`}
               <h3 className="text-base font-semibold mt-6">Tail check</h3>
               <p className="text-sm text-neutral-300">
                 The empirical p99 1-day drawdown is {pct(historical.dd1.p99, 2)} and the worst
-                observed is {pct(historical.dd1.max, 2)}. At {pct(targetLLTV, 1)} a p99 event would
-                still produce bad debt — any recipe above is only defensible if the Section 4
-                bad-debt P95 (with cascade simulation) stays under the vault&apos;s tolerance after
-                re-running with the new LLTV.
+                observed is {pct(historical.dd1.max, 2)}. At {pct(targetLLTV, 1)}, the empirical
+                p99 no-bad-debt check{' '}
+                <strong className={targetPassesHistoricalP99 ? 'text-emerald-300' : 'text-amber-300'}>
+                  {targetPassesHistoricalP99 ? 'passes' : 'fails'}
+                </strong>
+                : <code>L x LIF(L) = {(targetLLTV * lifTarget).toFixed(4)}</code> versus{' '}
+                <code>1 - dd - safety = {p99HistoricalBadDebtLimit.toFixed(4)}</code>. Any
+                proposed tier should also be re-run through the full liquidation simulation on
+                the home page.
               </p>
             </>
           )}
@@ -966,8 +992,9 @@ LIF(snapped)               = ${lifAtRecommended.toFixed(4)}`}
           <p className="text-sm text-neutral-300">
             Yahoo Finance <code>TRY=X</code> daily close, {historical.first.date} →{' '}
             {historical.last.date} ({historical.days} trading days). These are the raw historical
-            drawdowns; the live recommendation above uses the Monte Carlo worker&apos;s p95 when
-            available (Bootstrap resamples this series), with the empirical p95 as fallback.
+            drawdowns; the live recommendation above uses the Monte Carlo worker&apos;s selected
+            p{ddPctile} one-day drawdown when available (Bootstrap resamples this series), with
+            the empirical p{ddPctile} as fallback.
           </p>
           <table className="text-sm w-full max-w-md">
             <tbody>
