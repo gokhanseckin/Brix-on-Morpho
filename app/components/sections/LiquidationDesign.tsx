@@ -10,24 +10,13 @@ import {
   Bar,
 } from 'recharts';
 import { useMemo } from 'react';
-import { sampleBetaLtvFractions } from '@/lib/simulator';
-import { LIF } from '@/lib/morphoMath';
-import { quantile } from '@/lib/stats';
 import { GOV_LLTVS } from '@/types/simulator';
 import { Kpi, formatPct, formatUSD } from '../Kpi';
 import { HelpPopover } from '../help/HelpPopover';
 import Link from 'next/link';
 
-// Concurrent stress: assume arbitrage refills the AMM ladder back toward oracle
-// on a ~30-min cycle, giving 48 single-swap clears over a 1-day stress window
-// (24h × 2 cycles/hour). Conservative — real refill cadence depends on MEV
-// competition and the gap between AMM mid and oracle. The 1-day horizon
-// matches the realistic execution window adopted on /lltv.
-const ARB_REFILL_PER_DAY = 48;
-
 export function LiquidationDesign() {
-  const { fx, inputs, lltvDerivation, pool } = useSimulator();
-  const { effectiveDepth_USD } = pool;
+  const { fx, inputs, lltvDerivation } = useSimulator();
 
   // Bad debt histogram
   const badDebtBins = useMemo(() => {
@@ -52,73 +41,6 @@ export function LiquidationDesign() {
     return out;
   }, [fx]);
 
-  // Concurrent stress at the P95 1-day FX move.
-  //
-  // A borrower with utilization fraction f has effective LTV = f × LLTV and
-  // buffer = (1 − f). They liquidate within a 1-day window iff drawdown ≥
-  // buffer, i.e. f ≥ 1 − dd_p95. We resample the same Beta(α, β) borrower
-  // population the worker uses (deterministic on inputs.seed), filter to the
-  // tail above that threshold, and sum their debt × LIF. That's the aggregate
-  // collateral seized over the worst single day — what could pressure the
-  // AMM if arrivals cluster.
-  //
-  // Capacity: between liquidations, arbitrage restores depth to ~oracle.
-  // Assume a conservative 30-min refill cycle → 48 arb cycles per day. Each
-  // cycle can clear up to the AMM single-swap breakeven (largest swap with
-  // effective slip ≤ LIF − 1).
-  const concurrentStress = useMemo(() => {
-    // Fallback ≈ 0.15 / √3 ≈ 0.087 by Brownian √-scaling of the prior 3-day default.
-    const dd_p95 =
-      fx?.oneDayDD && fx.oneDayDD.length > 0 ? quantile(fx.oneDayDD, 0.95) : 0.087;
-    const fMin = Math.max(0, 1 - dd_p95);
-
-    const N = 1000;
-    const ltvFractions = sampleBetaLtvFractions({
-      alpha: inputs.borrowerLTVAlpha,
-      beta: inputs.borrowerLTVBeta,
-      n: N,
-      seed: inputs.seed,
-    });
-    const collateralEach = inputs.witryTVL_USD / N;
-
-    const atRisk = ltvFractions.filter((f) => f >= fMin);
-    const positionsAtRisk = atRisk.length;
-    const debtAtRisk_USD = atRisk.reduce(
-      (sum, f) => sum + f * inputs.lltv * collateralEach,
-      0,
-    );
-    const seizedConcurrent_USD = debtAtRisk_USD * LIF(inputs.lltv);
-
-    const breakevenPerSwap_USD = isFinite(lltvDerivation.minMax.max_USD)
-      ? lltvDerivation.minMax.max_USD
-      : 0;
-    const ammCapacity_1d_USD = breakevenPerSwap_USD * ARB_REFILL_PER_DAY;
-
-    const viable = seizedConcurrent_USD <= ammCapacity_1d_USD;
-    const headroom_USD = ammCapacity_1d_USD - seizedConcurrent_USD;
-
-    return {
-      dd_p95,
-      fMin,
-      positionsAtRisk,
-      population: N,
-      debtAtRisk_USD,
-      seizedConcurrent_USD,
-      breakevenPerSwap_USD,
-      ammCapacity_1d_USD,
-      viable,
-      headroom_USD,
-    };
-  }, [
-    fx,
-    inputs.borrowerLTVAlpha,
-    inputs.borrowerLTVBeta,
-    inputs.seed,
-    inputs.witryTVL_USD,
-    inputs.lltv,
-    lltvDerivation.minMax.max_USD,
-  ]);
-
   return (
     <section id="section-liquidation-design" className="space-y-6">
       <div>
@@ -130,7 +52,7 @@ export function LiquidationDesign() {
         </p>
       </div>
 
-      <div className="grid grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 gap-4">
         <Kpi
           label="P95 residual Morpho debt (USD)"
           value={fx?.badDebt ? formatUSD(fx.badDebt.badDebtP95_USD) : '—'}
@@ -149,27 +71,6 @@ export function LiquidationDesign() {
           }
           helpKey="badDebtP95Pct"
         />
-        <Kpi
-          label="Concurrent stress @ P95 1-day move"
-          value={
-            concurrentStress.viable
-              ? `VIABLE · ${formatUSD(concurrentStress.seizedConcurrent_USD)}`
-              : `STRESSED · ${formatUSD(concurrentStress.seizedConcurrent_USD)}`
-          }
-          hint={`At ${formatPct(concurrentStress.dd_p95, 1)} 1-day drawdown, ${concurrentStress.positionsAtRisk}/${concurrentStress.population} borrowers (Beta tail with f ≥ ${concurrentStress.fMin.toFixed(2)}) cross LLTV. Aggregate seized ${formatUSD(concurrentStress.seizedConcurrent_USD)}. With ~30-min arb refill cycle, AMM clears ~${formatUSD(concurrentStress.ammCapacity_1d_USD)} per day (single-swap max ${formatUSD(concurrentStress.breakevenPerSwap_USD)} × 48). ${concurrentStress.viable ? 'Liquidators fire freely.' : 'Cluster risk: arrivals may outpace arb refill.'}`}
-          tone={concurrentStress.viable ? 'good' : 'bad'}
-          helpKey="concurrentStressP95"
-        />
-        <Kpi
-          label="Profitable debt range (gas-aware)"
-          value={
-            isFinite(lltvDerivation.minMax.min_USD) && isFinite(lltvDerivation.minMax.max_USD)
-              ? `${formatUSD(lltvDerivation.minMax.min_USD)} – ${formatUSD(lltvDerivation.minMax.max_USD)}`
-              : 'unprofitable at any size'
-          }
-          hint={`Liquidator P&L ≥ 0: lower bound is gas-floor ($${5} gas eats small debt), upper bound is slippage-ceiling (AMM proceeds eaten by price impact). The swap-page "max liquidator dump at break-even" KPI uses a stricter LIF-buffer cutoff (gas-blind) — see /swapliquidity.`}
-          helpKey="minProfitableLiquidation"
-        />
       </div>
 
       <PoolSnapshot
@@ -177,7 +78,6 @@ export function LiquidationDesign() {
         feeTier={inputs.poolFeeTier}
         coreSplit={inputs.bandSplitCore}
         absorbSplit={inputs.bandSplitAbsorb}
-        concurrentStress_USD={concurrentStress.seizedConcurrent_USD}
       />
 
       <div>
@@ -194,13 +94,14 @@ export function LiquidationDesign() {
           Each bar counts simulated FX paths whose total leftover Morpho debt
           (summed across the Beta-distributed borrower population, with sequential
           AMM liquidations and pre-liquidation cascade) lands in that USD bucket.
-          For the single-probe complement — &ldquo;if a $X seized-collateral dump lands
-          at this path&apos;s terminal spot, what&apos;s the bad-debt rate?&rdquo; — see{' '}
+          For the single-probe complement - &ldquo;if a $X seized-collateral dump lands
+          at this path&apos;s terminal spot, what is the hypothetical repayment
+          shortfall rate?&rdquo; - see{' '}
           <Link
             href="/swapliquidity#section-recovery"
             className="text-brix-accent hover:text-brix-accentHover"
           >
-            Bad-debt distribution at slider size → /swapliquidity
+            Repayment-shortfall probes on /swapliquidity
           </Link>
           .
         </p>
@@ -245,20 +146,10 @@ export function LiquidationDesign() {
         <div className="text-sm">
           At LLTV={(inputs.lltv * 100).toFixed(1)}%, P95 residual Morpho debt ={' '}
           {fx?.badDebt ? formatUSD(fx.badDebt.badDebtP95_USD) : '—'} (
-          {fx?.badDebt ? formatPct(fx.badDebt.badDebtP95Pct, 2) : '—'} of TVL).
-          Concurrent stress at P95 1-day move ({formatPct(concurrentStress.dd_p95, 1)}):{' '}
-          {concurrentStress.positionsAtRisk}/{concurrentStress.population} borrowers in Beta tail,{' '}
-          {formatUSD(concurrentStress.seizedConcurrent_USD)} aggregate seized →{' '}
-          <strong>{concurrentStress.viable ? 'VIABLE' : 'STRESSED'}</strong>
-          {!concurrentStress.viable && ' if liquidations cluster faster than arb-refill'} against
-          ~{formatUSD(concurrentStress.ammCapacity_1d_USD)} of 1-day AMM clearing capacity
-          (single-swap max × 48 refills). Note: full-horizon cumulative liquidation volume (
-          {fx?.badDebt ? formatUSD(fx.badDebt.expectedLiquidationVolumeP95_USD) : '—'}) is LP-LVR
-          burden, not liquidator-skip risk. Recommended wiTRY/USDM pool depth ≥{' '}
-          {formatUSD(
-            Math.max(concurrentStress.seizedConcurrent_USD / 0.0438, effectiveDepth_USD, 250_000),
-          )}{' '}
-          (concurrent seized ÷ LIF cliff; $250k floor). Pre-liquidation scenario:{' '}
+          {fx?.badDebt ? formatPct(fx.badDebt.badDebtP95Pct, 2) : '—'} of TVL). Full-horizon
+          cumulative liquidation volume (
+          {fx?.badDebt ? formatUSD(fx.badDebt.expectedLiquidationVolumeP95_USD) : '—'}) is
+          LP-LVR burden, not liquidator-skip risk. Pre-liquidation scenario:{' '}
           <strong>
             {inputs.preLiquidationEnabled ? 'all borrowers authorized' : 'no borrowers authorized'}
           </strong>{' '}
@@ -279,7 +170,6 @@ interface PoolSnapshotProps {
   feeTier: number;
   coreSplit: number;
   absorbSplit: number;
-  concurrentStress_USD: number;
 }
 
 function PoolSnapshot(p: PoolSnapshotProps) {
@@ -300,10 +190,6 @@ function PoolSnapshot(p: PoolSnapshotProps) {
           core {(p.coreSplit * 100).toFixed(0)}% · absorb {(p.absorbSplit * 100).toFixed(0)}% ·
           tail {(tailSplit * 100).toFixed(0)}%
         </span>
-      </div>
-      <div>
-        P95 1-day stress{' '}
-        <span className="text-neutral-100">{formatUSD(p.concurrentStress_USD)}</span>
       </div>
       <Link
         href="/swapliquidity"

@@ -215,12 +215,8 @@ describe('help registry', () => {
   // PR #6: Section 4 (Liquidation Design) ships real copy.
   describe('PR #6 — liquidation content is no longer stubbed', () => {
     const SECTION_4_KPIS = [
-      'minProfitableLiquidation',
-      'maxProfitableLiquidation',
-      'recommendedPoolDepth',
       'badDebtP95USD',
       'badDebtP95Pct',
-      'concurrentStressP95',
       'preLiquidationParams',
     ] as const;
     const SECTION_4_CHARTS = ['badDebtHistogram'] as const;
@@ -315,8 +311,11 @@ describe('help registry', () => {
       expect(KPI_HELP.netLoopAPY.oneLiner).not.toContain('Monte Carlo P&L distribution');
     });
 
-    it('documents configurable repeated pre-liquidation and concurrent capacity', () => {
-      expect(Object.keys(KPI_HELP)).toContain('concurrentStressP95');
+    it('documents configurable repeated pre-liquidation without removed KPI cards', () => {
+      expect(Object.keys(KPI_HELP)).not.toContain('concurrentStressP95');
+      expect(Object.keys(KPI_HELP)).not.toContain('minProfitableLiquidation');
+      expect(Object.keys(KPI_HELP)).not.toContain('maxProfitableLiquidation');
+      expect(Object.keys(KPI_HELP)).not.toContain('recommendedPoolDepth');
       expect(KPI_HELP.preLiquidationParams.formula.plain).toContain('interpolate');
       expect(KPI_HELP.preLiquidationParams.definitions.map((d) => d.definition).join(' ')).toContain('repeated');
       expect(PARAM_HELP.preLiquidationEnabled.oneLiner).not.toContain('one-shot');

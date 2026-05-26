@@ -29,82 +29,6 @@ const COMMON_PARAMS: Record<string, KpiHelp['params'][number]> = {
   gas: { name: 'DEFAULT_GAS_COST_USD', source: 'constant', value: '$5', note: 'Nominal gas cushion in useSimulator.ts; MegaETH gas is ≈ 0 in practice.' },
 };
 
-const minProfitableLiquidation: KpiHelp = {
-  title: 'Min profitable liquidation',
-  oneLiner:
-    'The smallest debt size for which a liquidator breaks even. Below this, fixed gas cost eats the LIF spread — small positions never get liquidated and silently accumulate bad debt.',
-  formula: {
-    plain:
-      'seized = debt x LIF(lltv)\nrevenue = quoteSellUSD(current AMM ladder, spot, seized)\nprofit(debt) = revenue - debt - $5 gas\nmin_USD = smallest searched debt with profit >= 0',
-    latex:
-      '\\text{profit}(D) = \\operatorname{quote}_{AMM}(D \\cdot LIF) - D - \\text{gas}',
-  },
-  params: [COMMON_PARAMS.lltv!, COMMON_PARAMS.poolDepth!, COMMON_PARAMS.gas!],
-  definitions: [
-    { term: 'LIF(lltv)', definition: 'Liquidation Incentive Factor: collateral seized per dollar of debt repaid. At LLTV=86%, LIF is about 1.044, so a liquidator receives about $1.044 of collateral per $1 debt before swap costs.' },
-    { term: 'AMM quote', definition: 'The code sells seized wiTRY through the configured concentrated-liquidity ladder. Fees and price impact are both included in the returned USDM revenue.' },
-    { term: 'Profit non-monotonicity', definition: 'Gas dominates at small debt → profit is negative; LIF spread dominates in the middle → profit positive; slippage dominates at large debt → profit negative again. Hence a profitable WINDOW, not a half-line.' },
-    { term: 'Bad-debt implication', definition: 'Positions with debt below this floor are stranded — no one liquidates them even when health factor < 1. Spec §4A flags this as the small-position bad-debt vector.' },
-  ],
-  impact: {
-    health: 'Sets the bad-debt floor. Lower min → fewer stranded positions.',
-    sustainability: 'Driven by gas cost. As long as MegaETH gas stays near zero, the floor is tiny.',
-    profitability: 'Smaller min lets liquidators clear more positions, tightening the bad-debt distribution.',
-  },
-};
-
-const maxProfitableLiquidation: KpiHelp = {
-  title: 'Max profitable liquidation',
-  oneLiner:
-    'The largest debt size for which a liquidator still breaks even. Above this, AMM slippage exceeds the LIF spread and liquidations stop firing — large positions silently turn into bad debt.',
-  formula: {
-    plain:
-      'max_USD = largest searched debt with\n  quoteSellUSD(AMM ladder, debt x LIF(lltv)) - debt - $5 >= 0',
-    latex:
-      'max\\_USD = \\sup\\{ D : \\text{profit}(D) \\geq 0 \\}',
-  },
-  params: [COMMON_PARAMS.lltv!, COMMON_PARAMS.poolDepth!, COMMON_PARAMS.gas!],
-  definitions: [
-    { term: 'Slippage cliff', definition: 'Ignoring the small gas term, the liquidator breaks even when AMM proceeds equal repaid debt. In fraction form this is approximately slippage = 1 - 1/LIF.' },
-    { term: 'Binary-search bracket', definition: 'The implementation log-scans for the profit peak, then binary-searches both zero-crossings in [peak, peak × 1e6]. Returns NaN/NaN when no debt size is profitable (e.g. pool depth essentially zero).' },
-    { term: 'Pool depth is the lever', definition: 'Doubling pool depth roughly doubles the max. This is the single most effective dial for handling whale-sized positions.' },
-  ],
-  impact: {
-    health: 'Sets the ceiling on liquidatable position size. Whales above this are uncovered.',
-    sustainability: 'Depends entirely on bootstrapped wiTRY/USDM pool depth — Brix must seed and incentivize it alongside the lending market.',
-    profitability: 'A tight profitable window means fewer hands willing to liquidate, less competition, slower clearing.',
-  },
-};
-
-const recommendedPoolDepth: KpiHelp = {
-  title: 'Recommended pool depth',
-  oneLiner:
-    'The recommendation sentence in the homepage uses the P95 one-day concurrent seized amount as its stress notional, then compares that requirement with current effective depth and a launch floor.',
-  formula: {
-    plain:
-      'displayedPoolDepthFloor = max(\n  seizedConcurrent_USD / 0.0438,\n  effectiveDepth_USD,\n  $250,000\n)\n0.0438 is the displayed LIF-spread approximation used by the recommendation sentence.',
-    latex:
-      'D_{\\mathrm{floor}} = \\max\\left(\\frac{\\mathrm{seizedConcurrent}}{0.0438},\\;D_{\\mathrm{effective}},\\;250000\\right)',
-  },
-  params: [
-    { name: 'seizedConcurrent_USD', source: 'derived', note: 'From the visible P95 concurrent-stress tile.' },
-    { name: 'effectiveDepth_USD', source: 'derived', note: 'Materialized concentrated-liquidity ladder valued at current spot.' },
-    { name: '0.0438', source: 'constant', value: '4.38%', note: 'Homepage approximation for the available liquidation spread.' },
-    COMMON_PARAMS.lltv!,
-    COMMON_PARAMS.poolDepth!,
-  ],
-  definitions: [
-    { term: 'Concurrent stress amount', definition: 'Aggregate collateral that would be seized if the Beta-sampled positions crossing LLTV under the P95 one-day move were liquidated together.' },
-    { term: 'Different from cumulative volume', definition: 'The worker also reports total executed liquidation flow over an entire path. The depth recommendation shown on the homepage instead uses the one-day concurrent amount.' },
-    { term: 'Capital cost', definition: 'Recommended depth is supplier capital locked at AMM yield instead of Morpho yield — a real opportunity cost. Bigger pool = safer but lower-yielding.' },
-  ],
-  impact: {
-    health: 'Undersized pool ⇒ tail liquidations exceed slippage budget ⇒ liquidators sit out ⇒ bad debt accrues.',
-    sustainability: 'A pool that needs to be 20× the largest liquidation is fragile. Pre-liquidation (next KPI) lets you run with a thinner pool.',
-    profitability: 'Pool TVL competes with lending TVL for the same supplier dollars. Trade-off is real and is governance-tunable.',
-  },
-};
-
 const badDebtP95USD: KpiHelp = {
   title: 'P95 residual Morpho debt (USD)',
   oneLiner:
@@ -158,33 +82,6 @@ const badDebtP95Pct: KpiHelp = {
   },
 };
 
-const concurrentStressP95: KpiHelp = {
-  title: 'Concurrent stress at P95 1-day move',
-  oneLiner:
-    'A one-day arrival-capacity screen: estimate how much collateral would be seized when the Beta-distribution tail crosses LLTV during a P95 daily TRY weakening, then compare it with assumed AMM clearing capacity.',
-  formula: {
-    plain:
-      'dd = P95(oneDayDD)\nfMin = max(0, 1 - dd)\ndebtAtRisk = sum(f_i x LLTV x TVL / 1000) for sampled f_i >= fMin\nseizedConcurrent = debtAtRisk x LIF(LLTV)\ncapacity = maxProfitableDebt x 48\nstatus = VIABLE if seizedConcurrent <= capacity, else STRESSED',
-    latex:
-      '\\mathrm{seizedConcurrent} = LIF(LLTV)\\sum_{f_i \\ge 1-dd_{95}} f_i\\,LLTV\\,\\frac{TVL}{1000}',
-  },
-  params: [
-    { name: 'oneDayDD', source: 'derived', note: 'Per-path worst 1-day upward USD/TRY move from the FX worker.' },
-    { name: 'Beta borrower sample', source: 'derived', note: '1000 fractions sampled from sidebar alpha and beta with the selected seed.' },
-    { name: 'maxProfitableDebt', source: 'derived', note: 'Upper end of the gas-aware profitable debt range for the current pool.' },
-    { name: 'ARB_REFILL_PER_DAY', source: 'constant', value: '48', note: 'Screening assumption: one AMM refill every 30 minutes.' },
-  ],
-  definitions: [
-    { term: 'f_i', definition: 'Borrower i actual LTV as a fraction of the LLTV cap. A borrower crosses the hard threshold after drawdown dd when f_i >= 1 - dd.' },
-    { term: 'Capacity screen', definition: 'The homepage multiplies the largest profitable single debt clear by 48 assumed refills. It is a fast operational screen, separate from the sequential full-path bad-debt simulation.' },
-  ],
-  impact: {
-    health: 'STRESSED means a clustered one-day arrival could exceed the assumed refill cadence even when individual liquidations are profitable.',
-    sustainability: 'The result is sensitive to pool depth, borrower tail shape, LLTV, FX drawdown, and the assumed 30-minute refill cadence.',
-    profitability: 'More depth can improve the screen but commits more capital to AMM liquidity rather than lending yield.',
-  },
-};
-
 const preLiquidationParams: KpiHelp = {
   title: 'Pre-liquidation parameters',
   oneLiner:
@@ -214,12 +111,8 @@ const preLiquidationParams: KpiHelp = {
 };
 
 export const LIQUIDATION_KPIS = {
-  minProfitableLiquidation,
-  maxProfitableLiquidation,
-  recommendedPoolDepth,
   badDebtP95USD,
   badDebtP95Pct,
-  concurrentStressP95,
   preLiquidationParams,
 };
 
