@@ -30,7 +30,9 @@ export function IRMHeatmap({ analysis }: { analysis: UtilizationAnalysisOutput }
     <section className="rounded-lg border border-brix-border bg-brix-card p-4">
       <h2 className="font-semibold inline-flex items-center gap-1">IRM Sensitivity Heatmap<HelpPopover chartKey="irmHeatmap" /></h2>
       <p className="text-sm text-neutral-400">
-        borrowAPY across (u_target, r_target). Green = loop margin &gt; 0 (looperNetAPY ≥ borrow cost after HF buffer, slippage, and FX-vol drag); red = unprofitable. wiTRY 7d = {(w7*100).toFixed(2)}%.
+        Borrow APY across (u_target, Rate at Target). Green means the finite-loop
+        7d carry margin is positive after borrow cost, slippage, and HF idle cost;
+        red means it is not. FX stress is a separate gate. wiTRY 7d = {(w7*100).toFixed(2)}%.
       </p>
       <div className="mt-3 overflow-x-auto">
         <table className="border-collapse text-xs">
@@ -58,7 +60,7 @@ export function IRMHeatmap({ analysis }: { analysis: UtilizationAnalysisOutput }
           </tbody>
         </table>
       </div>
-      <p className="mt-2 text-xs text-neutral-500">x: u_target · y: r_target · cell: borrowAPY% · outline: current (recommended)</p>
+      <p className="mt-2 text-xs text-neutral-500">x: u_target · y: Rate at Target (anchored at u=90%) · cell: borrowAPY% · outline: recommendation</p>
     </section>
   );
 }

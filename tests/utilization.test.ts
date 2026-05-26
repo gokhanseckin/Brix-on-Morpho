@@ -16,6 +16,7 @@ const CANONICAL = {
   rTarget: 0.04,
   lltv: 0.86,
   hfBuffer: 1.5,
+  loopCount: 10,
   witryYield7d: 0.0631,
   witryYield30d: 0.1931,
   perLoopSlippageBps: 30,

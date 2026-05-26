@@ -67,12 +67,13 @@ export interface RecommendInput {
   rTarget: number;
   lltv: number;
   hfBuffer: number;
+  loopCount: number;
   witryYield7d: number;
   witryYield30d: number;
   perLoopSlippageBps: number;
   tvlUSDM_USD: number;
   stressPctOfSupply: number;
-  kinkClearance: number;       // default 0.07
+  kinkClearance: number;       // default 0
   fxAnnualVol: number;         // FX vol overlay; 0 disables the stress gate
   fxStressZ: number;           // stress quantile; default 1.65 (≈ 95th pct)
   searchRange: [number, number];
@@ -177,11 +178,13 @@ export function sweepUtilizationTargets(i: RecommendInput): SweepRow[] {
     const e7 = looperNetAPY({
       uTarget: u2, rTarget: i.rTarget, lltv: i.lltv, hfBuffer: i.hfBuffer,
       witryYieldAnnual: i.witryYield7d, perLoopSlippageBps: i.perLoopSlippageBps,
+      loopCount: i.loopCount,
       fxAnnualVol: i.fxAnnualVol, fxStressZ: i.fxStressZ,
     });
     const e30 = looperNetAPY({
       uTarget: u2, rTarget: i.rTarget, lltv: i.lltv, hfBuffer: i.hfBuffer,
       witryYieldAnnual: i.witryYield30d, perLoopSlippageBps: i.perLoopSlippageBps,
+      loopCount: i.loopCount,
       fxAnnualVol: i.fxAnnualVol, fxStressZ: i.fxStressZ,
     });
     const stress = liquidityStress({

@@ -329,4 +329,40 @@ describe('help registry', () => {
       expect(KPI_HELP.vaultConfigJson.oneLiner).not.toContain('deploy-ready');
     });
   });
+
+  describe('utilization help reflects the page solver and visible sections', () => {
+    it('documents the fixed IRM kink, configured clearance, and all four solver gates', () => {
+      const recommendationText = [
+        KPI_HELP.recommendedUTarget.oneLiner,
+        KPI_HELP.recommendedUTarget.formula.plain,
+        ...KPI_HELP.recommendedUTarget.definitions.map((d) => d.definition),
+      ].join(' ');
+
+      expect(recommendationText).toContain('u = 0.90');
+      expect(recommendationText).toContain('kinkClearance');
+      expect(recommendationText).toContain('default 0');
+      expect(recommendationText).toContain('leveredDrawdown < HF headroom');
+      expect(recommendationText).not.toContain('minimum gap (0.07 = 7pp)');
+      expect(KPI_HELP.distanceToKink.oneLiner).toContain('configured kink clearance');
+    });
+
+    it('documents finite-loop carry and keeps FX outside carry APY', () => {
+      expect(KPI_HELP.looperNetAPY.formula.plain).toContain('loopCount');
+      expect(KPI_HELP.looperNetAPY.formula.plain).toContain('finite');
+      expect(KPI_HELP.looperNetAPY.oneLiner).toContain('FX is checked separately');
+      expect(CHART_HELP.irmHeatmap.oneLiner).toContain('loopMargin7d > 0');
+      expect(CHART_HELP.irmHeatmap.oneLiner).not.toContain('borrowAPY < wiTRY');
+    });
+
+    it('only registers utilization charts and inputs that the page renders', () => {
+      expect(CHART_KEYS).not.toContain('liquidityStressTable');
+      expect(CHART_KEYS).not.toContain('loopEconomicsWaterfall');
+      expect(Object.keys(KPI_HELP)).toContain('kinkClearanceInput');
+    });
+
+    it('does not freeze live volatility data in copy and states the heatmap range', () => {
+      expect(KPI_HELP.fxAnnualVol.oneLiner).not.toContain('At current data');
+      expect(CHART_HELP.irmHeatmap.axes.x).toContain('95%');
+    });
+  });
 });

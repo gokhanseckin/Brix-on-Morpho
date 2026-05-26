@@ -61,6 +61,7 @@ export const KPI_KEYS = [
   'stressPctOfSupplyInput',
   'hfBufferInput',
   'rTargetOverrideInput',
+  'kinkClearanceInput',
   'fxStressZInput',
   // SwapLiquidity (section 7) — pool state
   'spotWtryUsdm',
@@ -129,6 +130,7 @@ export const KPI_SECTION: Record<KpiKey, HelpSection> = {
   stressPctOfSupplyInput: 'utilization',
   hfBufferInput: 'utilization',
   rTargetOverrideInput: 'utilization',
+  kinkClearanceInput: 'utilization',
   fxStressZInput: 'utilization',
   spotWtryUsdm: 'swap-liquidity',
   activeLiquidityScaled: 'swap-liquidity',

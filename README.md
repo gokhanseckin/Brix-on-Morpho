@@ -59,12 +59,13 @@ These were flagged in the original design spec and remain unresolved. Each ships
 
 ### `/utilization` — Target utilization calibration
 
-A standalone page that recommends an ideal `targetUtilization` for the USDM market.
-It balances three constraints: looper net APY must beat holding wiTRY (gate at the
-conservative 7-day USD yield), the (1 − u) × TVL buffer must absorb a stress
-withdrawal (slider), and u_target must stay clear of the IRM kink at 0.9 by ≥ 0.07.
-Three page-local sliders (stress %, looper HF buffer, r_target override) make it
-interactive without touching the main sidebar.
+A standalone page that recommends a `targetUtilization` for the USDM market.
+It checks four modeled gates: finite-loop net APY against the 7-day wiTRY hold
+benchmark, `(1 - u) x TVL` withdrawal coverage, configured clearance below the
+fixed IRM kink at `u = 0.90` (default `0`), and a separate FX-stress leverage
+check. Controls adjust stress %, looper HF buffer, the IRM rate anchor at the
+90% kink, kink clearance, and FX stress; shared state supplies loop count and
+market context.
 
 ## Performance
 

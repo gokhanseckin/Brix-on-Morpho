@@ -73,6 +73,7 @@ export default function UtilizationPage() {
           <ReadOnlyTile label="LLTV" value={`${(urlState.lltv * 100).toFixed(1)}%`} />
           <ReadOnlyTile label="wiTRY 7d yield" value={`${(urlState.witryYieldUSD_7d * 100).toFixed(2)}%`} />
           <ReadOnlyTile label="wiTRY 30d yield" value={`${(urlState.witryYieldUSD_30d * 100).toFixed(2)}%`} />
+          <ReadOnlyTile label="Loop count" value={`${urlState.loopCount} finite loops`} />
         </div>
       </section>
 
@@ -107,7 +108,7 @@ export default function UtilizationPage() {
             </div>
           </div>
           <Slider
-            label="Rate at Target override"
+            label="Rate anchor at 90% kink"
             helpKey="rTargetOverrideInput"
             value={rTarget}
             min={0.01}
@@ -119,6 +120,7 @@ export default function UtilizationPage() {
           <div>
             <Slider
               label="Kink clearance"
+              helpKey="kinkClearanceInput"
               value={kinkClearance}
               min={0}
               max={0.15}

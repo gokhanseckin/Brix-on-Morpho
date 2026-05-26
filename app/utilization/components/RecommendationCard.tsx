@@ -14,9 +14,9 @@ export function RecommendationCard({ analysis }: { analysis: UtilizationAnalysis
   if (loopImpossible) {
     return (
       <section className="rounded-lg border border-red-500 bg-red-50 p-4">
-        <h2 className="text-lg font-semibold text-red-300">Looping is not profitable at any utilization</h2>
+        <h2 className="text-lg font-semibold text-red-300">No positive modeled carry margin in the search range</h2>
         <p className="text-sm">With wiTRY 7d yield {pct(inputs.witryYield7d)} and Rate at Target {pct(inputs.rTarget)},
-        no value of u_target produces positive loop margin. Lower Rate at Target or raise wiTRY yield assumptions.</p>
+        no candidate u_target produces positive finite-loop margin under the current cost inputs.</p>
       </section>
     );
   }
@@ -42,7 +42,7 @@ export function RecommendationCard({ analysis }: { analysis: UtilizationAnalysis
       </div>
       <div className="mt-3 grid grid-cols-2 gap-3 text-sm md:grid-cols-4">
         <Stat label="Borrow APY"        value={econ ? pct(econ.borrowAPY) : '—'}        kpiKey="borrowAPYAtTarget" />
-        <Stat label="Supplier APY"      value={econ ? pct(econ.borrowAPY * u) : '—'}    kpiKey="supplierAPYAtTarget" />
+        <Stat label="Gross supplier APY" value={econ ? pct(econ.borrowAPY * u) : '—'}   kpiKey="supplierAPYAtTarget" />
         <Stat label="Loop margin (7d)"  value={econ ? pct(econ.loopMargin) : '—'}
                tone={carryGood ? 'good' : 'bad'}                                         kpiKey="loopMargin7d" />
         <Stat label="Distance to kink"  value={(0.9 - u).toFixed(3)}

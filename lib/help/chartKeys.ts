@@ -11,8 +11,6 @@ export const CHART_KEYS = [
   'competitiveBenchmark',  // LiquidityStrategy
   // Utilization (section 6)
   'looperViabilityCurve',
-  'liquidityStressTable',
-  'loopEconomicsWaterfall',
   'fxRiskCard',
   'irmHeatmap',
   'recommendationTable',
@@ -34,8 +32,6 @@ export const CHART_SECTION: Record<ChartKey, HelpSection> = {
   badDebtHistogram: 'liquidation',
   competitiveBenchmark: 'strategy',
   looperViabilityCurve: 'utilization',
-  liquidityStressTable: 'utilization',
-  loopEconomicsWaterfall: 'utilization',
   fxRiskCard: 'utilization',
   irmHeatmap: 'utilization',
   recommendationTable: 'utilization',
