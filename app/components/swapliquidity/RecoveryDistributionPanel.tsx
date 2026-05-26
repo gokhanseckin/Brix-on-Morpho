@@ -5,7 +5,7 @@ import { useSimulator } from '@/lib/useSimulator';
 import { buildLadderFromInputs } from '@/lib/poolPreset';
 import { materializePool } from '@/lib/univ3/quoteLiquidatorSell';
 import { swapExactIn } from '@/lib/univ3/swap';
-import { badDebtFromAMMSale } from '@/lib/badDebtMath';
+import { liquidatorExecutionShortfall } from '@/lib/liquidatorShortfallMath';
 import { LIF } from '@/lib/morphoMath';
 import {
   BarChart,
@@ -22,7 +22,6 @@ import {
   Legend,
 } from 'recharts';
 import { Kpi } from '@/app/components/Kpi';
-import { HelpPopover } from '@/app/components/help/HelpPopover';
 
 const MAX_PATHS = 200;
 const HIST_BINS = 20;
@@ -109,26 +108,26 @@ export function RecoveryDistributionPanel() {
     }
   }, [fixedPool, initialSpot]);
 
-  // ─── Chart A: Deterministic bad-debt vs probe size ──────────────────────
+  // ─── Chart A: Deterministic repayment shortfall vs probe size ───────────
   // No Monte Carlo. Sweep probe size against the deployed pool at initial
   // spot. Answers: "as the single-trade liquidation grows, when does the AMM
   // slip eat through the LIF buffer?"
   const { deterministicSweep, breakevenLIFbuffer } = useMemo<{
-    deterministicSweep: Array<{ probe_USD: number; badDebtPct: number; effectiveSlip: number }>;
+    deterministicSweep: Array<{ probe_USD: number; repaymentShortfallPct: number; effectiveSlip: number }>;
     breakevenLIFbuffer: number | null;
   }>(() => {
     if (poolTVL_USD <= 0) return { deterministicSweep: [], breakevenLIFbuffer: null };
     const hi = Math.log10(Math.max(poolTVL_USD * 3, 5_000_000));
     const lo = Math.log10(SWEEP_MIN_USD);
-    const raw: Array<{ probe_USD: number; badDebtPct: number; effectiveSlip: number }> = [];
+    const raw: Array<{ probe_USD: number; repaymentShortfallPct: number; effectiveSlip: number }> = [];
     let breakeven: number | null = null;
     let prev: { probe_USD: number; effectiveSlip: number } | null = null;
     for (let i = 0; i < SWEEP_STEPS; i++) {
       const probeUSD = Math.pow(10, lo + ((hi - lo) * i) / (SWEEP_STEPS - 1));
       const ammSale = quoteFixed(probeUSD);
-      const bd = badDebtFromAMMSale({ collateral_USD: probeUSD, lltv, ammSale_USDM: ammSale });
+      const result = liquidatorExecutionShortfall({ collateral_USD: probeUSD, lltv, ammSale_USDM: ammSale });
       const effectiveSlip = probeUSD > 0 ? Math.max(0, 1 - ammSale / probeUSD) : 0;
-      raw.push({ probe_USD: probeUSD, badDebtPct: bd.badDebtPct, effectiveSlip });
+      raw.push({ probe_USD: probeUSD, repaymentShortfallPct: result.repaymentShortfallPct, effectiveSlip });
       if (
         breakeven == null &&
         prev != null &&
@@ -174,12 +173,12 @@ export function RecoveryDistributionPanel() {
       try {
         const { quote } = swapExactIn(fixedPool, wTRYwei, true);
         const ammSale = Number(quote.amountOut) / 1e6;
-        const bd = badDebtFromAMMSale({
+        const result = liquidatorExecutionShortfall({
           collateral_USD: probeCollateral_USD,
           lltv,
           ammSale_USDM: ammSale,
         });
-        out.push(bd.badDebtPct);
+        out.push(result.repaymentShortfallPct);
       } catch {
         // skip
       }
@@ -187,14 +186,14 @@ export function RecoveryDistributionPanel() {
     return out;
   }, [fixedPool, terminalSpots, probeCollateral_USD, lltv]);
 
-  const { histogram, p95BadDebt, medianBadDebt, zeroBadDebtPct } = useMemo<{
+  const { histogram, p95Shortfall, medianShortfall, zeroShortfallPct } = useMemo<{
     histogram: Array<{ bin: number; count: number }>;
-    p95BadDebt: number | null;
-    medianBadDebt: number | null;
-    zeroBadDebtPct: number;
+    p95Shortfall: number | null;
+    medianShortfall: number | null;
+    zeroShortfallPct: number;
   }>(() => {
     if (mcResults.length === 0) {
-      return { histogram: [], p95BadDebt: null, medianBadDebt: null, zeroBadDebtPct: 0 };
+      return { histogram: [], p95Shortfall: null, medianShortfall: null, zeroShortfallPct: 0 };
     }
     const sorted = [...mcResults].sort((a, b) => a - b);
     const idx95 = Math.min(sorted.length - 1, Math.floor(sorted.length * 0.95));
@@ -213,20 +212,20 @@ export function RecoveryDistributionPanel() {
     }
     return {
       histogram: bins,
-      p95BadDebt: sorted[idx95] ?? null,
-      medianBadDebt: sorted[idx50] ?? null,
-      zeroBadDebtPct: zeroCount / mcResults.length,
+      p95Shortfall: sorted[idx95] ?? null,
+      medianShortfall: sorted[idx50] ?? null,
+      zeroShortfallPct: zeroCount / mcResults.length,
     };
   }, [mcResults]);
 
   return (
     <section id="section-recovery" className="space-y-6">
-      <h2 className="text-lg font-semibold">4. Bad-debt distribution</h2>
+      <h2 className="text-lg font-semibold">4. Liquidator execution shortfall</h2>
 
       {/* ─── Chart A: MC histogram at slider size — slider-driven, sits closest to Section 3 ─ */}
       <div className="space-y-2">
         <h3 className="text-sm font-semibold">
-          A. Bad-debt distribution at slider size{' '}
+          A. Repayment-shortfall distribution at slider size{' '}
           <span className="text-xs text-neutral-500 font-normal">
             (Monte Carlo on terminal FX, pool stays at initial spot)
           </span>
@@ -237,17 +236,14 @@ export function RecoveryDistributionPanel() {
           <span className="text-neutral-300">{simulationHorizonDays}d</span>). The pool stays
           at initial spot ({initialSpot.toFixed(6)}); each path&apos;s terminal spot is where the dump
           originates. The bigger FX moves away from initial, the further the dump lands from the
-          core band — which is where bad debt is born. At LLTV {fmtPct(lltv, 1)} probe debt is{' '}
-          ${debtUSD.toLocaleString(undefined, { maximumFractionDigits: 0 })}. Bad debt = max(0, debt − AMM proceeds).
+          core band. At LLTV {fmtPct(lltv, 1)} probe debt is{' '}
+          ${debtUSD.toLocaleString(undefined, { maximumFractionDigits: 0 })}. Repayment shortfall = max(0, debt − AMM proceeds).
         </div>
         <div className="text-xs text-amber-300/80 max-w-3xl border-l-2 border-amber-500/40 pl-2">
-          <strong>Different metric from the home page.</strong> This is a
-          single-probe rate at one slider-set dump size, with the pool held at
-          initial spot. The market-simulator Section 4 histogram aggregates
-          leftover Morpho debt across the full Beta-distributed borrower
-          population per path with sequential AMM liquidations. The two
-          distributions answer different questions and will not agree
-          numerically.{' '}
+          <strong>Not protocol bad debt.</strong> This is the shortfall a liquidator
+          would face if they executed a single probe trade; a rational liquidator can
+          skip an unprofitable trade. The market-simulator Section 4 cascade estimates
+          unresolved Morpho debt after liquidation behavior across the borrower population.{' '}
           <a
             href="/#section-liquidation-design"
             className="text-brix-accent hover:text-brix-accentHover"
@@ -256,22 +252,19 @@ export function RecoveryDistributionPanel() {
           </a>
         </div>
         <div className="grid grid-cols-3 gap-3">
-          <Kpi label="Paths with zero bad debt" value={fmtPct(zeroBadDebtPct)} helpKey="zeroBadDebtPct" />
+          <Kpi label="Paths with no shortfall" value={fmtPct(zeroShortfallPct)} />
           <Kpi
-            label="Median bad-debt rate"
-            value={medianBadDebt !== null ? fmtPct(medianBadDebt) : '—'}
-            helpKey="medianBadDebtRate"
+            label="Median shortfall rate"
+            value={medianShortfall !== null ? fmtPct(medianShortfall) : '—'}
           />
           <Kpi
-            label="95th-percentile bad-debt rate"
-            value={p95BadDebt !== null ? fmtPct(p95BadDebt) : '—'}
-            helpKey="p95BadDebtRate"
+            label="95th-percentile shortfall rate"
+            value={p95Shortfall !== null ? fmtPct(p95Shortfall) : '—'}
           />
         </div>
         <div className="border border-brix-border rounded p-2 bg-brix-card">
           <div className="flex items-center text-xs text-neutral-500 px-2 pt-1">
-            <span>Bad-debt rate distribution across MC terminal spots</span>
-            <HelpPopover chartKey="swapBadDebtHistogram" />
+            <span>Liquidator repayment-shortfall distribution across MC terminal spots</span>
           </div>
           <ResponsiveContainer width="100%" height={240}>
             <BarChart data={histogram}>
@@ -282,7 +275,7 @@ export function RecoveryDistributionPanel() {
               />
               <YAxis />
               <Tooltip
-                labelFormatter={(v) => `Bad debt ${(Number(v) * 100).toFixed(2)}%`}
+                labelFormatter={(v) => `Shortfall ${(Number(v) * 100).toFixed(2)}%`}
                 formatter={(v) => [`${v} paths`, 'count']}
                 contentStyle={{ backgroundColor: '#0a0a0a', border: '1px solid #262626', borderRadius: 4, fontSize: 12 }}
                 labelStyle={{ color: '#a3a3a3' }}
@@ -301,14 +294,14 @@ export function RecoveryDistributionPanel() {
       {/* ─── Chart B: deterministic sweep — independent of slider ─────────── */}
       <div className="space-y-2">
         <h3 className="text-sm font-semibold">
-          B. Bad-debt vs probe size{' '}
+          B. Repayment shortfall vs probe size{' '}
           <span className="text-xs text-neutral-500 font-normal">
             (deterministic, pool at initial spot — no slider dependency)
           </span>
         </h3>
         <p className="text-xs text-neutral-500 max-w-3xl">
           As a single liquidator dump grows, slippage in the AMM eats into the LIF buffer ({fmtPct(bufferPct, 2)}).
-          When effective slip exceeds the buffer, bad debt accrues. Pool is built at the current
+          When effective slip exceeds the buffer, the trade no longer covers repayment. Pool is built at the current
           spot ({initialSpot.toFixed(6)}); this chart has no Monte Carlo and does not depend on the
           Section 3 slider — it&apos;s the pool&apos;s deterministic stress profile vs trade size.
         </p>
@@ -354,7 +347,7 @@ export function RecoveryDistributionPanel() {
                 />
               )}
               <Line type="monotone" dataKey="effectiveSlip" name="Effective slip" stroke="#3b82f6" strokeWidth={1.5} strokeDasharray="4 3" dot={false} isAnimationActive={false} />
-              <Line type="monotone" dataKey="badDebtPct" name="Bad debt %" stroke="#ef4444" strokeWidth={2} dot={false} isAnimationActive={false} />
+              <Line type="monotone" dataKey="repaymentShortfallPct" name="Repayment shortfall %" stroke="#ef4444" strokeWidth={2} dot={false} isAnimationActive={false} />
             </LineChart>
           </ResponsiveContainer>
         </div>

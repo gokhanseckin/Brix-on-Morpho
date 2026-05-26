@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   computeLiquidityNeed,
+  normalizeTargetUtilization,
   sampleBetaLtvFractions,
   pctUnderwaterAtT,
   slippage,
@@ -9,6 +10,8 @@ import {
   minMaxProfitableLiquidation,
   quoteSellUSD,
   simulateBadDebt,
+  preLiquidationTerms,
+  buildPreLiquidationScenario,
   deriveRecommendedLLTV,
   maxLForBadDebt,
   maxLForProfit,
@@ -47,6 +50,25 @@ const crashPresetWithTVL = (tvl_USD: number, spot = 1): PoolPreset =>
     },
   );
 
+const preLiquidation = (
+  enabled: boolean,
+  overrides: Partial<{
+    preLLTV: number;
+    preLCF1: number;
+    preLCF2: number;
+    preLIF1: number;
+    preLIF2: number;
+  }> = {},
+) => ({
+  enabled,
+  preLLTV: 0.81,
+  preLCF1: 0.05,
+  preLCF2: 0.5,
+  preLIF1: 1.01,
+  preLIF2: LIF(0.86),
+  ...overrides,
+});
+
 describe('liquidity need', () => {
   it('verification anchor: 5M × 0.77 × 0.6 / 0.7 ≈ 3.3M', () => {
     const out = computeLiquidityNeed({
@@ -74,6 +96,29 @@ describe('liquidity need', () => {
       deadDepositCost: 1,
     });
     expect(out.liquidityFloor_USD).toBeCloseTo(0.2 * out.requiredUSDM, 0);
+  });
+
+  it('rejects target utilization outside the deployable 1%-to-100% domain', () => {
+    const args = {
+      witryTVL_USD: 5_000_000,
+      lltv: 0.77,
+      targetUtilization: 0,
+      borrowerLTVAlpha: 3,
+      borrowerLTVBeta: 2,
+      incentiveAPY: 0,
+      baseSupplyAPY: 0.05,
+      deadDepositCost: 1,
+    };
+
+    expect(() => computeLiquidityNeed(args)).toThrow(/target utilization/);
+    expect(() => computeLiquidityNeed({ ...args, targetUtilization: 1.01 })).toThrow(/target utilization/);
+  });
+
+  it('normalizes malformed persisted target utilization before orchestration', () => {
+    expect(normalizeTargetUtilization(0)).toBe(0.01);
+    expect(normalizeTargetUtilization(-1)).toBe(0.01);
+    expect(normalizeTargetUtilization(2)).toBe(1);
+    expect(normalizeTargetUtilization(Number.NaN)).toBe(0.8);
   });
 });
 
@@ -161,7 +206,7 @@ describe('bad debt cascade', () => {
       spot: 1,
       gasCost_USD: 5,
       witryYieldAnnual: 0.38,
-      preLiquidationEnabled: false,
+      preLiquidation: preLiquidation(false),
     });
     expect(Math.max(...result.badDebtByPath)).toBe(0);
   });
@@ -176,7 +221,7 @@ describe('bad debt cascade', () => {
       spot: 1,
       gasCost_USD: 5,
       witryYieldAnnual: 0,
-      preLiquidationEnabled: false,
+      preLiquidation: preLiquidation(false),
     });
     expect(result.badDebtByPath[0]!).toBeGreaterThan(0);
   });
@@ -195,7 +240,7 @@ describe('bad debt cascade', () => {
       spot: 1,
       gasCost_USD: 5,
       witryYieldAnnual: 0,
-      preLiquidationEnabled: false,
+      preLiquidation: preLiquidation(false),
     });
 
     expect(result.badDebtByPath[0]!).toBeCloseTo(debt - tvl_USD / 4, 0);
@@ -238,7 +283,7 @@ describe('bad debt cascade', () => {
       spot: 1,
       gasCost_USD: 5,
       witryYieldAnnual: 0,
-      preLiquidationEnabled: false,
+      preLiquidation: preLiquidation(false),
     });
 
     expect(result.liquidatedVolumeByPath[0]!).toBeCloseTo(expected, 0);
@@ -254,7 +299,7 @@ describe('bad debt cascade', () => {
       spot: 1,
       gasCost_USD: 5,
       witryYieldAnnual: 0,
-      preLiquidationEnabled: false,
+      preLiquidation: preLiquidation(false),
     });
     const cascade = simulateBadDebt({
       paths: [[1, 2]],
@@ -265,7 +310,7 @@ describe('bad debt cascade', () => {
       spot: 1,
       gasCost_USD: 5,
       witryYieldAnnual: 0,
-      preLiquidationEnabled: false,
+      preLiquidation: preLiquidation(false),
     });
 
     expect(cascade.badDebtByPath[0]!).toBeGreaterThan(single.badDebtByPath[0]! * 2);
@@ -289,8 +334,8 @@ describe('bad debt cascade', () => {
       gasCost_USD: 5,
       witryYieldAnnual: 0,
     };
-    const off = simulateBadDebt({ ...args, preLiquidationEnabled: false });
-    const on = simulateBadDebt({ ...args, preLiquidationEnabled: true });
+    const off = simulateBadDebt({ ...args, preLiquidation: preLiquidation(false) });
+    const on = simulateBadDebt({ ...args, preLiquidation: preLiquidation(true) });
     for (let i = 0; i < off.badDebtByPath.length; i++) {
       expect(on.badDebtByPath[i]!).toBeLessThanOrEqual(off.badDebtByPath[i]!);
     }
@@ -310,7 +355,7 @@ describe('bad debt cascade', () => {
       spot: 1,
       gasCost_USD: 5,
       witryYieldAnnual: 0.38,
-      preLiquidationEnabled: false,
+      preLiquidation: preLiquidation(false),
     });
     expect(result.liquidatedVolumeByPath).toHaveLength(2);
     expect(Math.max(...result.liquidatedVolumeByPath)).toBe(0);
@@ -329,7 +374,7 @@ describe('bad debt cascade', () => {
       spot: 1,
       gasCost_USD: 5,
       witryYieldAnnual: 0,
-      preLiquidationEnabled: false,
+      preLiquidation: preLiquidation(false),
     });
     expect(result.liquidatedVolumeByPath).toHaveLength(1);
     const vol = result.liquidatedVolumeByPath[0]!;
@@ -351,9 +396,91 @@ describe('bad debt cascade', () => {
       gasCost_USD: 5,
       witryYieldAnnual: 0,
     };
-    const off = simulateBadDebt({ ...args, preLiquidationEnabled: false });
-    const on = simulateBadDebt({ ...args, preLiquidationEnabled: true });
+    const off = simulateBadDebt({ ...args, preLiquidation: preLiquidation(false) });
+    const on = simulateBadDebt({ ...args, preLiquidation: preLiquidation(true) });
     expect(on.liquidatedVolumeByPath[0]!).toBeGreaterThan(off.liquidatedVolumeByPath[0]!);
+  });
+
+  it('interpolates configured pre-liquidation terms across the eligible LTV range', () => {
+    const config = preLiquidation(true, {
+      preLLTV: 0.8,
+      preLCF1: 0.1,
+      preLCF2: 0.5,
+      preLIF1: 1.01,
+      preLIF2: 1.05,
+    });
+
+    expect(preLiquidationTerms(0.8, 0.86, config)).toEqual({
+      closeFactor: 0.1,
+      incentiveFactor: 1.01,
+    });
+    const midpoint = preLiquidationTerms(0.83, 0.86, config);
+    expect(midpoint.closeFactor).toBeCloseTo(0.3, 10);
+    expect(midpoint.incentiveFactor).toBeCloseTo(1.03, 10);
+    expect(preLiquidationTerms(0.86, 0.86, config)).toEqual({
+      closeFactor: 0.5,
+      incentiveFactor: 1.05,
+    });
+  });
+
+  it('allows repeated profitable pre-liquidations while a position remains eligible', () => {
+    const args = {
+      paths: [[1, 1.001]],
+      ltvFractions: [0.99],
+      lltv: 0.86,
+      tvl_USD: 1_000_000,
+      preset: crashPresetWithTVL(100_000_000, 1),
+      spot: 1,
+      gasCost_USD: 0,
+      witryYieldAnnual: 0,
+      preLiquidation: preLiquidation(true, {
+        preLLTV: 0.5,
+        preLCF1: 0.1,
+        preLCF2: 0.1,
+        preLIF1: 1.01,
+        preLIF2: 1.01,
+      }),
+    };
+    const firstSeizeOnly = 0.99 * 0.86 * 1_000_000 * 0.1 * 1.01;
+    const result = simulateBadDebt(args);
+
+    expect(result.liquidatedVolumeByPath[0]!).toBeGreaterThan(firstSeizeOnly * 1.5);
+  });
+
+  it('does not execute a pre-liquidation trade whose AMM proceeds cannot repay debt and gas', () => {
+    const result = simulateBadDebt({
+      paths: [[1, 1.15]],
+      ltvFractions: [0.85],
+      lltv: 0.86,
+      tvl_USD: 1_000_000,
+      preset: presetWithTVL(1, 1),
+      spot: 1,
+      gasCost_USD: 5,
+      witryYieldAnnual: 0,
+      preLiquidation: preLiquidation(true),
+    });
+
+    expect(result.liquidatedVolumeByPath[0]!).toBe(0);
+  });
+});
+
+describe('pre-liquidation configuration', () => {
+  it('derives one deployable scenario from editable inputs', () => {
+    expect(buildPreLiquidationScenario({
+      enabled: true,
+      lltv: 0.86,
+      preLLTVOffset: 0.04,
+      preLCF1: 0.1,
+      preLCF2: 0.45,
+      preLIF1: 1.012,
+    })).toEqual({
+      enabled: true,
+      preLLTV: 0.82,
+      preLCF1: 0.1,
+      preLCF2: 0.45,
+      preLIF1: 1.012,
+      preLIF2: LIF(0.86),
+    });
   });
 });
 

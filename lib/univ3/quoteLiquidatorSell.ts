@@ -1,9 +1,13 @@
 import { priceToSqrtPriceX96, priceToTick } from './tickMath';
-import { liquidityForAmounts } from './liquidityMath';
+import { amountsForLiquidity } from './liquidityMath';
 import { swapExactIn, type PoolState, type SwapQuote, type TickInfo } from './swap';
 import type { PoolPreset } from '../poolPreset';
 
-// Convert one position's USD value into (amount0, amount1) at spot, then derive L.
+const TOKEN_SCALE = 1e6;
+const REFERENCE_LIQUIDITY = 10n ** 24n;
+
+// Size a position so its launch-spot marked token amounts equal its stated
+// USD allocation. Out-of-range bands naturally resolve to one-sided funding.
 function positionLiquidity(
   spot: number,
   tickLower: number,
@@ -13,13 +17,28 @@ function positionLiquidity(
   const sqrtP = priceToSqrtPriceX96(spot);
   const sqrtA = priceToSqrtPriceX96(Math.pow(1.0001, tickLower));
   const sqrtB = priceToSqrtPriceX96(Math.pow(1.0001, tickUpper));
-  // Naive split: half in each token at spot. (Position will rebalance via amountsForLiquidity.)
-  // Token0 is wTRY (priced low in USDM), token1 is USDM.
-  // amount0 (wTRY wei) ≈ (liquidityUSD/2) / spot in wei units (use 1e6 wei = $1 for sim units).
-  const halfUSD = liquidityUSD / 2;
-  const amount0 = BigInt(Math.floor((halfUSD / spot) * 1e6));
-  const amount1 = BigInt(Math.floor(halfUSD * 1e6));
-  return liquidityForAmounts(sqrtP, sqrtA, sqrtB, amount0, amount1);
+  const referenceAmounts = amountsForLiquidity(sqrtP, sqrtA, sqrtB, REFERENCE_LIQUIDITY);
+  const referenceUSD =
+    (Number(referenceAmounts.amount0) * spot + Number(referenceAmounts.amount1)) /
+    TOKEN_SCALE;
+  if (!Number.isFinite(referenceUSD) || referenceUSD <= 0 || liquidityUSD <= 0) return 0n;
+  return BigInt(Math.floor(Number(REFERENCE_LIQUIDITY) * (liquidityUSD / referenceUSD)));
+}
+
+export function materializedPositionValueUSD(
+  position: PoolPreset['positions'][number],
+  spot: number,
+): number {
+  const sqrtP = priceToSqrtPriceX96(spot);
+  const sqrtA = priceToSqrtPriceX96(Math.pow(1.0001, position.tickLower));
+  const sqrtB = priceToSqrtPriceX96(Math.pow(1.0001, position.tickUpper));
+  const amounts = amountsForLiquidity(
+    sqrtP,
+    sqrtA,
+    sqrtB,
+    positionLiquidity(spot, position.tickLower, position.tickUpper, position.liquidityUSD),
+  );
+  return (Number(amounts.amount0) * spot + Number(amounts.amount1)) / TOKEN_SCALE;
 }
 
 export function materializePool(preset: PoolPreset, spot: number): PoolState {

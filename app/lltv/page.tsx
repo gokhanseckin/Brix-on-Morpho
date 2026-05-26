@@ -331,6 +331,107 @@ export default function LLTVPage() {
           </div>
         </section>
 
+        <section className="space-y-3 mt-4">
+          <div className="rounded border border-brix-border bg-brix-surface p-4">
+            <div className="flex items-baseline justify-between gap-4">
+              <h3 className="text-sm font-semibold">Pre-liquidation authorization scenario</h3>
+              <label className="flex items-center gap-2 text-xs text-neutral-300">
+                <input
+                  type="checkbox"
+                  checked={sim.inputs.preLiquidationEnabled}
+                  onChange={(e) => setUrlState({ preLiquidationEnabled: e.target.checked })}
+                />
+                Assume all borrowers authorized
+              </label>
+            </div>
+            <p className="text-xs text-neutral-400 mt-1 max-w-2xl">
+              Optional pre-liquidation is disabled in the launch baseline. Turn this scenario on
+              only to estimate results if every simulated borrower has authorized the deployed
+              pre-liquidation contract. These parameters also populate the exported configuration.
+            </p>
+            <div className="mt-4 grid grid-cols-2 md:grid-cols-4 gap-3 text-xs">
+              <label className="space-y-1">
+                <span className="block text-neutral-400">Pre-LLTV offset</span>
+                <input
+                  type="number"
+                  min={0}
+                  max={sim.inputs.lltv * 100}
+                  step={0.1}
+                  value={(sim.inputs.preLLTVOffset * 100).toFixed(1)}
+                  onChange={(e) => {
+                    const v = parseFloat(e.target.value);
+                    if (Number.isFinite(v)) {
+                      setUrlState({
+                        preLLTVOffset: Math.max(0, Math.min(sim.inputs.lltv, v / 100)),
+                      });
+                    }
+                  }}
+                  className="w-full rounded border border-brix-border bg-brix-bg px-2 py-1 font-mono"
+                />
+                <span className="block text-neutral-500">
+                  preLLTV = {pct(Math.max(0, sim.inputs.lltv - sim.inputs.preLLTVOffset), 1)}
+                </span>
+              </label>
+              <label className="space-y-1">
+                <span className="block text-neutral-400">LCF at preLLTV</span>
+                <input
+                  type="number"
+                  min={0}
+                  max={sim.inputs.preLCF2 * 100}
+                  step={0.1}
+                  value={(sim.inputs.preLCF1 * 100).toFixed(1)}
+                  onChange={(e) => {
+                    const v = parseFloat(e.target.value);
+                    if (Number.isFinite(v)) {
+                      setUrlState({ preLCF1: Math.max(0, Math.min(sim.inputs.preLCF2, v / 100)) });
+                    }
+                  }}
+                  className="w-full rounded border border-brix-border bg-brix-bg px-2 py-1 font-mono"
+                />
+                <span className="block text-neutral-500">%</span>
+              </label>
+              <label className="space-y-1">
+                <span className="block text-neutral-400">LCF at LLTV</span>
+                <input
+                  type="number"
+                  min={sim.inputs.preLCF1 * 100}
+                  max={100}
+                  step={0.1}
+                  value={(sim.inputs.preLCF2 * 100).toFixed(1)}
+                  onChange={(e) => {
+                    const v = parseFloat(e.target.value);
+                    if (Number.isFinite(v)) {
+                      setUrlState({ preLCF2: Math.min(1, Math.max(sim.inputs.preLCF1, v / 100)) });
+                    }
+                  }}
+                  className="w-full rounded border border-brix-border bg-brix-bg px-2 py-1 font-mono"
+                />
+                <span className="block text-neutral-500">%</span>
+              </label>
+              <label className="space-y-1">
+                <span className="block text-neutral-400">LIF at preLLTV</span>
+                <input
+                  type="number"
+                  min={1}
+                  max={LIF(sim.inputs.lltv)}
+                  step={0.001}
+                  value={sim.inputs.preLIF1.toFixed(3)}
+                  onChange={(e) => {
+                    const v = parseFloat(e.target.value);
+                    if (Number.isFinite(v)) {
+                      setUrlState({ preLIF1: Math.max(1, Math.min(LIF(sim.inputs.lltv), v)) });
+                    }
+                  }}
+                  className="w-full rounded border border-brix-border bg-brix-bg px-2 py-1 font-mono"
+                />
+                <span className="block text-neutral-500">
+                  LIF at LLTV = {LIF(sim.inputs.lltv).toFixed(4)}
+                </span>
+              </label>
+            </div>
+          </div>
+        </section>
+
         {/* ----- Drawdown percentile (calibration only) ----- */}
         <section className="space-y-3 mt-4">
           <div className="rounded border border-brix-border bg-brix-surface p-4">

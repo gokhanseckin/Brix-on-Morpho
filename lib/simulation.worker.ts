@@ -9,7 +9,7 @@ import {
   percentilesAtEachStep,
   rolling3DayMaxDrawdown,
 } from './fxModel';
-import { simulateBadDebt, sampleBetaLtvFractions } from './simulator';
+import { buildPreLiquidationScenario, simulateBadDebt, sampleBetaLtvFractions } from './simulator';
 import { looperPathPnL } from './utilization';
 import { buildLadderFromInputs } from './poolPreset';
 import { quantile } from './stats';
@@ -130,7 +130,14 @@ const api = {
       spot,
       gasCost_USD: DEFAULT_GAS_COST_USD,
       witryYieldAnnual: inputs.witryYieldAnnual,
-      preLiquidationEnabled: inputs.preLiquidationEnabled,
+      preLiquidation: buildPreLiquidationScenario({
+        enabled: inputs.preLiquidationEnabled,
+        lltv: inputs.lltv,
+        preLLTVOffset: inputs.preLLTVOffset,
+        preLCF1: inputs.preLCF1,
+        preLCF2: inputs.preLCF2,
+        preLIF1: inputs.preLIF1,
+      }),
     });
     const loopPathOut = looperPathPnL({
       paths,

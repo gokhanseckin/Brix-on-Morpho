@@ -26,6 +26,15 @@ export interface LiqNeedOut {
   bufferPct: number;
 }
 
+export const MIN_TARGET_UTILIZATION = 0.01;
+export const MAX_TARGET_UTILIZATION = 1;
+export const DEFAULT_TARGET_UTILIZATION = 0.8;
+
+export function normalizeTargetUtilization(value: number): number {
+  if (!Number.isFinite(value)) return DEFAULT_TARGET_UTILIZATION;
+  return Math.max(MIN_TARGET_UTILIZATION, Math.min(MAX_TARGET_UTILIZATION, value));
+}
+
 export function betaMean(alpha: number, beta: number): number {
   return alpha / (alpha + beta);
 }
@@ -53,15 +62,10 @@ export const BUFFER_PCT_BASE = 0.15;
 export const BUFFER_PCT_INCENTIVE_SLOPE = 0.10;
 export const BUFFER_PCT_CEILING = 0.50;
 
-// PRE_LIQUIDATION_LLTV_OFFSET: distance below hard LLTV at which the
-//   pre-liquidation zone begins. Spec §4D recommends 5pp.
 // RISK_TIER_MODERATE_BAND_LLTV: width of the Moderate band above the
 //   computed recommended LLTV before a configuration is classed Aggressive.
 //   Spec §5 Risk Gauge.
-export const PRE_LIQUIDATION_LLTV_OFFSET = 0.05;
 export const RISK_TIER_MODERATE_BAND_LLTV = 0.05;
-export const PRE_LIQUIDATION_LCF: [number, number] = [0.05, 0.5];
-export const PRE_LIQUIDATION_LIF_MIN = 1.01;
 
 export function bufferPctFromIncentive(incentiveAPY: number, baseSupplyAPY: number): number {
   const ratio = baseSupplyAPY > 0 ? incentiveAPY / baseSupplyAPY : 0;
@@ -70,6 +74,15 @@ export function bufferPctFromIncentive(incentiveAPY: number, baseSupplyAPY: numb
 }
 
 export function computeLiquidityNeed(a: LiqNeedArgs): LiqNeedOut {
+  if (
+    !Number.isFinite(a.targetUtilization) ||
+    a.targetUtilization < MIN_TARGET_UTILIZATION ||
+    a.targetUtilization > MAX_TARGET_UTILIZATION
+  ) {
+    throw new RangeError(
+      `target utilization must be between ${MIN_TARGET_UTILIZATION} and ${MAX_TARGET_UTILIZATION}`,
+    );
+  }
   const meanLTVFrac = betaMean(a.borrowerLTVAlpha, a.borrowerLTVBeta);
   const maxBorrowable_USD = a.witryTVL_USD * a.lltv;
   const expectedBorrow_USD = maxBorrowable_USD * meanLTVFrac;
@@ -306,7 +319,56 @@ export interface BadDebtArgs {
   spot: number; // USD per TRY (= 1 / usdtryBaseline)
   gasCost_USD: number;
   witryYieldAnnual: number;
-  preLiquidationEnabled: boolean;
+  preLiquidation: PreLiquidationScenario;
+}
+
+export interface PreLiquidationScenario {
+  enabled: boolean;
+  preLLTV: number;
+  preLCF1: number;
+  preLCF2: number;
+  preLIF1: number;
+  preLIF2: number;
+}
+
+export interface BuildPreLiquidationScenarioArgs {
+  enabled: boolean;
+  lltv: number;
+  preLLTVOffset: number;
+  preLCF1: number;
+  preLCF2: number;
+  preLIF1: number;
+}
+
+export function buildPreLiquidationScenario(
+  a: BuildPreLiquidationScenarioArgs,
+): PreLiquidationScenario {
+  return {
+    enabled: a.enabled,
+    preLLTV: Math.max(0, a.lltv - a.preLLTVOffset),
+    preLCF1: a.preLCF1,
+    preLCF2: a.preLCF2,
+    preLIF1: a.preLIF1,
+    preLIF2: LIF(a.lltv),
+  };
+}
+
+export function preLiquidationTerms(
+  effectiveLTV: number,
+  lltv: number,
+  config: PreLiquidationScenario,
+): { closeFactor: number; incentiveFactor: number } {
+  const width = Math.max(1e-9, lltv - config.preLLTV);
+  const progress = Math.max(0, Math.min(1, (effectiveLTV - config.preLLTV) / width));
+  const closeFactor = Math.max(
+    0,
+    Math.min(1, config.preLCF1 + progress * (config.preLCF2 - config.preLCF1)),
+  );
+  const incentiveFactor = Math.max(
+    1,
+    config.preLIF1 + progress * (config.preLIF2 - config.preLIF1),
+  );
+  return { closeFactor, incentiveFactor };
 }
 
 export interface BadDebtOut {
@@ -333,11 +395,6 @@ export function simulateBadDebt(a: BadDebtArgs): BadDebtOut {
   }
   const S0 = firstPath[0]!;
 
-  // Pre-liquidation parameters per spec §4D.
-  const preLLTV = Math.max(0, a.lltv - PRE_LIQUIDATION_LLTV_OFFSET);
-  const preLIF1 = PRE_LIQUIDATION_LIF_MIN;
-  const preLCF2 = PRE_LIQUIDATION_LCF[1];
-
   const badDebtByPath: number[] = [];
   const liquidatedCountByPath: number[] = [];
   const liquidatedVolumeByPath: number[] = [];
@@ -351,7 +408,6 @@ export function simulateBadDebt(a: BadDebtArgs): BadDebtOut {
       collateralBaseUSD: collateralEachUSD,
       closed: false,
       unresolved: false,
-      preLiquidated: false,
       residual_USD: 0,
     }));
 
@@ -361,40 +417,38 @@ export function simulateBadDebt(a: BadDebtArgs): BadDebtOut {
       const spotNow = Snow > 0 ? a.spot * (S0 / Snow) : 0;
       for (const pos of active) {
         if (pos.closed) continue;
-        const collNow = pos.collateralBaseUSD * rel;
-        // Effective LTV of this position right now.
-        const effLTV = pos.debt_USD / Math.max(1e-9, collNow);
+        // Authorized positions may be partially liquidated repeatedly while
+        // they remain in the pre-liquidation zone. Each hypothetical AMM
+        // sale must pay for its debt repayment and gas before it is executed.
+        if (a.preLiquidation.enabled) {
+          for (let executions = 0; executions < 64; executions++) {
+            const collNow = pos.collateralBaseUSD * rel;
+            const effLTV = pos.debt_USD / Math.max(1e-9, collNow);
+            if (effLTV < a.preLiquidation.preLLTV || effLTV >= a.lltv) break;
+            const { closeFactor, incentiveFactor } = preLiquidationTerms(
+              effLTV,
+              a.lltv,
+              a.preLiquidation,
+            );
+            const closeDebt = pos.debt_USD * closeFactor;
+            if (closeDebt <= 1e-9) break;
+            const seized = Math.min(closeDebt * incentiveFactor, collNow);
+            const { revenue_USD, newPool } = quoteSellUSD(pool, spotNow, seized);
+            if (revenue_USD - closeDebt - a.gasCost_USD <= 0) break;
 
-        // Pre-liquidation: position has drifted between preLLTV and LLTV.
-        // Simplification: one-shot 50% close at LIF=1.01. The remaining
-        // half continues; if it crosses hard LLTV later it gets liquidated.
-        if (
-          a.preLiquidationEnabled &&
-          !pos.preLiquidated &&
-          effLTV >= preLLTV &&
-          effLTV < a.lltv
-        ) {
-          const closeDebt = pos.debt_USD * preLCF2;
-          const seized = closeDebt * preLIF1;
-          pathSeizedVolume_USD += seized;
-          const { revenue_USD, newPool } = quoteSellUSD(pool, spotNow, seized);
-          pool = newPool;
-          // Auto-deleverage routes through the same AMM; collateral seized
-          // and debt repaid are removed from the position pro-rata.
-          const repaid = Math.min(closeDebt, revenue_USD);
-          pos.debt_USD -= repaid;
-          // Report #2 entry #27 fix: the fraction of collateral seized is
-          // seized_USD / collNow_USD, NOT preLCF2 · preLIF1 (which only
-          // happens to equal the fraction when debt = collateral).
-          const fractionSeized = Math.min(1, seized / Math.max(1e-9, collNow));
-          pos.collateralBaseUSD *= 1 - fractionSeized;
-          if (pos.collateralBaseUSD < 0) pos.collateralBaseUSD = 0;
-          pos.preLiquidated = true;
-          // Spec §4D defines a full piecewise-linear LCF/LIF schedule
-          // interpolated by effLTV in [preLLTV, LLTV]; this is a coarse
-          // one-shot approximation. Continue to hard-LLTV check below.
+            pool = newPool;
+            pathSeizedVolume_USD += seized;
+            pos.debt_USD -= closeDebt;
+            const fractionSeized = Math.min(1, seized / Math.max(1e-9, collNow));
+            pos.collateralBaseUSD *= 1 - fractionSeized;
+            if (pos.debt_USD <= 1e-9) {
+              pos.closed = true;
+              break;
+            }
+          }
         }
 
+        if (pos.closed) continue;
         const collAfter = pos.collateralBaseUSD * rel;
         const hf = healthFactor({ collateralUSD: collAfter, debtUSD: pos.debt_USD, lltv: a.lltv });
         if (pos.unresolved) {

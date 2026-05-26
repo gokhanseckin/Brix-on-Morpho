@@ -9,10 +9,12 @@ import {
   createParser,
 } from 'nuqs';
 import { GOV_LLTVS, type LLTV } from '@/types/simulator';
+import { DEFAULT_TARGET_UTILIZATION, normalizeTargetUtilization } from './simulator';
 
 const MODES = ['Bootstrap', 'GBM', 'GBM+Jumps', 'Scenario'] as const;
 
 export const STORAGE_KEY = 'brix:sidebar-state:v1';
+export const DEFAULT_PRE_LIQUIDATION_ENABLED = false;
 
 // Reject any LLTV not in the Morpho governance-allowed set.
 const parseAsLLTV = createParser({
@@ -23,11 +25,16 @@ const parseAsLLTV = createParser({
   serialize: (v: LLTV) => String(v),
 });
 
+const parseAsTargetUtilization = createParser({
+  parse: (v: string): number => normalizeTargetUtilization(parseFloat(v)),
+  serialize: (v: number) => String(normalizeTargetUtilization(v)),
+});
+
 export function useUrlState() {
   const tuple = useQueryStates({
     witryTVL_USD: parseAsFloat.withDefault(5_000_000),
     lltv: parseAsLLTV.withDefault(0.86),
-    targetUtilization: parseAsFloat.withDefault(0.8),
+    targetUtilization: parseAsTargetUtilization.withDefault(DEFAULT_TARGET_UTILIZATION),
     borrowerLTVAlpha: parseAsFloat.withDefault(4.6),
     borrowerLTVBeta: parseAsFloat.withDefault(2),
     witryYieldAnnual: parseAsFloat.withDefault(0.38),
@@ -46,7 +53,7 @@ export function useUrlState() {
     performanceFee: parseAsFloat.withDefault(0.1),
     managementFee: parseAsFloat.withDefault(0),
     safetyMargin: parseAsFloat.withDefault(0.01),
-    preLiquidationEnabled: parseAsBoolean.withDefault(true),
+    preLiquidationEnabled: parseAsBoolean.withDefault(DEFAULT_PRE_LIQUIDATION_ENABLED),
     // Morpho pre-liquidation parameters (spec §4D). preLIF2 auto = LIF(LLTV).
     preLLTVOffset: parseAsFloat.withDefault(0.05),
     preLCF1: parseAsFloat.withDefault(0.05),
@@ -105,6 +112,11 @@ export function useUrlState() {
       const raw = window.localStorage.getItem(STORAGE_KEY);
       if (!raw) return;
       const parsed = JSON.parse(raw) as Record<string, unknown>;
+      if (typeof parsed.targetUtilization === 'number') {
+        parsed.targetUtilization = normalizeTargetUtilization(parsed.targetUtilization);
+      } else {
+        delete parsed.targetUtilization;
+      }
       // nuqs ignores unknown keys and falls back to defaults for bad
       // values, so we can safely throw the whole blob at setState.
       void setState(parsed as Parameters<typeof setState>[0]);

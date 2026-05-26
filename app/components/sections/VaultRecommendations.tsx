@@ -39,10 +39,10 @@ export function VaultRecommendations() {
   const preLLTV = Math.max(0, inputs.lltv - inputs.preLLTVOffset);
   const preLiqDegenerate = inputs.preLiquidationEnabled && preLLTV < SMALLEST_GOV_LLTV;
   const preLiqValue = !inputs.preLiquidationEnabled
-    ? 'Disabled'
+    ? 'Scenario off (no borrower authorizations assumed)'
     : preLiqDegenerate
       ? `Enabled, but pre-liq zone [${formatPct(preLLTV, 1)}, ${formatPct(inputs.lltv, 1)}] is below the smallest governance LLTV (${formatPct(SMALLEST_GOV_LLTV, 1)}) — review §4D`
-      : 'Enabled, params per §4D';
+      : 'Scenario on (all borrowers authorized), params per §4D';
 
   // Morpho architecture:
   //  · MARKET (Morpho Blue createMarket): loanToken, collateralToken, oracle,

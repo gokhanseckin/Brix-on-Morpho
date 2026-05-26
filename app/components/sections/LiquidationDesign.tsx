@@ -224,16 +224,16 @@ export function LiquidationDesign() {
         }`}
       >
         <div className="text-sm font-semibold">
-          Pre-liquidation: {inputs.preLiquidationEnabled ? 'enabled' : 'disabled'}
+          Pre-liquidation scenario: {inputs.preLiquidationEnabled ? 'all borrowers authorized' : 'no borrowers authorized'}
         </div>
         <div className="text-xs mt-1">
           {inputs.preLiquidationEnabled
-            ? 'Positions can be partially closed before the hard LLTV, reducing tail bad debt at the cost of borrower friction. Toggle off in the sidebar to see the contrast.'
-            : 'Liquidations only trigger at the hard LLTV. Toggle on in the sidebar to reduce tail bad debt.'}
+            ? 'All simulated borrowers are assumed to have authorized optional pre-liquidation. This is a scenario, not the launch baseline.'
+            : 'Launch baseline: no borrower authorization is assumed, so only hard-LLTV liquidations can execute.'}
         </div>
         <div className="text-xs text-neutral-500 mt-1">
-          (Worker recomputes bad-debt for the active toggle setting only; for an exact A/B
-          comparison toggle in the sidebar and observe the headline P95 KPI change.)
+          (Configure this binary scenario on the LLTV page. The worker recomputes bad debt
+          for the active assumption only.)
         </div>
       </div>
 
@@ -257,9 +257,12 @@ export function LiquidationDesign() {
           {formatUSD(
             Math.max(concurrentStress.seizedConcurrent_USD / 0.0438, effectiveDepth_USD, 250_000),
           )}{' '}
-          (concurrent seized ÷ LIF cliff; $250k floor). Keep pre-liquidation enabled (preLLTV ={' '}
-          {(Math.max(0, inputs.lltv - 0.05) * 100).toFixed(1)}%); governance-snapped LLTV from FX
-          P95 drawdown is{' '}
+          (concurrent seized ÷ LIF cliff; $250k floor). Pre-liquidation scenario:{' '}
+          <strong>
+            {inputs.preLiquidationEnabled ? 'all borrowers authorized' : 'no borrowers authorized'}
+          </strong>{' '}
+          (preLLTV = {(Math.max(0, inputs.lltv - inputs.preLLTVOffset) * 100).toFixed(1)}%);
+          governance-snapped LLTV from FX P95 drawdown is{' '}
           {lltvDerivation.snapped ? `${(lltvDerivation.snapped * 100).toFixed(1)}%` : '—'}.
         </div>
         <div className="text-xs text-neutral-500 mt-2">
