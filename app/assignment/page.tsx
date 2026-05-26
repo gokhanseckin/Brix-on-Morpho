@@ -280,7 +280,7 @@ const slides: Slide[] = [
             name="Merkl program"
             who="Borrower-side"
             paidBy="Brix · rewards + 3% Merkl fee"
-            detail="Merkl is the only first-class rewards rail on Morpho since MIP-111 (Jul 2025). 8-hour distribution cadence. Rewards can be iTRY, Brix points, or MegaETH Terminal points. Merkl takes a 3% maintenance fee on top of distributed rewards — cheap when rewards are Brix points (free to mint), real cost when they're iTRY."
+            detail="Merkl is the only first-class rewards rail on Morpho since MIP-111 (Jul 2025). 8-hour distribution cadence. Rewards can be iTRY, Brix points, or MegaETH Terminal points. Merkl takes a 3% maintenance fee on top of distributed rewards — cheap when rewards are Brix points (free to mint), real cost when they're iTRY. This rail is intentional: when borrow rate rises above the 90% IRM kink, Merkl + Brix rewards keep loops profitable vs holding wiTRY outright."
           />
           <IncentiveLayer
             n="2"
@@ -480,6 +480,9 @@ const slides: Slide[] = [
             </div>
           </Card>
         </div>
+        <Footnote>
+          Atomic AMM swap is one exit. Liquidators can also redeem wiTRY at the vault (small fee, subsidisable) or run a 3-day USD-long cooldown hedge — see <SL n={9} />.
+        </Footnote>
       </div>
     ),
   },
@@ -487,99 +490,78 @@ const slides: Slide[] = [
   /* 9. Pool depth = binding constraint -------------------------------- */
   {
     id: 'pool-rule',
-    title: 'The 5× rule',
+    title: 'The constraints that bind',
     render: () => (
       <div className="flex h-full flex-col">
-        <Kicker>09 · The constraint that runs the market</Kicker>
+        <Kicker>09 · What pins the market</Kicker>
         <H2>
-          Per-wallet debt <Accent>≤</Accent> AMM one-sided depth <Accent>÷</Accent> 5
+          LLTV + LIF + rTarget are <Accent>immutable</Accent>. AMM depth is comfortable, not binding.
         </H2>
         <div className="mt-1 text-[13px] uppercase tracking-[0.18em] text-neutral-500">
-          Monitored, not enforced on Morpho Blue
+          Above-kink isn&apos;t a cliff — it&apos;s where lender yield ramps and rewards backfill borrowers.
         </div>
         <div className="mt-6 grid grid-cols-[1.1fr_1fr] gap-6">
           <Card>
             <div className="text-[13px] uppercase tracking-[0.18em] text-neutral-500">
-              Why this rule exists
+              Liquidation paths
             </div>
-            <div className="mt-3 space-y-3 text-[17px] leading-[1.55] text-neutral-300">
-              <p>
-                At 86% LLTV, LIF is only{' '}
-                <Accent>4.38%</Accent>. That bonus is the entire budget covering
-                slippage + gas + the seconds of TRY exposure during the atomic
-                tx.
-              </p>
-              <p>
-                On a v3 pool with concentrated liquidity around spot, a swap
-                equal to ~20% of one-sided depth produces roughly{' '}
-                <Accent>1% slippage in calm markets</Accent> and ~3–4% under
-                stress.
-              </p>
-              <p>
-                The control we have is on the Morpho side: size the borrow
-                cap so a worst-case 100% liquidation lands near 20% of pool
-                depth.
-              </p>
-              <ul className="ml-4 list-disc space-y-2 text-neutral-400">
-                <li>
-                  Calm: ~1% slippage → liquidator keeps ~4% → fast execution.
-                </li>
-                <li>
-                  Stress / TRY gap: 3–4% slippage → still positive → liquidator
-                  still acts.
-                </li>
-                <li>
-                  Pre-liq fires earlier and in smaller chunks → typical
-                  slippage well under 1%.
-                </li>
-                <li>
-                  Pool drains faster than caps adjust → liquidator walks →
-                  bad debt unless pre-liq already cleared the position.
-                </li>
-              </ul>
+            <ul className="ml-4 mt-3 list-disc space-y-2 text-[15px] leading-[1.55] text-neutral-300">
+              <li>
+                <span className="text-neutral-100">AMM swap</span> (Kumbaya wiTRY/USDM) —{' '}
+                <Accent>1% calm</Accent>, <Accent>3–4% stress</Accent> slippage.
+                Fast but the LIF budget absorbs it directly.
+              </li>
+              <li>
+                <span className="text-neutral-100">wiTRY vault redemption</span> — flat
+                redemption fee. Brix can subsidize liquidators if this becomes a
+                chokepoint. Sidesteps AMM slippage; trades it for the redemption fee.
+              </li>
+              <li>
+                <span className="text-neutral-100">Long-USD cooldown hedge</span> — liquidator
+                longs USD on a perp / forward for 3 days, waits out the wiTRY cooldown,
+                redeems at par. Only cost: funding rate over 3 days.
+              </li>
+            </ul>
+            <div className="mt-4 border-t border-neutral-800 pt-3 text-[14px] leading-[1.5] text-neutral-400">
+              With these three paths available, bad-debt risk for the protocol is{' '}
+              <Accent>very low</Accent>.
             </div>
           </Card>
           <div className="flex flex-col gap-4">
             <NumberBlock
               label="LLTV"
               value="86%"
-              hint="Morpho governance tier. Adjacent tiers: 77% (safer, more LIF) and 91.5% (more borrow capacity, thinner LIF)."
+              hint="Morpho governance tier. Immutable once deployed."
             />
             <NumberBlock
-              label="LIF (slippage budget)"
+              label="LIF"
               value="4.38%"
-              hint="The entire liquidator margin. Slippage eats this directly."
+              hint="Direct function of LLTV. Immutable."
+            />
+            <NumberBlock
+              label="rTarget"
+              value="4%"
+              hint="IRM rate at target utilization. Immutable. The real binding parameter."
             />
             <Card>
               <div className="text-[13px] uppercase tracking-[0.18em] text-neutral-500">
-                How we enforce it
+                Why rTarget matters
               </div>
-              <ol className="mt-2 space-y-1.5 text-[14px] leading-[1.5] text-neutral-300">
-                <li>
-                  <span className="font-mono text-neutral-500">1.</span>{' '}
-                  Market borrow cap ={' '}
-                  <Accent>1× live one-sided depth</Accent>. Morpho-native
-                  hard ceiling on total debt.
-                </li>
-                <li>
-                  <span className="font-mono text-neutral-500">2.</span>{' '}
-                  Hypernative alert when any wallet&apos;s debt &gt; pool ÷ 5.
-                  Operational alarm, not prevention.
-                </li>
-                <li>
-                  <span className="font-mono text-neutral-500">3.</span>{' '}
-                  Pre-liq opt-in gated by Brix points. Soft,
-                  incentive-aligned.
-                </li>
-                <li>
-                  <span className="font-mono text-neutral-500">4.</span>{' '}
-                  Dutch-auction LIF inside pre-liq. Any size eventually
-                  becomes profitable to liquidate.
-                </li>
-              </ol>
-              <div className="mt-3 text-[12px] leading-[1.4] text-neutral-500">
-                Morpho Blue has no native per-wallet cap. Sybil concentration
-                is bounded, not solved.
+              <div className="mt-2 space-y-2 text-[14px] leading-[1.5] text-neutral-300">
+                <p>
+                  Market params can&apos;t be changed post-deploy. At{' '}
+                  <Accent>85–90% utilization</Accent>, the borrow rate must stay
+                  profitable for loopers{' '}
+                  <Accent>without relying on rewards</Accent> — otherwise borrowers
+                  migrate to a vault with a lower rTarget and utilization collapses.
+                </p>
+                <p>
+                  Above the <Accent>90% kink</Accent>, the rate climbs fast on
+                  purpose: lenders earn more, and Merkl + Brix rewards subsidize
+                  borrowers through the steep zone. The kink is{' '}
+                  <Accent>soft</Accent> — the curve is exponential and continuous,
+                  not a hard ceiling.
+                </p>
               </div>
             </Card>
           </div>
@@ -632,6 +614,11 @@ const slides: Slide[] = [
           Slippage figures assume v3 concentrated liquidity around TRY/USD
           spot. MegaETH chain-LP seed via MegaMafia can subsidize part of this
           pool — see <SL n={5} />.
+        </Footnote>
+        <Footnote>
+          These targets are a conservative comfort floor: liquidators also hold
+          non-AMM exits (wiTRY redemption, USD-long-3d cooldown hedge) that
+          reduce reliance on pool depth — see <SL n={9} />.
         </Footnote>
       </div>
     ),
@@ -695,7 +682,10 @@ const slides: Slide[] = [
           profit = (LIF − 1) × seized <Accent>−</Accent> slippage{' '}
           <Accent>−</Accent> gas
         </H2>
-        <div className="mt-6 grid grid-cols-[1.05fr_1fr] gap-6">
+        <p className="mt-1 text-[12px] uppercase tracking-[0.18em] text-neutral-500">
+          AMM-swap P&amp;L. Redemption and cooldown exits trade slippage for redemption fee / funding rate — see <SL n={9} />.
+        </p>
+        <div className="mt-4 grid grid-cols-[1.05fr_1fr] gap-6">
           <div className="overflow-hidden rounded-lg border border-neutral-800">
             <table className="w-full text-left text-[16px]">
               <thead className="bg-neutral-900/70 text-[12px] uppercase tracking-[0.18em] text-neutral-500">
@@ -709,6 +699,7 @@ const slides: Slide[] = [
                 {([
                   ['LLTV', '86%', 'Morpho governance tier. Costs us one-sided depth.'],
                   ['LIF', '4.38%', 'Derived from LLTV. The full liquidator budget.'],
+                  ['rTarget (IRM rate-on-target)', '4%', <>Immutable post-deploy. Sized so borrowing stays profitable at 85–90% util even without rewards. <SL n={9}>Slide 9</SL>.</>],
                   ['Pre-liquidations', 'On · opt-in', 'Gated by Brix points. Dutch-auction LIF chops large positions.'],
                   ['Market borrow cap', '1× live one-sided depth', <>Morpho-native hard ceiling on total debt. <SL n={9}>Slide 9</SL>.</>],
                   ['Per-wallet target', '≤ pool ÷ 5', 'Not enforceable on Morpho Blue. Hypernative alert; respond by lowering market cap.'],
@@ -758,36 +749,46 @@ const slides: Slide[] = [
     title: 'Pre-liquidations',
     render: () => (
       <div className="flex h-full flex-col">
-        <Kicker>13 · The cliff vs the slope</Kicker>
+        <Kicker>13 · Tail-rare, not routine</Kicker>
         <H2>
-          Pre-liq cuts bad-debt risk from <Accent>3–6%</Accent> to{' '}
-          <Accent>~1%</Accent> per year.
+          Bad debt is tail-rare. Pre-liq cuts the rate{' '}
+          <Accent>3×</Accent>.
         </H2>
         <Body>
-          TRY can gap overnight. Without pre-liq, the position goes from
-          healthy to underwater between two oracle updates and the liquidator
-          misses the window. Pre-liq auto-deleverages gradually <em>before</em>{' '}
-          health hits 1.
+          TRY can gap overnight. Without pre-liq, a position can cross from
+          healthy to underwater between two oracle updates. Pre-liq
+          auto-deleverages gradually <em>before</em> health hits 1 — shrinking
+          the AMM-swap exit needed at liquidation time and making backups (redemption,
+          cooldown — see <SL n={9} />) less load-bearing. Under 1-day drawdown
+          math the P95 path shows $0 bad debt either way; the value of pre-liq
+          is in how often the bad-debt event occurs at all.
         </Body>
         <div className="mt-8 grid grid-cols-3 gap-5">
           <NumberBlock
-            label="P(bad-debt) · no pre-liq"
-            value="3–6%"
-            hint="Per-year probability of a 3-day TRY drawdown big enough to cause bad debt at LLTV 86 / util 85%."
+            label="P95 bad debt · 1-day · 30d window"
+            value="$0"
+            hint="P95 path shows zero bad debt under canonical inputs (LLTV 86%, util 85%, TVL $5M, block-bootstrap, seed 42). Bad debt only materialises in the far tail."
           />
           <NumberBlock
-            label="P(bad-debt) · with pre-liq"
-            value="~1%"
-            hint="Same scenario with pre-liq enabled. Auto-deleverages early."
+            label="Any-bad-debt rate · no pre-liq"
+            value="0.9%"
+            hint="Share of 30-day paths where any bad debt occurs — pre-liq off. Bad debt is confined to fewer than 1 in 100 windows."
           />
+          <NumberBlock
+            label="Any-bad-debt rate · with pre-liq"
+            value="0.3%"
+            hint="Same scenario with pre-liq enabled. Auto-deleveraging cuts the tail-event rate roughly 3×."
+          />
+        </div>
+        <div className="mt-5">
           <NumberBlock
             label="Recommendation"
             value="On, day 1"
-            hint="Not optional at 86% LLTV. This is how atomic-only liquidations survive an FX gap."
+            hint="Pre-liq is still the right default: it keeps the rare bad-debt event rarer, and makes each liquidation exit smaller regardless of which path the liquidator uses."
           />
         </div>
         <Footnote>
-          Numbers from this repo&apos;s FX simulator at baseline — see{' '}
+          Numbers from this repo&apos;s FX simulator at canonical defaults (1-day drawdown, 30-day horizon, 1000 paths, seed 42) — see{' '}
           <a href="/" className="underline" style={{ color: ACCENT }}>
             /
           </a>{' '}
@@ -820,7 +821,7 @@ const slides: Slide[] = [
               <li>USDM supply ≈ borrow / utilization · buffer 10–20%.</li>
               <li>Curators are distribution. Sign one from the shortlist.</li>
               <li>3-layer incentives: Merkl + MegaETH + Brix kicker.</li>
-              <li>Pool depth is the binding constraint. 5× rule.</li>
+              <li>AMM depth is a comfort target. Liquidators have three exits (<SL n={9} />); <Accent>rTarget</Accent> is the real bind.</li>
               <li>Liquidator stack: Wintermute → internal → MM net → public.</li>
               <li>Pre-liq on, day 1. LLTV 86%, LIF 4.38%, V1.1 factory.</li>
             </ol>
