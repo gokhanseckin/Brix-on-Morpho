@@ -241,10 +241,24 @@ export function Sidebar() {
             </span>
           </div>
         </div>
-        <div className="text-[11px] text-neutral-500 leading-snug">
-          Pre-liquidation parameters (toggle, preLLTV offset, preLCF, preLIF)
-          edited on the{' '}
-          <CrossPageLink href="/lltv" className="text-brix-accent underline">LLTV page</CrossPageLink>.
+        <div className="space-y-1.5 text-[11px] text-neutral-500 leading-snug">
+          <div className="flex items-center justify-between">
+            <span>Pre-liquidation scenario</span>
+            <span
+              aria-label={`Pre-liquidation status: ${s.preLiquidationEnabled ? 'ON' : 'OFF'}`}
+              className={`rounded border px-1.5 py-0.5 font-mono font-semibold tracking-wide ${
+                s.preLiquidationEnabled
+                  ? 'border-emerald-500/40 bg-emerald-950/30 text-emerald-300'
+                  : 'border-neutral-700 bg-neutral-900 text-neutral-400'
+              }`}
+            >
+              {s.preLiquidationEnabled ? 'ON' : 'OFF'}
+            </span>
+          </div>
+          <p>
+            Parameters (toggle, preLLTV offset, preLCF, preLIF) edited on the{' '}
+            <CrossPageLink href="/lltv" className="text-brix-accent underline">LLTV page</CrossPageLink>.
+          </p>
         </div>
       </Group>
 
