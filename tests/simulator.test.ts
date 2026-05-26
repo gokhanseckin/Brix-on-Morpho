@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   computeLiquidityNeed,
+  normalizeTargetUtilization,
   sampleBetaLtvFractions,
   pctUnderwaterAtT,
   slippage,
@@ -92,6 +93,29 @@ describe('liquidity need', () => {
       deadDepositCost: 1,
     });
     expect(out.liquidityFloor_USD).toBeCloseTo(0.2 * out.requiredUSDM, 0);
+  });
+
+  it('rejects target utilization outside the deployable 1%-to-100% domain', () => {
+    const args = {
+      witryTVL_USD: 5_000_000,
+      lltv: 0.77,
+      targetUtilization: 0,
+      borrowerLTVAlpha: 3,
+      borrowerLTVBeta: 2,
+      incentiveAPY: 0,
+      baseSupplyAPY: 0.05,
+      deadDepositCost: 1,
+    };
+
+    expect(() => computeLiquidityNeed(args)).toThrow(/target utilization/);
+    expect(() => computeLiquidityNeed({ ...args, targetUtilization: 1.01 })).toThrow(/target utilization/);
+  });
+
+  it('normalizes malformed persisted target utilization before orchestration', () => {
+    expect(normalizeTargetUtilization(0)).toBe(0.01);
+    expect(normalizeTargetUtilization(-1)).toBe(0.01);
+    expect(normalizeTargetUtilization(2)).toBe(1);
+    expect(normalizeTargetUtilization(Number.NaN)).toBe(0.8);
   });
 });
 

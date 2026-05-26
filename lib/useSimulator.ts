@@ -15,6 +15,7 @@ import {
   slippageFromPreset,
   betaMean,
   buildPreLiquidationScenario,
+  normalizeTargetUtilization,
 } from './simulator';
 import { buildLadderFromInputs, effectiveDepthFromPreset } from './poolPreset';
 import { LIF, adaptiveCurveIRM } from './morphoMath';
@@ -38,7 +39,12 @@ const SLIPPAGE_ESTIMATE_CAP = 0.5;                // hard ceiling on derived sli
 const DEFAULT_VAULT_TIMELOCK_SECONDS = 604_800;   // 7 days, spec §5
 
 export function useSimulator() {
-  const [s] = useUrlState();
+  const [urlInputs] = useUrlState();
+  const s = useMemo(() => {
+    const targetUtilization = normalizeTargetUtilization(urlInputs.targetUtilization);
+    if (targetUtilization === urlInputs.targetUtilization) return urlInputs;
+    return { ...urlInputs, targetUtilization };
+  }, [urlInputs]);
   const { running, result, run } = useSimulationWorker();
 
   const returnsWindow = useMemo(() => {

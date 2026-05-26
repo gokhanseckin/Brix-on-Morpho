@@ -25,6 +25,15 @@ export interface LiqNeedOut {
   bufferPct: number;
 }
 
+export const MIN_TARGET_UTILIZATION = 0.01;
+export const MAX_TARGET_UTILIZATION = 1;
+export const DEFAULT_TARGET_UTILIZATION = 0.8;
+
+export function normalizeTargetUtilization(value: number): number {
+  if (!Number.isFinite(value)) return DEFAULT_TARGET_UTILIZATION;
+  return Math.max(MIN_TARGET_UTILIZATION, Math.min(MAX_TARGET_UTILIZATION, value));
+}
+
 export function betaMean(alpha: number, beta: number): number {
   return alpha / (alpha + beta);
 }
@@ -64,6 +73,15 @@ export function bufferPctFromIncentive(incentiveAPY: number, baseSupplyAPY: numb
 }
 
 export function computeLiquidityNeed(a: LiqNeedArgs): LiqNeedOut {
+  if (
+    !Number.isFinite(a.targetUtilization) ||
+    a.targetUtilization < MIN_TARGET_UTILIZATION ||
+    a.targetUtilization > MAX_TARGET_UTILIZATION
+  ) {
+    throw new RangeError(
+      `target utilization must be between ${MIN_TARGET_UTILIZATION} and ${MAX_TARGET_UTILIZATION}`,
+    );
+  }
   const meanLTVFrac = betaMean(a.borrowerLTVAlpha, a.borrowerLTVBeta);
   const maxBorrowable_USD = a.witryTVL_USD * a.lltv;
   const expectedBorrow_USD = maxBorrowable_USD * meanLTVFrac;

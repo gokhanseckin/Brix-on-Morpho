@@ -4,6 +4,7 @@ import { GOV_LLTVS, type LLTV } from '@/types/simulator';
 import { useState } from 'react';
 import { InfoTooltip } from './help/InfoTooltip';
 import { PARAM_HELP, PARAM_SECTION } from '@/lib/help/registry';
+import { MIN_TARGET_UTILIZATION } from '@/lib/simulator';
 
 function paramTooltip(helpKey: keyof typeof PARAM_HELP) {
   const help = PARAM_HELP[helpKey];
@@ -69,7 +70,7 @@ export function Sidebar() {
           helpKey="targetUtilization"
           value={s.targetUtilization}
           onChange={(v) => setS({ targetUtilization: v })}
-          min={0}
+          min={MIN_TARGET_UTILIZATION}
           max={1}
           step={0.01}
           format={(v) => `${(v * 100).toFixed(0)}%`}

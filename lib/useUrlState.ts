@@ -9,6 +9,7 @@ import {
   createParser,
 } from 'nuqs';
 import { GOV_LLTVS, type LLTV } from '@/types/simulator';
+import { DEFAULT_TARGET_UTILIZATION, normalizeTargetUtilization } from './simulator';
 
 const MODES = ['Bootstrap', 'GBM', 'GBM+Jumps', 'Scenario'] as const;
 
@@ -24,11 +25,16 @@ const parseAsLLTV = createParser({
   serialize: (v: LLTV) => String(v),
 });
 
+const parseAsTargetUtilization = createParser({
+  parse: (v: string): number => normalizeTargetUtilization(parseFloat(v)),
+  serialize: (v: number) => String(normalizeTargetUtilization(v)),
+});
+
 export function useUrlState() {
   const tuple = useQueryStates({
     witryTVL_USD: parseAsFloat.withDefault(5_000_000),
     lltv: parseAsLLTV.withDefault(0.86),
-    targetUtilization: parseAsFloat.withDefault(0.8),
+    targetUtilization: parseAsTargetUtilization.withDefault(DEFAULT_TARGET_UTILIZATION),
     borrowerLTVAlpha: parseAsFloat.withDefault(4.6),
     borrowerLTVBeta: parseAsFloat.withDefault(2),
     witryYieldAnnual: parseAsFloat.withDefault(0.38),
@@ -88,6 +94,11 @@ export function useUrlState() {
           const raw = window.localStorage.getItem(STORAGE_KEY);
           if (raw) {
             const parsed = JSON.parse(raw) as Record<string, unknown>;
+            if (typeof parsed.targetUtilization === 'number') {
+              parsed.targetUtilization = normalizeTargetUtilization(parsed.targetUtilization);
+            } else {
+              delete parsed.targetUtilization;
+            }
             // nuqs ignores keys it doesn't know; bad-typed values get
             // rejected by the parsers and fall back to defaults.
             void setState(parsed as Parameters<typeof setState>[0]);
