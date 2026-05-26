@@ -13,6 +13,9 @@ import {
   preLiquidationTerms,
   buildPreLiquidationScenario,
   deriveRecommendedLLTV,
+  maxLForBadDebt,
+  maxLForProfit,
+  tierScanRecommendation,
   snapToGovernanceLLTV,
   computeStrategy,
   buildVaultConfigJson,
@@ -504,25 +507,111 @@ describe('LLTV derivation', () => {
     const b = deriveRecommendedLLTV({ p95Drawdown: 0.05, slippage: 0.02, safetyMargin: 0.02 });
     expect(b.raw).toBeGreaterThan(a.raw);
   });
+
+  // Regression: the old fixed-point formula declared "break-even" at L≈0.9333
+  // for dd=0, slip=5%, safety=0 — but at that L, LIF=1.0204 and the
+  // liquidator loses ~3% per liquidation. The new solver must enforce the
+  // liquidator-profit constraint and cap L well below 0.9333.
+  it('liquidator-profit constraint binds at high slippage / zero drawdown', () => {
+    const r = deriveRecommendedLLTV({ p95Drawdown: 0, slippage: 0.05, safetyMargin: 0 });
+    expect(r.bindingConstraint).toBe('liquidator-profit');
+    expect(r.raw).toBeLessThan(0.90); // old formula gave 0.9333; must be tighter
+    // True ceiling: LIF·(1-slip) ≥ 1 → L ≤ 1 - slip/β = 1 - 0.05/0.3 = 0.8333
+    expect(r.raw).toBeCloseTo(0.8333, 3);
+    expect(LIF(r.raw) * (1 - 0.05)).toBeGreaterThanOrEqual(1 - 1e-6);
+  });
+
+  it('bad-debt constraint binds at high drawdown / zero slippage', () => {
+    const r = deriveRecommendedLLTV({ p95Drawdown: 0.20, slippage: 0, safetyMargin: 0 });
+    expect(r.bindingConstraint).toBe('bad-debt');
+    // L · LIF(L) ≤ 1 - 0.20 = 0.80
+    expect(r.raw * LIF(r.raw)).toBeLessThanOrEqual(0.80 + 1e-6);
+  });
+
+  it('maxLForBadDebt returns 0 when target is non-positive', () => {
+    expect(maxLForBadDebt(1.0, 0.0)).toBe(0);
+    expect(maxLForBadDebt(0.5, 0.6)).toBe(0);
+  });
+
+  it('maxLForProfit returns 0 when even LIF_CAP cannot cover slippage', () => {
+    // LIF_CAP = 1.15; need LIF ≥ (1+0)/(1-0.2) = 1.25 > 1.15 → infeasible
+    expect(maxLForProfit(0.20, 0)).toBe(0);
+  });
+
+  it('tier scan picks largest feasible governance tier', () => {
+    // dd=5%, very low slippage (constant 0.5% across tiers), safety=0.5%
+    const scan = tierScanRecommendation({
+      p95Drawdown: 0.05,
+      safetyMargin: 0.005,
+      slippageAt: () => 0.005,
+    });
+    expect(scan.snapped).toBeGreaterThan(0);
+    expect(scan.perTier.length).toBeGreaterThan(0);
+    // Every tier above the winner must be infeasible
+    const winnerIdx = scan.perTier.findIndex((t) => t.lltv === scan.snapped);
+    for (let i = winnerIdx + 1; i < scan.perTier.length; i++) {
+      expect(scan.perTier[i]!.feasible).toBe(false);
+    }
+  });
+
+  it('tier scan returns 0 when no tier is feasible', () => {
+    const scan = tierScanRecommendation({
+      p95Drawdown: 0.99,
+      safetyMargin: 0,
+      slippageAt: () => 0,
+    });
+    expect(scan.snapped).toBe(0);
+  });
 });
 
 describe('strategy', () => {
-  it('totals add up', () => {
+  it('totals add up; supply incentives lift totalSupplyAPY above netSupplyAPY', () => {
     const out = computeStrategy({
       borrowAPY: 0.10,
       targetUtilization: 0.7,
       performanceFee: 0.1,
       managementFee: 0.01,
       requiredUSDM: 3_300_000,
-      incentiveBudgetMonthly_USD: 10_000,
-      attractionRate: 5,
+      supplyIncentiveBudgetMonthly_USD: 10_000,
+      borrowerIncentiveBudgetMonthly_USD: 0,
+      expectedBorrow_USD: 2_310_000,
       witryYieldAnnual: 0.38,
-      expectedTRYDepreciation_annual: 0.30,
-      competingAPY: 0.05,
+      hfBuffer: 1.5,
+      perLoopSlippageBps: 30,
+      lltv: 0.86,
+      loopCount: 10,
     });
     expect(out.grossSupplyAPY).toBeCloseTo(0.07, 4);
     expect(out.totalSupplyAPY).toBeGreaterThan(out.netSupplyAPY);
-    expect(out.daysToTarget).toBeGreaterThan(0);
+    expect(out.borrowerIncentiveAPY).toBe(0);
+    expect(out.netBorrowAPY).toBeCloseTo(0.10, 6);
+    // n=10 finite partial sum: (1 − b^11) / (1 − b) where b = 0.86/1.5
+    const b = 0.86 / 1.5;
+    expect(out.effectiveLeverage).toBeCloseTo((1 - Math.pow(b, 11)) / (1 - b), 6);
+    expect(out.loopDebtPerCollateral).toBeCloseTo(0.86 / 1.5, 6);
+    expect(out.netLoopAPY).toBeGreaterThan(0);
+    expect(out.netLoopAPY_withIncentives).toBeCloseTo(out.netLoopAPY, 10);
+  });
+
+  it('borrower incentive lowers netBorrowAPY and lifts loop APY via overlay', () => {
+    const out = computeStrategy({
+      borrowAPY: 0.10,
+      targetUtilization: 0.7,
+      performanceFee: 0.1,
+      managementFee: 0.01,
+      requiredUSDM: 3_300_000,
+      supplyIncentiveBudgetMonthly_USD: 0,
+      borrowerIncentiveBudgetMonthly_USD: 20_000,
+      expectedBorrow_USD: 1_000_000,
+      witryYieldAnnual: 0.38,
+      hfBuffer: 1.5,
+      perLoopSlippageBps: 30,
+      lltv: 0.86,
+      loopCount: 10,
+    });
+    expect(out.borrowerIncentiveAPY).toBeCloseTo(0.24, 6);
+    expect(out.netBorrowAPY).toBeCloseTo(-0.14, 6);
+    expect(out.netLoopAPY_withIncentives).toBeGreaterThan(out.netLoopAPY);
   });
 });
 

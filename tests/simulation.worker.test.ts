@@ -21,15 +21,16 @@ const baseInputs: SidebarInputs = {
   witryYieldAnnual: 0,
   witryYieldUSD_7d: 0,
   witryYieldUSD_30d: 0,
+  hfBuffer: 1.5,
+  loopCount: 10,
   usdtryBaseline: 100,
   historicalPeriod: 5,
   simulationMode: 'GBM+Jumps',
   simulationHorizonDays: 90,
   pathCount: 100,
   tryShockPct: -0.3,
-  incentiveBudgetMonthly_USD: 0,
-  attractionRate: 5,
-  lockPeriodDays: 90,
+  supplyIncentiveBudgetMonthly_USD: 0,
+  borrowerIncentiveBudgetMonthly_USD: 0,
   performanceFee: 0.1,
   managementFee: 0,
   safetyMargin: 0.02,
@@ -65,6 +66,7 @@ describe('simulation worker jump defaults', () => {
     const output = await runWorker({
       inputs: baseInputs,
       returnsWindow: Array.from({ length: 252 }, () => 0),
+      borrowAPY: 0.04,
     });
     const terminalP5 = output.p5[output.p5.length - 1]!;
     const terminalP50 = output.p50[output.p50.length - 1]!;

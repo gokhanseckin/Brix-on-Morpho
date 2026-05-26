@@ -26,23 +26,21 @@ test('liquidator swap panel shows non-empty USDM output', async ({ page }) => {
   await expect(usdmCard).toContainText('$');
 });
 
-test('homepage section 4 now shows AMM bad-debt KPI (real bad-debt math)', async ({ page }) => {
+test('homepage section 4 shows P95 Morpho debt KPI (real bad-debt math)', async ({ page }) => {
   await page.goto('/');
-  await expect(page.locator('text=AMM bad debt')).toBeVisible();
+  await expect(page.locator('text=P95 Morpho debt — single (USD)').first()).toBeVisible();
 });
 
 test('every sidebar field exposes a help affordance', async ({ page }) => {
   await page.goto('/swapliquidity');
-  // Five sidebar labels (LLTV, Fee tier, Total TVL, Core, Absorb) each render
-  // an InfoTooltip "?" trigger. Asserting all five exist guards against silent
-  // tooltip regressions.
+  // Editable sidebar fields (Fee tier, AMM TVL, Core, Absorb) each render an
+  // InfoTooltip "?" trigger. Read-only rows (LLTV, TVL etc.) intentionally omit
+  // tooltips. Asserting ≥4 guards against silent tooltip regressions.
   const sidebar = page.locator('aside');
-  // Buttons with aria-label="More info" or "?" character — InfoTooltip uses a
-  // ? trigger. Count loosely; we just need >= 5.
   const helpTriggers = sidebar.locator('button, [role="button"]').filter({ hasText: /\?/ });
   await expect(helpTriggers.first()).toBeVisible();
   const count = await helpTriggers.count();
-  expect(count).toBeGreaterThanOrEqual(5);
+  expect(count).toBeGreaterThanOrEqual(4);
 });
 
 test('every output section exposes at least one help popover trigger', async ({ page }) => {

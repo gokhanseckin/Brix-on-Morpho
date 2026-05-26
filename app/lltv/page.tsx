@@ -71,12 +71,6 @@ function formatUSDshort(usd: number): string {
 
 type Row = { date: string; rate: number };
 
-function quantile(sorted: number[], p: number): number {
-  if (sorted.length === 0) return 0;
-  const idx = Math.min(sorted.length - 1, Math.max(0, Math.floor((sorted.length - 1) * p)));
-  return sorted[idx] ?? 0;
-}
-
 function maxKDayDrawdown(wiUSD: number[], k: number): { p50: number; p90: number; p95: number; p99: number; max: number } {
   const out: number[] = [];
   for (let i = k; i < wiUSD.length; i++) {
@@ -90,10 +84,10 @@ function maxKDayDrawdown(wiUSD: number[], k: number): { p50: number; p90: number
   }
   out.sort((a, b) => a - b);
   return {
-    p50: quantile(out, 0.5),
-    p90: quantile(out, 0.9),
-    p95: quantile(out, 0.95),
-    p99: quantile(out, 0.99),
+    p50: quantileSorted(out, 0.5),
+    p90: quantileSorted(out, 0.9),
+    p95: quantileSorted(out, 0.95),
+    p99: quantileSorted(out, 0.99),
     max: out[out.length - 1] ?? 0,
   };
 }
@@ -144,8 +138,11 @@ export default function LLTVPage() {
   const recommended = sim.lltvDerivation.snapped;
   const riskTier = sim.riskTier;
   const lifAtRecommended = recommended > 0 ? LIF(recommended) : 0;
+  const lifAtRaw = rawDerived > 0 ? LIF(rawDerived) : 0;
   const ddPctile = sim.lltvDerivation.drawdownPercentile;
   const ddLabel = `p${ddPctile} 1-day drawdown`;
+  const binding = sim.lltvDerivation.bindingConstraint;
+  const perTier = sim.lltvDerivation.perTier;
 
   // ----- Sensitivity matrix: (horizon × percentile) -> LLTV ----------------
   // Sub-daily horizons use Brownian √-scaling from the 1-day series:
@@ -192,43 +189,63 @@ export default function LLTVPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sim.fx?.oneDayDD, slippage, safetyMargin]);
 
-  const fxSource = sim.fx?.oneDayDD ? 'Monte Carlo worker' : '5-year empirical fallback';
+  const fxSource = sim.fx?.oneDayDD
+    ? 'Monte Carlo worker'
+    : `${sim.inputs.historicalPeriod}-year empirical fallback`;
 
   // ----- Path to the user's chosen LLTV ------------------------------------
-  // The "Bumping one step" view was hardcoded to oneStepLarger; here we target
-  // sim.inputs.lltv (what the operator actually wants to ship at). For each
-  // path we (a) check single-knob feasibility, (b) when slippage is the lever
-  // we numerically solve for the pool TVL that hits the slip ceiling.
+  // For the target tier we (a) look up its feasibility row from the per-tier
+  // scan, (b) compute single-knob ceilings under the two-constraint model.
+  // Bad-debt and liquidator-profit are independent in each knob: dd only
+  // affects bad-debt, slip only affects profit, safety affects both.
   const targetLLTV = sim.inputs.lltv;
   const lifTarget = LIF(targetLLTV);
-  const targetIsSupported = targetLLTV > 0 && rawDerived >= targetLLTV;
-
-  // Single-knob ceilings (each holds the other two at current).
-  const ddCeilingForTarget = Math.max(0, 1 - (targetLLTV + safetyMargin) * lifTarget * (1 + slippage));
-  const slipCeilingForTarget = (1 - p95Drawdown) / ((targetLLTV + safetyMargin) * lifTarget) - 1;
-  const safetyCeilingForTarget = (1 - p95Drawdown) / (lifTarget * (1 + slippage)) - targetLLTV;
+  const targetRow = perTier.find((t) => t.lltv === targetLLTV);
+  const targetIsSupported = targetLLTV > 0 && (targetRow?.feasible ?? false);
+  // Bad-debt knob ceiling: targetLLTV × LIF(target) ≤ 1 − dd − safety
+  const ddCeilingForTarget = Math.max(0, 1 - safetyMargin - targetLLTV * lifTarget);
+  // Profit knob ceiling: LIF(target) × (1 − slip) ≥ 1 + safety
+  const slipCeilingForTarget =
+    lifTarget > 0 ? Math.max(0, 1 - (1 + safetyMargin) / lifTarget) : 0;
+  // Safety knob ceiling: tighter of bad-debt and profit constraints
+  const safetyCeilingForTarget = Math.max(
+    0,
+    Math.min(
+      1 - p95Drawdown - targetLLTV * lifTarget, // bad-debt
+      lifTarget * (1 - slippage) - 1, // profit
+    ),
+  );
 
   // Combined ceiling — relax safety to TIGHT.
   const slipCeilingTightSafety =
-    (1 - p95Drawdown) / ((targetLLTV + TIGHT_SAFETY_MARGIN) * lifTarget) - 1;
+    lifTarget > 0 ? Math.max(0, 1 - (1 + TIGHT_SAFETY_MARGIN) / lifTarget) : 0;
 
-  // Numerical pool-TVL recipes.
-  const recipePoolOnly = !targetIsSupported && slipCeilingForTarget > 0
-    ? findPoolTVLForSlippage({
-        targetSlippage: slipCeilingForTarget,
-        targetLLTV,
-        s: sim.inputs as unknown as SidebarInputs,
-        spot: sim.pool.spot,
-      })
-    : null;
-  const recipeTightSafety = !targetIsSupported && slipCeilingTightSafety > 0
-    ? findPoolTVLForSlippage({
-        targetSlippage: slipCeilingTightSafety,
-        targetLLTV,
-        s: sim.inputs as unknown as SidebarInputs,
-        spot: sim.pool.spot,
-      })
-    : null;
+  // Bad-debt at target may already fail regardless of slippage — flag it so
+  // the recipes (which only deepen pool) don't promise a fix that can't work.
+  const badDebtFeasibleAtTarget =
+    targetRow !== undefined && targetLLTV <= targetRow.lMaxBadDebt;
+
+  // Numerical pool-TVL recipes. Only worth computing if bad-debt is satisfied
+  // at the target — pool deepening only reduces slippage, which fixes the
+  // profit constraint, not bad-debt.
+  const recipePoolOnly =
+    !targetIsSupported && badDebtFeasibleAtTarget && slipCeilingForTarget > 0
+      ? findPoolTVLForSlippage({
+          targetSlippage: slipCeilingForTarget,
+          targetLLTV,
+          s: sim.inputs as unknown as SidebarInputs,
+          spot: sim.pool.spot,
+        })
+      : null;
+  const recipeTightSafety =
+    !targetIsSupported && badDebtFeasibleAtTarget && slipCeilingTightSafety > 0
+      ? findPoolTVLForSlippage({
+          targetSlippage: slipCeilingTightSafety,
+          targetLLTV,
+          s: sim.inputs as unknown as SidebarInputs,
+          spot: sim.pool.spot,
+        })
+      : null;
 
   return (
     <div className="flex bg-brix-bg min-h-screen text-neutral-200">
@@ -236,14 +253,17 @@ export default function LLTVPage() {
       <div className="flex-1 mx-auto max-w-4xl px-6 py-10">
         <TopNav />
         <header className="mb-8 border-b border-brix-border pb-6 mt-6">
-          <div className="brix-kicker mb-3">Brix · LLTV calibration</div>
+          <div className="brix-kicker mb-3">Brix · market parameter calibration</div>
           <h1 className="text-3xl font-semibold tracking-tight">
             Recommended LLTV <span className="text-brix-accent">·</span> live parameters
           </h1>
           <p className="text-sm text-neutral-400 mt-3">
-            Uses the same recommendation pipeline as the{' '}
-            <a href="/" className="underline">Market Simulator</a> homepage. Edit inputs there or on{' '}
-            <a href="/swapliquidity" className="underline">Swap Liquidity</a>; this page mirrors them.
+            Calibrates the <strong>market</strong> LLTV (immutable per Morpho Blue market) and
+            the <strong>per-market pre-liquidation contract</strong> parameters — neither
+            lives on the MetaMorpho vault. Uses the same recommendation pipeline as the{' '}
+            <a href="/" className="underline">Market Simulator</a> homepage. Edit inputs there
+            or on <a href="/swapliquidity" className="underline">Swap Liquidity</a>; this page
+            mirrors them.
           </p>
         </header>
 
@@ -254,13 +274,24 @@ export default function LLTVPage() {
               LLTV = {recommended > 0 ? pct(recommended, 1) : '—'}
             </div>
             <p className="text-sm mt-1 text-neutral-300">
-              Snapped down from raw {rawDerived.toFixed(4)} ({pct(rawDerived, 2)}) to the nearest
-              governance tier. Chosen LLTV in sidebar: {pct(sim.inputs.lltv, 1)} → risk tier:{' '}
-              <strong>{riskTier}</strong>.
-              {!sim.lltvDerivation.converged && (
+              Largest governance tier that satisfies both the no-bad-debt and
+              liquidator-profitability constraints (raw ceiling{' '}
+              {rawDerived.toFixed(4)} / {pct(rawDerived, 2)}). Chosen LLTV in sidebar:{' '}
+              {pct(sim.inputs.lltv, 1)} → risk tier: <strong>{riskTier}</strong>.{' '}
+              Binding constraint:{' '}
+              <strong>
+                {binding === 'liquidator-profit'
+                  ? 'liquidator profitability (LIF × (1 − slip) ≥ 1 + safety)'
+                  : binding === 'bad-debt'
+                    ? 'no bad debt (L × LIF(L) ≤ 1 − dd − safety)'
+                    : 'none'}
+              </strong>
+              .
+              {recommended === 0 && (
                 <span className="text-amber-400">
-                  {' '}Formula did not converge — inputs likely degenerate (very high slippage or
-                  drawdown); tighten safety margin or deepen pool.
+                  {' '}No governance tier is feasible at current inputs — relax the binding
+                  constraint (lower slippage to help profit, or lower dd / safety to help bad
+                  debt).
                 </span>
               )}
             </p>
@@ -275,9 +306,10 @@ export default function LLTVPage() {
             </div>
             <p className="text-xs text-neutral-400 mt-1 max-w-2xl">
               Risk-officer&apos;s discretionary cushion on top of LIF + slippage. Covers oracle
-              staleness, MEV, gas, modelling error. Affects which governance tier the formula
-              recommends — but is never written to the vault contract. Lives here, not on the
-              home sidebar, because it is a calibration knob, not a deployed parameter.
+              staleness, MEV, gas, modelling error. Affects which governance LLTV the formula
+              recommends — but is never written to any on-chain contract (market, vault, or
+              pre-liquidation). Lives here, not on the home sidebar, because it is a
+              calibration knob, not a deployed parameter.
             </p>
             <div className="mt-3 flex items-center gap-3">
               <label className="text-xs text-neutral-400">Value</label>
@@ -437,6 +469,120 @@ export default function LLTVPage() {
           </div>
         </section>
 
+        {/* ----- Pre-liquidation parameters (Morpho spec §4D) -------------- */}
+        <section className="space-y-3 mt-4">
+          <div className="rounded border border-brix-border bg-brix-surface p-4">
+            <div className="flex items-baseline justify-between">
+              <h3 className="text-sm font-semibold">Pre-liquidation parameters</h3>
+              <span className="text-[11px] text-neutral-500">
+                per-market pre-liquidation contract (opt-in)
+              </span>
+            </div>
+            <p className="text-xs text-neutral-400 mt-1 max-w-2xl">
+              Deployed as a <strong>separate per-market pre-liquidation contract</strong>{' '}
+              alongside the Morpho Blue market — not part of the vault. Opt-in per
+              borrower, auto-deleverages before the hard LLTV is breached (spec §4D).
+              The cascade simulation on the home page uses these to estimate P95 bad
+              debt; the LLTV recommendation itself does <strong>not</strong> assume
+              pre-liq because it&apos;s borrower-opt-in. <code>preLIF2</code> is
+              auto-capped at <code>LIF(LLTV)</code> per Morpho.
+            </p>
+            <div className="mt-3 grid grid-cols-2 md:grid-cols-3 gap-3 text-sm">
+              <label className="flex items-center gap-2 text-xs">
+                <input
+                  type="checkbox"
+                  checked={sim.inputs.preLiquidationEnabled}
+                  onChange={(e) =>
+                    setUrlState({ preLiquidationEnabled: e.target.checked })
+                  }
+                  className="rounded border-brix-border"
+                />
+                <span className="text-neutral-300">Pre-liquidation enabled</span>
+              </label>
+              <div className="flex items-center gap-2">
+                <label className="text-xs text-neutral-400 w-32">
+                  preLLTV offset
+                </label>
+                <input
+                  type="text"
+                  inputMode="decimal"
+                  value={(sim.inputs.preLLTVOffset * 100).toFixed(2)}
+                  onChange={(e) => {
+                    const v = parseFloat(e.target.value);
+                    if (Number.isFinite(v)) {
+                      setUrlState({
+                        preLLTVOffset: Math.max(0, Math.min(0.2, v / 100)),
+                      });
+                    }
+                  }}
+                  className="w-20 rounded border border-brix-border bg-brix-bg px-2 py-1 font-mono text-right"
+                  aria-label="preLLTV offset (percent)"
+                />
+                <span className="text-xs text-neutral-500">%</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <label className="text-xs text-neutral-400 w-32">preLCF1</label>
+                <input
+                  type="text"
+                  inputMode="decimal"
+                  value={sim.inputs.preLCF1.toFixed(3)}
+                  onChange={(e) => {
+                    const v = parseFloat(e.target.value);
+                    if (Number.isFinite(v)) {
+                      setUrlState({ preLCF1: Math.max(0, Math.min(1, v)) });
+                    }
+                  }}
+                  className="w-20 rounded border border-brix-border bg-brix-bg px-2 py-1 font-mono text-right"
+                  aria-label="preLCF1"
+                />
+              </div>
+              <div className="flex items-center gap-2">
+                <label className="text-xs text-neutral-400 w-32">preLCF2</label>
+                <input
+                  type="text"
+                  inputMode="decimal"
+                  value={sim.inputs.preLCF2.toFixed(3)}
+                  onChange={(e) => {
+                    const v = parseFloat(e.target.value);
+                    if (Number.isFinite(v)) {
+                      setUrlState({ preLCF2: Math.max(0, Math.min(1, v)) });
+                    }
+                  }}
+                  className="w-20 rounded border border-brix-border bg-brix-bg px-2 py-1 font-mono text-right"
+                  aria-label="preLCF2"
+                />
+              </div>
+              <div className="flex items-center gap-2">
+                <label className="text-xs text-neutral-400 w-32">preLIF1</label>
+                <input
+                  type="text"
+                  inputMode="decimal"
+                  value={sim.inputs.preLIF1.toFixed(3)}
+                  onChange={(e) => {
+                    const v = parseFloat(e.target.value);
+                    if (Number.isFinite(v)) {
+                      setUrlState({ preLIF1: Math.max(1, Math.min(LIF(sim.inputs.lltv), v)) });
+                    }
+                  }}
+                  className="w-20 rounded border border-brix-border bg-brix-bg px-2 py-1 font-mono text-right"
+                  aria-label="preLIF1"
+                />
+              </div>
+              <div className="flex items-center gap-2">
+                <label className="text-xs text-neutral-400 w-32">preLIF2 (auto)</label>
+                <span className="font-mono text-neutral-300 text-sm">
+                  {LIF(sim.inputs.lltv).toFixed(4)}
+                </span>
+              </div>
+            </div>
+            <p className="text-[11px] text-neutral-500 mt-3">
+              Defaults per spec: offset 5pp, LCF range [0.05, 0.5], LIF1 = 1.01. Edit to
+              experiment with how pre-liq aggressiveness changes the bad-debt cascade on
+              the home page.
+            </p>
+          </div>
+        </section>
+
         {/* ----- Sensitivity matrix: horizon × percentile ------------------- */}
         <section className="space-y-3 mt-8">
           <h2 className="text-xl font-semibold">Sensitivity matrix</h2>
@@ -555,18 +701,22 @@ export default function LLTVPage() {
         <section className="space-y-3 mt-8">
           <h2 className="text-xl font-semibold">Formula</h2>
           <p className="text-sm text-neutral-300">
-            The recommended LLTV is the largest L such that, after a p{ddPctile} collateral
-            drawdown and liquidator-pays-slippage-and-LIF, the liquidator still breaks even with a
-            safety buffer. From <code>lib/simulator.ts</code>:
+            The recommended LLTV is the largest governance tier satisfying{' '}
+            <strong>both</strong> of these constraints. Either one alone can bind. From{' '}
+            <code>lib/simulator.ts</code>:
           </p>
           <pre className="rounded bg-brix-surface p-3 text-sm overflow-x-auto">
-{`L = (1 − dd) / (LIF(L) · (1 + slippage)) − safetyMargin
+{`(1)  L · LIF(L) ≤ 1 − dd − safety       (no bad debt)
+(2)  LIF(L) · (1 − slippage) ≥ 1 + safety  (liquidator profitable)
 
-  where dd = p${ddPctile} 1-day collateral drawdown`}
+  where dd = p${ddPctile} 1-day collateral drawdown
+        LIF(L) = min(LIF_CAP, 1 / (β·L + (1−β))),  β = 0.3, LIF_CAP = 1.15`}
           </pre>
           <p className="text-sm text-neutral-300">
-            Solved by fixed-point iteration starting at L = 0.80, then snapped down to the nearest
-            governance LLTV in <code>GOV_LLTVS</code>.
+            Both inequalities are upper bounds on L and admit closed-form solutions
+            (<code>maxLForBadDebt</code>, <code>maxLForProfit</code>). The tier scan
+            evaluates each <code>GOV_LLTVS</code> entry with its own per-tier slippage
+            (liquidation size scales with L) and picks the largest tier that passes both.
           </p>
         </section>
 
@@ -574,18 +724,58 @@ export default function LLTVPage() {
           <h2 className="text-xl font-semibold">Walk-through (live)</h2>
           <pre className="rounded bg-brix-surface p-3 text-sm overflow-x-auto">
 {`${ddLabel.padEnd(26, ' ')} = ${pct(p95Drawdown, 4)}   (${fxSource}; worst-case, no pre-liq cap)
-slippage                   = ${pct(slippage, 3)}   (pool TVL $${sim.inputs.poolTVL_USD.toLocaleString()} + bands)
+slippage @ recommended     = ${pct(slippage, 3)}   (pool TVL $${sim.inputs.poolTVL_USD.toLocaleString()} + bands)
 safety margin              = ${pct(safetyMargin, 2)}   (slider above)
 
-fixed-point at L ≈ ${rawDerived.toFixed(4)}:
-  LIF(L)              = ${lifAtRecommended.toFixed(4)}
-  (1 + slippage)      = ${(1 + slippage).toFixed(4)}
-  (1 − dd)            = ${(1 - p95Drawdown).toFixed(4)}
-  L_raw               = (1 − ${p95Drawdown.toFixed(4)}) / (LIF · ${(1 + slippage).toFixed(4)}) − ${safetyMargin.toFixed(2)}
-                      = ${rawDerived.toFixed(4)}
+raw upper bound L = ${rawDerived.toFixed(4)} (binding: ${binding})
+  LIF(L_raw)               = ${lifAtRaw.toFixed(4)}
+  L_raw · LIF(L_raw)       = ${(rawDerived * lifAtRaw).toFixed(4)}   vs   1 − dd − safety = ${(1 - p95Drawdown - safetyMargin).toFixed(4)}
+  LIF(L_raw) · (1 − slip)  = ${(lifAtRaw * (1 - slippage)).toFixed(4)}   vs   1 + safety       = ${(1 + safetyMargin).toFixed(4)}
 
-snap to GOV_LLTVS     → ${recommended}  (= ${recommended > 0 ? pct(recommended, 1) : '—'})`}
+snap to GOV_LLTVS          → ${recommended}  (= ${recommended > 0 ? pct(recommended, 1) : '—'})
+LIF(snapped)               = ${lifAtRecommended.toFixed(4)}`}
           </pre>
+        </section>
+
+        <section className="space-y-3 mt-8">
+          <h2 className="text-xl font-semibold">Per-tier feasibility</h2>
+          <p className="text-sm text-neutral-300">
+            Every governance LLTV evaluated under both constraints. Slippage is
+            recomputed at each tier&apos;s expected liquidation size, so the
+            recommendation does not depend on the sidebar&apos;s currently-selected LLTV.
+          </p>
+          <div className="overflow-x-auto">
+            <table className="text-sm w-full max-w-3xl border-collapse">
+              <thead>
+                <tr className="border-b border-brix-border">
+                  <th className="text-left py-1">Tier</th>
+                  <th className="text-right py-1">Slippage @ tier</th>
+                  <th className="text-right py-1">L_max (bad-debt)</th>
+                  <th className="text-right py-1">L_max (profit)</th>
+                  <th className="text-right py-1">Feasible?</th>
+                </tr>
+              </thead>
+              <tbody className="font-mono">
+                {perTier.map((row) => {
+                  const isChosen = row.lltv === recommended;
+                  return (
+                    <tr
+                      key={row.lltv}
+                      className={`border-b border-brix-border ${
+                        isChosen ? 'bg-emerald-950/30 text-emerald-300' : ''
+                      }`}
+                    >
+                      <td className="py-1 font-sans">{pct(row.lltv, 1)}</td>
+                      <td className="text-right">{pct(row.slippage, 3)}</td>
+                      <td className="text-right">{row.lMaxBadDebt.toFixed(4)}</td>
+                      <td className="text-right">{row.lMaxProfit.toFixed(4)}</td>
+                      <td className="text-right">{row.feasible ? '✓' : '—'}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
         </section>
 
         <section className="space-y-3 mt-8">
@@ -606,13 +796,22 @@ snap to GOV_LLTVS     → ${recommended}  (= ${recommended > 0 ? pct(recommended
           ) : (
             <>
               <p className="text-sm text-neutral-300">
-                To make <strong>{pct(targetLLTV, 1)}</strong> the recommended (snapped) tier, raw L
-                must reach <code>{targetLLTV}</code>. The constraint at that target:
+                To make <strong>{pct(targetLLTV, 1)}</strong> the recommended (snapped) tier, both
+                constraints must hold at that L:
               </p>
               <pre className="rounded bg-brix-surface p-3 text-xs overflow-x-auto">
-{`(1 − dd) ≥ (${targetLLTV} + safety) · LIF(${targetLLTV}) · (1 + slip)
-(1 − ${p95Drawdown.toFixed(4)}) ≥ (${targetLLTV} + safety) · ${lifTarget.toFixed(4)} · (1 + slip)`}
+{`(1)  ${targetLLTV} · ${lifTarget.toFixed(4)} ≤ 1 − ${p95Drawdown.toFixed(4)} − safety   (no bad debt)
+(2)  ${lifTarget.toFixed(4)} · (1 − slip) ≥ 1 + safety                (liquidator profitable)`}
               </pre>
+              {!badDebtFeasibleAtTarget && (
+                <div className="rounded border border-amber-500/40 bg-amber-950/30 p-3 text-sm text-neutral-200">
+                  ⚠ Bad-debt constraint already fails at the target (L · LIF(L) ={' '}
+                  <code>{(targetLLTV * lifTarget).toFixed(4)}</code> &gt; 1 − dd − safety ={' '}
+                  <code>{(1 - p95Drawdown - safetyMargin).toFixed(4)}</code>). Pool deepening only
+                  helps slippage / profitability — to fix bad debt you need lower dd (longer
+                  pre-liq lead time / oracle improvements), lower safety, or a lower LLTV target.
+                </div>
+              )}
 
               <h3 className="text-base font-semibold mt-4">Single-knob ceilings</h3>
               <p className="text-sm text-neutral-400">

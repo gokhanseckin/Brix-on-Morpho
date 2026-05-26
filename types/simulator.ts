@@ -13,15 +13,16 @@ export interface SidebarInputs {
   witryYieldAnnual: number;
   witryYieldUSD_7d: number;
   witryYieldUSD_30d: number;
+  hfBuffer: number;            // looper health-factor safety buffer (≥ 1.0)
+  loopCount: number;           // number of explicit loop iterations (1..10); finite partial sum, not converged
   usdtryBaseline: number;
   historicalPeriod: HistoricalPeriod;
   simulationMode: SimulationMode;
   simulationHorizonDays: 7 | 30 | 60 | 90;
   pathCount: 100 | 1000 | 5000;
   tryShockPct: number;        // scenario mode, e.g. -0.30
-  incentiveBudgetMonthly_USD: number;
-  attractionRate: number;
-  lockPeriodDays: 30 | 60 | 90 | 180;
+  supplyIncentiveBudgetMonthly_USD: number;
+  borrowerIncentiveBudgetMonthly_USD: number;
   performanceFee: number;
   managementFee: number;
   safetyMargin: number;
@@ -69,8 +70,8 @@ export interface LiquidityNeedOutput {
 
 export interface FxOutput {
   paths: number[][];
-  p5: number[]; p50: number[]; p95: number[];
-  netWitryUSDPaths: { p5: number[]; p50: number[]; p95: number[] };
+  p5: number[]; p50: number[]; p95: number[]; p99: number[];
+  netWitryUSDPaths: { p5: number[]; p50: number[]; p95: number[]; p99: number[] };
   positionUnderwaterByDay: Array<{ day: number; pctUnderwater: number }>;
   threeDayMaxDrawdown: { p50: number; p95: number };
   expectedLiquidationVolumeP95_USD: number;
@@ -81,13 +82,22 @@ export interface LiquidityStrategyOutput {
   borrowAPY: number;
   grossSupplyAPY: number;
   netSupplyAPY: number;
-  incentiveAPY: number;
+  supplyIncentiveAPY: number;
   totalSupplyAPY: number;
-  daysToTarget: number;
-  retentionAfterIncentivesEnd_USD: number;
-  totalIncentiveSpend_USD: number;
-  leverageLoopAPY: number;
+  borrowerIncentiveAPY: number;
+  netBorrowAPY: number;
+  netLoopAPY: number;                       // carry-only loop APY
+  netLoopAPY_withIncentives: number;        // borrower-incentive overlay
+  effectiveLeverage: number;
+  loopDebtPerCollateral: number;
   leverageLoopsViable: boolean;
+  loopPath?: {                              // populated by worker
+    apyP5: number;
+    apyP50: number;
+    apyP95: number;
+    liquidationRate: number;
+    apyHistogram: Array<{ bucketLo: number; bucketHi: number; count: number }>;
+  };
 }
 
 export interface LiquidationOutput {

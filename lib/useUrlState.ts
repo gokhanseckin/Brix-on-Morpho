@@ -13,7 +13,7 @@ import { DEFAULT_TARGET_UTILIZATION, normalizeTargetUtilization } from './simula
 
 const MODES = ['Bootstrap', 'GBM', 'GBM+Jumps', 'Scenario'] as const;
 
-const STORAGE_KEY = 'brix:sidebar-state:v1';
+export const STORAGE_KEY = 'brix:sidebar-state:v1';
 export const DEFAULT_PRE_LIQUIDATION_ENABLED = false;
 
 // Reject any LLTV not in the Morpho governance-allowed set.
@@ -40,15 +40,16 @@ export function useUrlState() {
     witryYieldAnnual: parseAsFloat.withDefault(0.38),
     witryYieldUSD_7d:  parseAsFloat.withDefault(0.0631),
     witryYieldUSD_30d: parseAsFloat.withDefault(0.1931),
+    hfBuffer:          parseAsFloat.withDefault(1.5),
+    loopCount:         parseAsInteger.withDefault(10),
     usdtryBaseline: parseAsFloat.withDefault(45),
     historicalPeriod: parseAsInteger.withDefault(5),
     simulationMode: parseAsStringLiteral(MODES).withDefault('Bootstrap'),
     simulationHorizonDays: parseAsInteger.withDefault(30),
     pathCount: parseAsInteger.withDefault(1000),
     tryShockPct: parseAsFloat.withDefault(-0.3),
-    incentiveBudgetMonthly_USD: parseAsFloat.withDefault(0),
-    attractionRate: parseAsFloat.withDefault(5),
-    lockPeriodDays: parseAsInteger.withDefault(90),
+    supplyIncentiveBudgetMonthly_USD: parseAsFloat.withDefault(0),
+    borrowerIncentiveBudgetMonthly_USD: parseAsFloat.withDefault(0),
     performanceFee: parseAsFloat.withDefault(0.1),
     managementFee: parseAsFloat.withDefault(0),
     safetyMargin: parseAsFloat.withDefault(0.01),
@@ -59,6 +60,19 @@ export function useUrlState() {
     preLCF2: parseAsFloat.withDefault(0.5),
     preLIF1: parseAsFloat.withDefault(1.01),
     lltvDrawdownPercentile: parseAsInteger.withDefault(95),
+    // Morpho IRM "rate at target" — APR at the target utilization (u=90% in
+    // the adaptive-curve formula). Default 0.04 = Morpho governance default.
+    // Edited on /utilization; read on home (Strategy section + IRM curve).
+    rTargetIRM: parseAsFloat.withDefault(0.04),
+    // Minimum gap between u_target and the Morpho IRM kink (u = 0.9).
+    // Default 0 = no enforced buffer; the goal on /utilization is to
+    // operate close to the kink for max supplier APY. Slider remains so
+    // operators can dial in a buffer if they want one.
+    kinkClearance: parseAsFloat.withDefault(0.0),
+    // FX stress-quantile multiplier on annualized USD/TRY vol. Default
+    // 1.65 ≈ 95th-percentile single-tail z-score. Gates whether a levered
+    // loop position survives a 1-month P95 FX move within HF headroom.
+    fxStressZ: parseAsFloat.withDefault(1.65),
     blockBootstrap: parseAsBoolean.withDefault(true),
     seed: parseAsInteger.withDefault(42),
     // /swapliquidity page state
@@ -79,34 +93,43 @@ export function useUrlState() {
   });
 
   const [state, setState] = tuple;
-  // On first mount, hydrate from localStorage if the URL is bare. On every
-  // subsequent state change, mirror to localStorage. URL stays the single
-  // source of truth — bookmarked links with explicit params always win.
-  const hydrated = useRef(false);
+  // Two effects keep URL as the single source of truth while letting
+  // localStorage carry params across page navigations:
+  //   (A) MOUNT-ONLY hydration — on first mount, if the URL has no query
+  //       string, load every saved key from localStorage and push them to
+  //       the URL. Bookmarked URLs with explicit params always win.
+  //   (B) WRITE-ON-CHANGE mirror — every time state changes, mirror the
+  //       whole shape to localStorage. The flag below skips the very
+  //       first render so we don't overwrite stored values with the
+  //       defaults that render gives us before hydration runs.
+  const skipFirstWrite = useRef(true);
   useEffect(() => {
     if (typeof window === 'undefined') return;
-    if (!hydrated.current) {
-      hydrated.current = true;
-      const search = window.location.search;
-      const urlIsBare = !search || search === '?';
-      if (urlIsBare) {
-        try {
-          const raw = window.localStorage.getItem(STORAGE_KEY);
-          if (raw) {
-            const parsed = JSON.parse(raw) as Record<string, unknown>;
-            if (typeof parsed.targetUtilization === 'number') {
-              parsed.targetUtilization = normalizeTargetUtilization(parsed.targetUtilization);
-            } else {
-              delete parsed.targetUtilization;
-            }
-            // nuqs ignores keys it doesn't know; bad-typed values get
-            // rejected by the parsers and fall back to defaults.
-            void setState(parsed as Parameters<typeof setState>[0]);
-          }
-        } catch {
-          // Corrupt storage — ignore, fall back to URL/defaults.
-        }
+    const search = window.location.search;
+    const urlIsBare = !search || search === '?';
+    if (!urlIsBare) return;
+    try {
+      const raw = window.localStorage.getItem(STORAGE_KEY);
+      if (!raw) return;
+      const parsed = JSON.parse(raw) as Record<string, unknown>;
+      if (typeof parsed.targetUtilization === 'number') {
+        parsed.targetUtilization = normalizeTargetUtilization(parsed.targetUtilization);
+      } else {
+        delete parsed.targetUtilization;
       }
+      // nuqs ignores unknown keys and falls back to defaults for bad
+      // values, so we can safely throw the whole blob at setState.
+      void setState(parsed as Parameters<typeof setState>[0]);
+    } catch {
+      // Corrupt storage — fall back to URL/defaults.
+    }
+    // Intentionally [] — hydrate exactly once per mount.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    if (skipFirstWrite.current) {
+      skipFirstWrite.current = false;
       return;
     }
     try {
@@ -114,7 +137,7 @@ export function useUrlState() {
     } catch {
       // Storage full / unavailable — non-fatal.
     }
-  }, [state, setState]);
+  }, [state]);
 
   return tuple;
 }

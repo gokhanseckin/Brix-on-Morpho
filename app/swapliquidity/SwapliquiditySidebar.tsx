@@ -2,6 +2,7 @@
 import { useUrlState } from '@/lib/useUrlState';
 import { normalizeLadderInputs } from '@/lib/poolPreset';
 import { InfoTooltip } from '@/app/components/help/InfoTooltip';
+import { CrossPageLink } from '@/app/components/CrossPageLink';
 import { PARAM_HELP, PARAM_SECTION } from '@/lib/help/registry';
 
 function paramTooltip(helpKey: keyof typeof PARAM_HELP) {
@@ -74,13 +75,14 @@ export function SwapliquiditySidebar() {
         <h2 className="font-semibold text-base">Market &amp; Simulation</h2>
         <p className="text-[11px] text-neutral-500 leading-snug">
           Read-only. Edit on the{' '}
-          <a href="/" className="text-brix-accent underline">
+          <CrossPageLink href="/" className="text-brix-accent underline">
             Market Simulator
-          </a>.
+          </CrossPageLink>.
         </p>
         <div className="space-y-1.5">
           <ReadOnlyRow label="USD/TRY baseline" value={state.usdtryBaseline} />
           <ReadOnlyRow label="LLTV" value={`${(state.lltv * 100).toFixed(1)}%`} />
+          <ReadOnlyRow label="wiTRY TVL" value={`$${state.witryTVL_USD.toLocaleString()}`} />
           <ReadOnlyRow label="Simulation mode" value={state.simulationMode} />
           <ReadOnlyRow label="Horizon (days)" value={state.simulationHorizonDays} />
           <ReadOnlyRow label="Path count" value={state.pathCount.toLocaleString()} />
@@ -184,12 +186,12 @@ export function SwapliquiditySidebar() {
         onUpper={(v) => setState({ bandTailUpperPct: v })}
       />
 
-      <a href="/help/swap-liquidity" className="text-brix-accent hover:underline text-xs block pt-2">
+      <CrossPageLink href="/help/swap-liquidity" className="text-brix-accent hover:underline text-xs block pt-2">
         Help · Read the swap-liquidity guide →
-      </a>
-      <a href="/" className="text-brix-accent hover:underline text-xs block">
+      </CrossPageLink>
+      <CrossPageLink href="/" className="text-brix-accent hover:underline text-xs block">
         ← Back to homepage
-      </a>
+      </CrossPageLink>
     </aside>
   );
 }

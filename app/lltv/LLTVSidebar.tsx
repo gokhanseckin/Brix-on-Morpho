@@ -1,5 +1,6 @@
 'use client';
 import { useUrlState } from '@/lib/useUrlState';
+import { CrossPageLink } from '@/app/components/CrossPageLink';
 
 function ReadOnlyRow({ label, value }: { label: string; value: string | number }) {
   return (
@@ -27,9 +28,9 @@ export function LLTVSidebar() {
         <h2 className="font-semibold text-base">Market &amp; Simulation</h2>
         <p className="text-[11px] text-neutral-500 leading-snug">
           Read-only. Edit on the{' '}
-          <a href="/" className="text-brix-accent underline">
+          <CrossPageLink href="/" className="text-brix-accent underline">
             Market Simulator
-          </a>.
+          </CrossPageLink>.
         </p>
         <div className="space-y-1.5">
           <ReadOnlyRow label="USD/TRY baseline" value={s.usdtryBaseline} />
@@ -44,9 +45,9 @@ export function LLTVSidebar() {
         <h2 className="font-semibold text-base">FX Simulation</h2>
         <p className="text-[11px] text-neutral-500 leading-snug">
           Read-only. Edit on the{' '}
-          <a href="/" className="text-brix-accent underline">
+          <CrossPageLink href="/" className="text-brix-accent underline">
             Market Simulator
-          </a>. Drives the p95 1-day drawdown that feeds the LLTV formula.
+          </CrossPageLink>. Drives the p95 1-day drawdown that feeds the LLTV formula.
         </p>
         <div className="space-y-1.5">
           <ReadOnlyRow label="Mode" value={s.simulationMode} />
@@ -62,9 +63,9 @@ export function LLTVSidebar() {
         <h2 className="font-semibold text-base">Pool Config</h2>
         <p className="text-[11px] text-neutral-500 leading-snug">
           Read-only. Edit on the{' '}
-          <a href="/swapliquidity" className="text-brix-accent underline">
+          <CrossPageLink href="/swapliquidity" className="text-brix-accent underline">
             Swap Liquidity Lab
-          </a>. Drives the slippage that feeds the LLTV formula.
+          </CrossPageLink>. Drives the slippage that feeds the LLTV formula.
         </p>
         <div className="space-y-1.5">
           <ReadOnlyRow label="Single-side AMM TVL" value={`$${s.poolTVL_USD.toLocaleString()}`} />
@@ -76,12 +77,12 @@ export function LLTVSidebar() {
         </div>
       </div>
 
-      <a href="/" className="text-brix-accent hover:underline text-xs block">
+      <CrossPageLink href="/" className="text-brix-accent hover:underline text-xs block">
         ← Back to Market Simulator
-      </a>
-      <a href="/swapliquidity" className="text-brix-accent hover:underline text-xs block">
+      </CrossPageLink>
+      <CrossPageLink href="/swapliquidity" className="text-brix-accent hover:underline text-xs block">
         → Swap Liquidity Lab
-      </a>
+      </CrossPageLink>
     </aside>
   );
 }

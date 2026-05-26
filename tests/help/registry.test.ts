@@ -16,15 +16,16 @@ const EXPECTED_PARAM_KEYS = [
   'witryYieldAnnual',
   'witryYieldUSD_7d',
   'witryYieldUSD_30d',
+  'hfBuffer',
+  'loopCount',
   'usdtryBaseline',
   'historicalPeriod',
   'simulationMode',
   'simulationHorizonDays',
   'pathCount',
   'tryShockPct',
-  'incentiveBudgetMonthly_USD',
-  'attractionRate',
-  'lockPeriodDays',
+  'supplyIncentiveBudgetMonthly_USD',
+  'borrowerIncentiveBudgetMonthly_USD',
   'performanceFee',
   'managementFee',
   'safetyMargin',
@@ -94,7 +95,6 @@ describe('help registry', () => {
       'withdrawalBuffer',
       'requiredPlusBuffer',
       'liquidityFloor',
-      'lltvSensitivity',
     ] as const;
     const SECTION_1_CHARTS = ['irmCurve'] as const;
     const SECTION_1_PARAMS = [
@@ -132,12 +132,12 @@ describe('help registry', () => {
   // PR #4: Section 2 (FX Risk) ships real copy.
   describe('PR #4 — fx-risk content is no longer stubbed', () => {
     const SECTION_2_KPIS = [
-      'threeDayMaxDrawdownP50',
-      'threeDayMaxDrawdownP95',
+      'oneDayMaxDrawdownP50',
+      'oneDayMaxDrawdownP95',
       'expectedLiquidationVolumeP95',
       'annualizedVol',
     ] as const;
-    const SECTION_2_CHARTS = ['fxBands', 'netWitryUsdPaths', 'positionsUnderwater'] as const;
+    const SECTION_2_CHARTS = ['fxBands', 'netWitryUsdPaths', 'drawdownDistribution'] as const;
     const SECTION_2_PARAMS = [
       'witryYieldAnnual',
       'usdtryBaseline',
@@ -180,17 +180,22 @@ describe('help registry', () => {
       'borrowAPY',
       'grossSupplyAPY',
       'netSupplyAPY',
-      'incentiveAPY',
+      'supplyIncentiveAPY',
       'totalSupplyAPY',
-      'daysToTarget',
-      'retentionAfterIncentives',
-      'totalIncentiveSpend',
-      'leverageLoopAPY',
+      'borrowerIncentiveAPY',
+      'netBorrowAPY',
+      'netLoopAPY',
+      'netLoopAPYWithIncentives',
+      'effectiveLeverageStrategy',
+      'loopDebtPerCollateral',
+      'loopAPYP5',
+      'loopAPYP50',
+      'loopAPYP95',
+      'loopLiquidationRate',
     ] as const;
     const SECTION_3_PARAMS = [
-      'incentiveBudgetMonthly_USD',
-      'attractionRate',
-      'lockPeriodDays',
+      'supplyIncentiveBudgetMonthly_USD',
+      'borrowerIncentiveBudgetMonthly_USD',
       'performanceFee',
       'managementFee',
     ] as const;

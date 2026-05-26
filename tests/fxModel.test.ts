@@ -68,13 +68,18 @@ describe('jump diffusion', () => {
 });
 
 describe('summaries', () => {
-  it('percentilesAtEachStep returns 3 arrays length horizon+1', () => {
+  it('percentilesAtEachStep returns 4 arrays length horizon+1', () => {
     const paths = [
       [1, 1.1, 1.2], [1, 0.9, 0.8], [1, 1.0, 1.0], [1, 0.95, 0.85], [1, 1.05, 1.1],
     ];
-    const { p5, p50, p95 } = percentilesAtEachStep(paths);
+    const { p5, p50, p95, p99 } = percentilesAtEachStep(paths);
     expect(p5.length).toBe(3);
+    expect(p99.length).toBe(3);
     expect(p50[0]).toBeCloseTo(1, 8);
+    // p99 ≥ p95 at every step (sanity)
+    for (let t = 0; t < p99.length; t++) {
+      expect(p99[t]!).toBeGreaterThanOrEqual(p95[t]!);
+    }
   });
 
   it('rolling 3-day max drawdown measures upward S moves (TRY weakening)', () => {

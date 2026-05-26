@@ -6,13 +6,13 @@ import {
   looperNetAPY, liquidityStress, sweepUtilizationTargets, recommendUTarget,
   type RecommendInput, type RecommendResult, type SweepRow, type LooperEconomicsResult,
 } from './utilization';
-import { adaptiveCurveIRM } from './morphoMath';
 
 export interface PageSliders {
   tvlUSDM_USD: number;
   stressPctOfSupply: number;
   hfBuffer: number;
   rTargetOverride: number;
+  fxAnnualVol: number;
 }
 
 export interface UtilizationAnalysisOutput {
@@ -46,7 +46,9 @@ export function useUtilizationAnalysis(s: PageSliders): UtilizationAnalysisOutpu
     perLoopSlippageBps: 30,
     tvlUSDM_USD: s.tvlUSDM_USD,
     stressPctOfSupply: s.stressPctOfSupply,
-    kinkClearance: 0.07,
+    kinkClearance: url.kinkClearance,
+    fxAnnualVol: s.fxAnnualVol,
+    fxStressZ: url.fxStressZ,
     searchRange: [0.5, 0.9],
     searchStep: 0.01,
   }), [s, url]);
@@ -60,6 +62,7 @@ export function useUtilizationAnalysis(s: PageSliders): UtilizationAnalysisOutpu
       uTarget: target, rTarget: inputs.rTarget, lltv: inputs.lltv,
       hfBuffer: inputs.hfBuffer, witryYieldAnnual: inputs.witryYield7d,
       perLoopSlippageBps: inputs.perLoopSlippageBps,
+      fxAnnualVol: inputs.fxAnnualVol, fxStressZ: inputs.fxStressZ,
     }) : null;
     const stress = liquidityStress({
       uTarget: target, tvlUSDM_USD: inputs.tvlUSDM_USD,
@@ -83,9 +86,14 @@ export function useUtilizationAnalysis(s: PageSliders): UtilizationAnalysisOutpu
     const heatmap: UtilizationAnalysisOutput['heatmap'] = [];
     for (const u of HEATMAP_U) {
       for (const rT of HEATMAP_R) {
-        const borrowAPY = adaptiveCurveIRM(u, rT);
-        const feasible = borrowAPY < inputs.witryYield7d;
-        heatmap.push({ u, r: rT, borrowAPY, feasible });
+        const econ = looperNetAPY({
+          uTarget: u, rTarget: rT, lltv: inputs.lltv,
+          hfBuffer: inputs.hfBuffer, witryYieldAnnual: inputs.witryYield7d,
+          perLoopSlippageBps: inputs.perLoopSlippageBps,
+          fxAnnualVol: inputs.fxAnnualVol, fxStressZ: inputs.fxStressZ,
+        });
+        const feasible = econ.loopMargin > 0;
+        heatmap.push({ u, r: rT, borrowAPY: econ.borrowAPY, feasible });
       }
     }
 

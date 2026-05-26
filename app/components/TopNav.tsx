@@ -1,18 +1,17 @@
 'use client';
-import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import type { Route } from 'next';
+import { CrossPageLink } from './CrossPageLink';
 
-type NavItem = { href: Route; label: string };
+type NavItem = { href: string; label: string };
 
 const ITEMS: NavItem[] = [
-  { href: '/' as Route, label: 'Simulator' },
-  { href: '/utilization' as Route, label: 'Utilization' },
-  { href: '/lltv' as Route, label: 'LLTV' },
-  { href: '/swapliquidity' as Route, label: 'Swap Liquidity' },
-  { href: '/explore-market' as Route, label: 'Explore Markets' },
-  { href: '/help' as Route, label: 'Help' },
-  { href: '/assignment' as Route, label: 'Pitch Deck' },
+  { href: '/', label: 'Simulator' },
+  { href: '/utilization', label: 'Utilization' },
+  { href: '/lltv', label: 'LLTV' },
+  { href: '/swapliquidity', label: 'Swap Liquidity' },
+  { href: '/explore-market', label: 'Explore Markets' },
+  { href: '/help', label: 'Help' },
+  { href: '/assignment', label: 'Pitch Deck' },
 ];
 
 function isActive(pathname: string | null, href: string): boolean {
@@ -31,7 +30,7 @@ export function TopNav() {
       {ITEMS.map((it) => {
         const active = isActive(pathname, it.href);
         return (
-          <Link
+          <CrossPageLink
             key={it.href}
             href={it.href}
             aria-current={active ? 'page' : undefined}
@@ -43,7 +42,7 @@ export function TopNav() {
             }
           >
             {it.label}
-          </Link>
+          </CrossPageLink>
         );
       })}
     </nav>

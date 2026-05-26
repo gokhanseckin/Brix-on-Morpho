@@ -42,7 +42,7 @@ export default function Page() {
           <LiquidationDesign />
         </section>
         <section id="section-vault-recommendations-anchor">
-          <h2 className="sr-only">5. Vault V2 Parameter Recommendations</h2>
+          <h2 className="sr-only">5. Deployment Recommendations (Market + Pre-liq + Vault)</h2>
           <VaultRecommendations />
         </section>
       </main>

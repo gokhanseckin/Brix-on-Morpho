@@ -107,7 +107,7 @@ const recommendedPoolDepth: KpiHelp = {
 const badDebtP95USD: KpiHelp = {
   title: 'P95 Morpho debt — single (USD)',
   oneLiner:
-    'The 95th-percentile USD amount of residual debt absorbed by the lender (Morpho market) across Monte-Carlo paths, assuming each liquidation hits the AMM as its own independent swap. Realistic lower bound on tail loss — arb-refilled liquidations clear one position at a time, so this is the operational regime in practice. Pairs with the concurrent-stress tile, which gates whether the AMM can absorb the worst-3-day arrival rate.',
+    'The 95th-percentile USD amount of residual debt absorbed by the lender (Morpho market) across Monte-Carlo paths, assuming each liquidation hits the AMM as its own independent swap. Realistic lower bound on tail loss — arb-refilled liquidations clear one position at a time, so this is the operational regime in practice. Pairs with the concurrent-stress tile, which gates whether the AMM can absorb the worst 1-day arrival rate.',
   formula: {
     plain:
       'for each path:\n  residual_i = max(0, debt_i − revenue_i)   if profitable\n             = max(0, debt_i − collAfter_i)  otherwise\n  badDebtPerPath = Σ residual_i across all positions\nbadDebtP95_USD = P95(badDebtPerPath across paths)',

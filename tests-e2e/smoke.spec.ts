@@ -5,7 +5,7 @@ const HEADINGS = [
   '2. FX Risk',
   '3. Liquidity Strategy',
   '4. Liquidation Design',
-  '5. Vault V2 Parameter Recommendations',
+  '5. Deployment Recommendations (Market + Pre-liq + Vault)',
 ];
 
 // Read the KPI value (the <Kpi> component renders label in a div above value div, both inside a container div)
@@ -14,7 +14,7 @@ async function getRequiredSteadyState(page: import('@playwright/test').Page): Pr
   await label.waitFor();
   // Navigate up to the Kpi container div, then find the value div (second child div).
   const container = label.locator('xpath=ancestor::div[1]/parent::div');
-  const value = container.locator('div.text-2xl');
+  const value = container.locator('div.text-3xl');
   await value.waitFor();
   return (await value.textContent())?.trim() ?? '';
 }

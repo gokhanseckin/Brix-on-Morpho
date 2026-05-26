@@ -5,15 +5,17 @@ import { HelpPopover } from '@/app/components/help/HelpPopover';
 const HEATMAP_U = Array.from({ length: 10 }, (_, k) => 0.5 + k * 0.05);
 const HEATMAP_R = Array.from({ length: 10 }, (_, k) => 0.01 + k * 0.01);
 
-function colorFor(borrowAPY: number, witryY: number): string {
+function colorFor(feasible: boolean, borrowAPY: number, witryY: number): string {
+  // Magnitude (ratio of borrow to hold yield) drives the shade; sign of
+  // the proper loopMargin>0 test (passed via `feasible`) decides green vs red.
   const ratio = Math.min(2, borrowAPY / Math.max(1e-6, witryY));
-  if (ratio < 1) {
-    const t = ratio;
+  if (feasible) {
+    const t = Math.min(1, ratio);
     const r = Math.round(16 + t * (245 - 16));
     const g = Math.round(185 + t * (158 - 185));
     return `rgb(${r}, ${g}, 129)`;
   }
-  const t = Math.min(1, (ratio - 1));
+  const t = Math.min(1, Math.max(0, ratio - 1));
   const r = Math.round(245 + t * (239 - 245));
   const g = Math.round(158 + t * (68 - 158));
   return `rgb(${r}, ${g}, 68)`;
@@ -28,7 +30,7 @@ export function IRMHeatmap({ analysis }: { analysis: UtilizationAnalysisOutput }
     <section className="rounded-lg border border-brix-border bg-brix-card p-4">
       <h2 className="font-semibold inline-flex items-center gap-1">IRM Sensitivity Heatmap<HelpPopover chartKey="irmHeatmap" /></h2>
       <p className="text-sm text-neutral-400">
-        borrowAPY across (u_target, r_target). Cells below wiTRY 7d ({(w7*100).toFixed(2)}%) are loop-feasible.
+        borrowAPY across (u_target, r_target). Green = loop margin &gt; 0 (looperNetAPY ≥ borrow cost after HF buffer, slippage, and FX-vol drag); red = unprofitable. wiTRY 7d = {(w7*100).toFixed(2)}%.
       </p>
       <div className="mt-3 overflow-x-auto">
         <table className="border-collapse text-xs">
@@ -45,7 +47,7 @@ export function IRMHeatmap({ analysis }: { analysis: UtilizationAnalysisOutput }
                   const isCurrent = Math.abs(u - currentU) < 0.025 && Math.abs(rT - currentR) < 0.0051;
                   return (
                     <td key={u} className={`h-8 w-12 border text-center font-mono ${isCurrent ? 'outline outline-2 outline-black' : ''}`}
-                        style={{ background: colorFor(cell.borrowAPY, w7) }}
+                        style={{ background: colorFor(cell.feasible, cell.borrowAPY, w7) }}
                         title={`u=${(u*100).toFixed(0)}%, r=${(rT*100).toFixed(1)}%, borrow=${(cell.borrowAPY*100).toFixed(2)}%`}>
                       {(cell.borrowAPY*100).toFixed(1)}
                     </td>

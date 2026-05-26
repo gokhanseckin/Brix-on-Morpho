@@ -150,37 +150,6 @@ export function LiquidityNeed() {
         </div>
       </div>
 
-      <div>
-        <div className="flex items-center gap-1 mb-2">
-          <h3 className="text-sm font-semibold">Sensitivity: required USDM by LLTV</h3>
-          <HelpPopover kpiKey="lltvSensitivity" />
-        </div>
-        <table className="text-sm border-collapse w-full max-w-md">
-          <thead>
-            <tr className="border-b border-brix-border">
-              <th className="text-left py-1">LLTV</th>
-              <th className="text-right py-1">Required USDM</th>
-            </tr>
-          </thead>
-          <tbody>
-            {liquidity.sensitivity.map((r) => (
-              <tr
-                key={r.lltv}
-                className={
-                  r.lltv === inputs.lltv
-                    ? 'bg-brix-accent/10 font-medium'
-                    : 'border-b border-neutral-100 dark:border-neutral-900'
-                }
-              >
-                <td className="py-1">{(r.lltv * 100).toFixed(1)}%</td>
-                <td className="py-1 text-right tabular-nums">
-                  {formatUSD(r.requiredUSDM)}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
     </section>
   );
 }

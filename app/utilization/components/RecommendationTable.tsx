@@ -22,6 +22,7 @@ export function RecommendationTable({ analysis }: { analysis: UtilizationAnalysi
             <th>Stress</th>
             <th>Survives</th>
             <th>Δ kink</th>
+            <th>FX safe</th>
             <th>Verdict</th>
           </tr>
         </thead>
@@ -39,6 +40,7 @@ export function RecommendationTable({ analysis }: { analysis: UtilizationAnalysi
                 <td className="font-mono">{usd(r.stressWithdrawalUSD)}</td>
                 <td className={r.survives ? 'text-emerald-300' : 'text-red-300'}>{r.survives ? '✓' : '✗'}</td>
                 <td className="font-mono">{r.distanceToKink.toFixed(3)}</td>
+                <td className={r.fxSafe ? 'text-emerald-300' : 'text-red-300'}>{r.fxSafe ? '✓' : '✗'}</td>
                 <td>{r.verdict === 'feasible' ? '✓ feasible' : r.verdict === 'tight' ? '⚠ tight' : '✗ infeasible'}</td>
               </tr>
             );

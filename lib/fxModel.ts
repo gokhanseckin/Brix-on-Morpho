@@ -120,18 +120,22 @@ export function blockBootstrapPaths(a: BlockBootstrapArgs): Path[] {
   return out;
 }
 
-export function percentilesAtEachStep(paths: Path[]): { p5: number[]; p50: number[]; p95: number[] } {
+export function percentilesAtEachStep(
+  paths: Path[],
+): { p5: number[]; p50: number[]; p95: number[]; p99: number[] } {
   const n = paths[0]!.length;
   const p5 = new Array<number>(n);
   const p50 = new Array<number>(n);
   const p95 = new Array<number>(n);
+  const p99 = new Array<number>(n);
   for (let t = 0; t < n; t++) {
     const col = paths.map((p) => p[t]!).sort((a, b) => a - b);
     p5[t] = quantileSorted(col, 0.05);
     p50[t] = quantileSorted(col, 0.5);
     p95[t] = quantileSorted(col, 0.95);
+    p99[t] = quantileSorted(col, 0.99);
   }
-  return { p5, p50, p95 };
+  return { p5, p50, p95, p99 };
 }
 
 /**

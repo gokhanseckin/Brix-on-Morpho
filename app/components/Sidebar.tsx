@@ -3,6 +3,7 @@ import { useUrlState } from '@/lib/useUrlState';
 import { GOV_LLTVS, type LLTV } from '@/types/simulator';
 import { useState } from 'react';
 import { InfoTooltip } from './help/InfoTooltip';
+import { CrossPageLink } from './CrossPageLink';
 import { PARAM_HELP, PARAM_SECTION } from '@/lib/help/registry';
 import { MIN_TARGET_UTILIZATION } from '@/lib/simulator';
 
@@ -23,7 +24,6 @@ const MODES = ['Bootstrap', 'GBM', 'GBM+Jumps', 'Scenario'] as const;
 const HORIZONS = [7, 30, 60, 90] as const;
 const PATH_COUNTS = [100, 1000, 5000] as const;
 const HISTORICAL_PERIODS = [1, 3, 5] as const;
-const LOCK_PERIODS = [30, 60, 90, 180] as const;
 
 export function Sidebar() {
   const [s, setS] = useUrlState();
@@ -75,9 +75,9 @@ export function Sidebar() {
           step={0.01}
           format={(v) => `${(v * 100).toFixed(0)}%`}
         />
-        <a href="/utilization" className="text-xs text-brix-accent hover:text-brix-accentHover -mt-1 block">
+        <CrossPageLink href="/utilization" className="text-xs text-brix-accent hover:text-brix-accentHover -mt-1 block">
           → calibrate in utilization tool
-        </a>
+        </CrossPageLink>
         <NumberField
           label="Borrower LTV α"
           helpKey="borrowerLTVAlpha"
@@ -114,6 +114,26 @@ export function Sidebar() {
           max={1}
           step={0.01}
           format={(v) => `${(v * 100).toFixed(0)}%`}
+        />
+        <RangeField
+          label="HF buffer (looper)"
+          helpKey="hfBuffer"
+          value={s.hfBuffer}
+          onChange={(v) => setS({ hfBuffer: v })}
+          min={1.1}
+          max={2.5}
+          step={0.05}
+          format={(v) => `${v.toFixed(2)}×`}
+        />
+        <RangeField
+          label="Number of loops"
+          helpKey="loopCount"
+          value={s.loopCount}
+          onChange={(v) => setS({ loopCount: Math.round(v) })}
+          min={1}
+          max={10}
+          step={1}
+          format={(v) => `${Math.round(v)}`}
         />
         <NumberField
           label="USD/TRY baseline"
@@ -181,30 +201,22 @@ export function Sidebar() {
 
       <Group title="Section 3 · Strategy">
         <NumberField
-          label="Incentive budget/month (USD)"
-          helpKey="incentiveBudgetMonthly_USD"
-          value={s.incentiveBudgetMonthly_USD}
-          onChange={(v) => setS({ incentiveBudgetMonthly_USD: v })}
+          label="Supply incentive budget/month (USD)"
+          helpKey="supplyIncentiveBudgetMonthly_USD"
+          value={s.supplyIncentiveBudgetMonthly_USD}
+          onChange={(v) => setS({ supplyIncentiveBudgetMonthly_USD: v })}
           min={0}
           max={500_000}
           step={1_000}
         />
-        <RangeField
-          label="Attraction rate"
-          helpKey="attractionRate"
-          value={s.attractionRate}
-          onChange={(v) => setS({ attractionRate: v })}
-          min={1}
-          max={10}
-          step={0.1}
-          format={(v) => v.toFixed(1)}
-        />
-        <SelectField
-          label="Lock period (days)"
-          helpKey="lockPeriodDays"
-          value={String(s.lockPeriodDays)}
-          onChange={(v) => setS({ lockPeriodDays: parseInt(v, 10) })}
-          options={LOCK_PERIODS.map((p) => ({ value: String(p), label: `${p}d` }))}
+        <NumberField
+          label="Borrower incentive budget/month (USD)"
+          helpKey="borrowerIncentiveBudgetMonthly_USD"
+          value={s.borrowerIncentiveBudgetMonthly_USD}
+          onChange={(v) => setS({ borrowerIncentiveBudgetMonthly_USD: v })}
+          min={0}
+          max={500_000}
+          step={1_000}
         />
       </Group>
 
@@ -212,9 +224,9 @@ export function Sidebar() {
         <div className="space-y-1.5 pb-2 border-b border-neutral-800">
           <p className="text-[11px] text-neutral-500 leading-snug">
             Pool config is read-only here. Tune it on the{' '}
-            <a href="/swapliquidity" className="text-brix-accent underline">
+            <CrossPageLink href="/swapliquidity" className="text-brix-accent underline">
               swap-liquidity page
-            </a>.
+            </CrossPageLink>.
           </p>
           <div className="flex items-center justify-between text-xs">
             <span className="text-neutral-500">Single-side AMM TVL</span>
@@ -232,7 +244,7 @@ export function Sidebar() {
         <div className="text-[11px] text-neutral-500 leading-snug">
           Pre-liquidation parameters (toggle, preLLTV offset, preLCF, preLIF)
           edited on the{' '}
-          <a href="/lltv" className="text-brix-accent underline">LLTV page</a>.
+          <CrossPageLink href="/lltv" className="text-brix-accent underline">LLTV page</CrossPageLink>.
         </div>
       </Group>
 
@@ -259,7 +271,7 @@ export function Sidebar() {
         />
         <div className="text-[11px] text-neutral-500 leading-snug pt-2">
           Safety margin (calibration only) edited on the{' '}
-          <a href="/lltv" className="text-brix-accent underline">LLTV page</a>.
+          <CrossPageLink href="/lltv" className="text-brix-accent underline">LLTV page</CrossPageLink>.
         </div>
       </Group>
 
@@ -270,9 +282,9 @@ export function Sidebar() {
       >
         {copied ? 'Copied!' : 'Copy share link'}
       </button>
-      <a href="/swapliquidity" className="block mt-4 text-xs text-brix-accent hover:text-brix-accentHover">
+      <CrossPageLink href="/swapliquidity" className="block mt-4 text-xs text-brix-accent hover:text-brix-accentHover">
         → Swap liquidity lab
-      </a>
+      </CrossPageLink>
     </div>
   );
 }
@@ -297,6 +309,11 @@ function NumberField(props: {
   step?: number;
   helpKey?: keyof typeof PARAM_HELP;
 }) {
+  // Keep a local string buffer so users can clear / type intermediate states
+  // (empty, "-", "1.") without the controlled-input forcing the old number
+  // back into the field on every keystroke.
+  const [draft, setDraft] = useState<string | null>(null);
+  const display = draft ?? String(props.value);
   return (
     <label className="flex flex-col gap-1">
       <span className="text-xs text-neutral-400">
@@ -305,14 +322,17 @@ function NumberField(props: {
       </span>
       <input
         type="number"
-        value={props.value}
+        value={display}
         min={props.min}
         max={props.max}
         step={props.step}
         onChange={(e) => {
-          const parsed = parseFloat(e.target.value);
+          const raw = e.target.value;
+          setDraft(raw);
+          const parsed = parseFloat(raw);
           if (Number.isFinite(parsed)) props.onChange(parsed);
         }}
+        onBlur={() => setDraft(null)}
         className="rounded-md border border-brix-border bg-brix-surface text-neutral-200 px-2 py-1 text-sm focus:border-brix-accent focus:outline-none"
       />
     </label>

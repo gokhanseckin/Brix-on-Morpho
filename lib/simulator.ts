@@ -1,4 +1,5 @@
-import { adaptiveCurveIRM, healthFactor, LIF } from './morphoMath';
+import { adaptiveCurveIRM, BETA, healthFactor, LIF, LIF_CAP } from './morphoMath';
+import { carryLoopAPY } from './utilization';
 import { createRng, gauss, type Rng } from './rng';
 import { GOV_LLTVS, type LLTV } from '@/types/simulator';
 import type { PoolPreset } from './poolPreset';
@@ -504,37 +505,165 @@ export interface DeriveArgs {
   p95Drawdown: number;
   slippage: number;
   safetyMargin: number;
+  /** @deprecated unused since two-constraint closed-form solver — kept for ABI compat */
   maxIter?: number;
+  /** @deprecated unused since two-constraint closed-form solver — kept for ABI compat */
   tol?: number;
 }
+
+export type LLTVBindingConstraint = 'bad-debt' | 'liquidator-profit' | 'none';
 
 export interface DeriveOut {
   raw: number;
   converged: boolean;
   iterations: number;
+  /** Which constraint binds at `raw`. 'none' means feasibility was trivially satisfied. */
+  bindingConstraint: LLTVBindingConstraint;
+  /** Upper bound from the no-bad-debt constraint: L × LIF(L) ≤ 1 − dd − safety. */
+  lMaxBadDebt: number;
+  /** Upper bound from the liquidator-profit constraint: LIF(L) × (1 − slip) ≥ 1 + safety. */
+  lMaxProfit: number;
 }
 
+/**
+ * Maximum LLTV that satisfies the no-bad-debt constraint:
+ *   L · LIF(L) ≤ 1 − dd − safety
+ * After a `dd` collateral drawdown, the remaining collateral (1 − dd) must
+ * still cover the LIF-bonused seizure that a liquidator is owed. If this
+ * inequality is violated the contract can't pay the full bonus → bad debt.
+ *
+ * Solved analytically. LIF is monotone-decreasing in L (above the cap
+ * threshold), so L · LIF(L) is monotone-increasing in L, giving a unique
+ * upper bound. Handles the LIF_CAP plateau explicitly.
+ */
+export function maxLForBadDebt(dd: number, safety: number): number {
+  const T = 1 - dd - safety;
+  if (T <= 0) return 0;
+  // L where LIF transitions from cap (LIF_CAP) to formula (1/(βL+(1-β))):
+  //   1/(βL+(1-β)) = LIF_CAP  ⇒  L = (1/LIF_CAP − (1-β)) / β
+  const lCapBoundary = (1 / LIF_CAP - (1 - BETA)) / BETA;
+  // In the capped region (L ≤ lCapBoundary): L · LIF_CAP ≤ T  ⇒  L ≤ T / LIF_CAP
+  const lFromCapped = T / LIF_CAP;
+  // In the uncapped region (L > lCapBoundary):
+  //   L / (βL + (1-β)) = T  ⇒  L = T·(1-β) / (1 − β·T)
+  const denom = 1 - BETA * T;
+  const lFromUncapped = denom > 0 ? (T * (1 - BETA)) / denom : 1;
+  // Pick whichever falls in its region of validity.
+  if (lFromUncapped > lCapBoundary) return Math.min(1, lFromUncapped);
+  return Math.min(lCapBoundary, lFromCapped);
+}
+
+/**
+ * Maximum LLTV that satisfies the liquidator-profit constraint:
+ *   LIF(L) · (1 − slip) ≥ 1 + safety
+ * A liquidator repays D in loan token and seizes D · LIF in collateral, then
+ * dumps it on the AMM losing `slip`. Profit per unit debt is LIF·(1−slip)−1.
+ * Since LIF is monotone-decreasing in L, higher L → lower bonus → tighter
+ * profit headroom. Returns 0 if even the LIF_CAP plateau is insufficient.
+ */
+export function maxLForProfit(slip: number, safety: number): number {
+  if (slip >= 1) return 0;
+  const lifMin = (1 + safety) / (1 - slip);
+  if (lifMin <= 1) return 1; // LIF ≥ 1 always; trivially satisfied
+  if (lifMin > LIF_CAP) return 0; // even the cap can't reach required LIF
+  // Solve 1/(βL + (1-β)) = lifMin  ⇒  L = (1/lifMin − (1-β)) / β
+  const L = (1 / lifMin - (1 - BETA)) / BETA;
+  return Math.max(0, Math.min(1, L));
+}
+
+/**
+ * Recommended LLTV under the two binding constraints (bad-debt + liquidator
+ * profitability). Both constraints are upper bounds; the tighter wins.
+ *
+ * NOTE: the previous fixed-point formula
+ *   L = (1 − dd) / (LIF(L) · (1 + slip)) − safety
+ * mixed the two constraints into a single inequality with no clean economic
+ * meaning, and could declare "break-even" at L where LIF·(1−slip) < 1 (a
+ * loss for the liquidator). See report on formula validation (2026-05-24).
+ *
+ * `converged`/`iterations` are kept in the return type for backward compat;
+ * the closed-form solver always converges in one step.
+ */
 export function deriveRecommendedLLTV(a: DeriveArgs): DeriveOut {
-  const max = a.maxIter ?? 20;
-  const tol = a.tol ?? 1e-4;
-  let L = 0.80;
-  let converged = false;
-  let i = 0;
-  for (; i < max; i++) {
-    const lif = LIF(L);
-    const next = (1 - a.p95Drawdown) / (lif * (1 + a.slippage)) - a.safetyMargin;
-    if (Math.abs(next - L) < tol) {
-      L = next;
-      converged = true;
-      i++;
-      break;
-    }
-    L = next;
+  const lMaxBadDebt = maxLForBadDebt(a.p95Drawdown, a.safetyMargin);
+  const lMaxProfit = maxLForProfit(a.slippage, a.safetyMargin);
+  const raw = Math.max(0, Math.min(0.98, Math.min(lMaxBadDebt, lMaxProfit)));
+  let bindingConstraint: LLTVBindingConstraint;
+  if (raw <= 0) {
+    bindingConstraint = lMaxProfit < lMaxBadDebt ? 'liquidator-profit' : 'bad-debt';
+  } else if (Math.abs(lMaxProfit - lMaxBadDebt) < 1e-9) {
+    bindingConstraint = 'bad-debt';
+  } else {
+    bindingConstraint = lMaxProfit < lMaxBadDebt ? 'liquidator-profit' : 'bad-debt';
   }
-  // On non-convergence (rare; can happen with degenerate inputs that drive
-  // L out of [0, 1]), returns the last iterate clamped to a sensible band.
-  // Consumers should treat converged=false as a hint to widen safetyMargin.
-  return { raw: Math.max(0, Math.min(0.98, L)), converged, iterations: i };
+  return {
+    raw,
+    converged: true,
+    iterations: 1,
+    bindingConstraint,
+    lMaxBadDebt,
+    lMaxProfit,
+  };
+}
+
+export interface TierScanArgs {
+  p95Drawdown: number;
+  safetyMargin: number;
+  /** Liquidation slippage as a function of the candidate LLTV being evaluated. */
+  slippageAt: (lltv: number) => number;
+}
+
+export interface TierScanOut {
+  /** Largest governance LLTV that satisfies both constraints, or 0 if none. */
+  snapped: LLTV | 0;
+  /** Continuous upper bound at the chosen tier's slippage (for display). */
+  raw: number;
+  bindingConstraint: LLTVBindingConstraint;
+  perTier: Array<{
+    lltv: LLTV;
+    slippage: number;
+    lMaxBadDebt: number;
+    lMaxProfit: number;
+    feasible: boolean;
+  }>;
+}
+
+/**
+ * Tier-scan recommendation: evaluate each governance LLTV with its OWN
+ * liquidation size / slippage (not the operator's current selection), pick
+ * the largest tier where both constraints hold. This fixes the circular
+ * dependency where the recommended LLTV was a function of the currently
+ * selected LLTV (see report on formula validation, 2026-05-24).
+ */
+export function tierScanRecommendation(a: TierScanArgs): TierScanOut {
+  const tiers = [...GOV_LLTVS].sort((x, y) => x - y);
+  const perTier = tiers.map((lltv) => {
+    const slippage = a.slippageAt(lltv);
+    const lMaxBadDebt = maxLForBadDebt(a.p95Drawdown, a.safetyMargin);
+    const lMaxProfit = maxLForProfit(slippage, a.safetyMargin);
+    const feasible = lltv <= Math.min(lMaxBadDebt, lMaxProfit);
+    return { lltv, slippage, lMaxBadDebt, lMaxProfit, feasible };
+  });
+  // Largest feasible tier wins.
+  const winners = perTier.filter((t) => t.feasible);
+  const winner = winners.length > 0 ? winners[winners.length - 1]! : null;
+  if (!winner) {
+    return {
+      snapped: 0,
+      raw: 0,
+      bindingConstraint:
+        perTier[0]!.lMaxProfit < perTier[0]!.lMaxBadDebt ? 'liquidator-profit' : 'bad-debt',
+      perTier,
+    };
+  }
+  const binding: LLTVBindingConstraint =
+    winner.lMaxProfit < winner.lMaxBadDebt ? 'liquidator-profit' : 'bad-debt';
+  return {
+    snapped: winner.lltv,
+    raw: Math.min(winner.lMaxBadDebt, winner.lMaxProfit),
+    bindingConstraint: binding,
+    perTier,
+  };
 }
 
 export function snapToGovernanceLLTV(raw: number): LLTV | 0 {
@@ -552,56 +681,76 @@ export interface StrategyArgs {
   performanceFee: number;
   managementFee: number;
   requiredUSDM: number;
-  incentiveBudgetMonthly_USD: number;
-  attractionRate: number;
+  supplyIncentiveBudgetMonthly_USD: number;
+  borrowerIncentiveBudgetMonthly_USD: number;
+  /** Expected USDM borrowed at steady state. Denominator for borrower-incentive APY. */
+  expectedBorrow_USD: number;
   witryYieldAnnual: number;
-  expectedTRYDepreciation_annual: number;
-  competingAPY: number;
+  // Carry inputs (mirror looperNetAPY in lib/utilization.ts):
+  hfBuffer: number;
+  perLoopSlippageBps: number;
+  lltv: number;
+  loopCount: number;
 }
 
 export interface StrategyOut {
+  /** Gross borrow APY (pre-incentive); mirror of the IRM input for downstream displays. */
+  borrowAPY: number;
   grossSupplyAPY: number;
   netSupplyAPY: number;
-  incentiveAPY: number;
+  supplyIncentiveAPY: number;
   totalSupplyAPY: number;
-  daysToTarget: number;
-  retentionAfterIncentivesEnd_USD: number;
-  totalIncentiveSpend_USD: number;
-  leverageLoopAPY: number;
+  borrowerIncentiveAPY: number;
+  /** Borrow rate net of borrower-side incentives. Can go negative (paid to borrow). */
+  netBorrowAPY: number;
+  netLoopAPY: number;
+  netLoopAPY_withIncentives: number;
+  effectiveLeverage: number;
+  loopDebtPerCollateral: number;
   leverageLoopsViable: boolean;
 }
 
 export function computeStrategy(a: StrategyArgs): StrategyOut {
   const grossSupplyAPY = a.borrowAPY * a.targetUtilization;
   const netSupplyAPY = grossSupplyAPY * (1 - a.performanceFee) - a.managementFee;
-  const incentiveAPY =
-    a.requiredUSDM > 0 ? (a.incentiveBudgetMonthly_USD * 12) / a.requiredUSDM : 0;
-  const totalSupplyAPY = netSupplyAPY + incentiveAPY;
-  const dailyAttract = (a.incentiveBudgetMonthly_USD * a.attractionRate) / 30;
-  const daysToTarget = dailyAttract > 0 ? a.requiredUSDM / dailyAttract : Infinity;
-  const retentionAfterIncentivesEnd_USD =
-    a.competingAPY > 0
-      ? a.requiredUSDM * Math.min(1, netSupplyAPY / a.competingAPY)
-      : a.requiredUSDM;
-  const totalIncentiveSpend_USD = a.incentiveBudgetMonthly_USD * (daysToTarget / 30);
-  // Leverage-loop borrower deposits wiTRY (earns witryYield in TRY) and
-  // borrows USDM. Debt cost in TRY-real-terms = borrowAPY × (TRY/USD ratio
-  // at repayment / today). If TRY depreciates `d` over the year, that
-  // ratio is `(1 + d)`. So real cost = borrowAPY · (1 + d). Report #2
-  // open question #1: spec §3B text has a sign typo (`1 − USD_TRY_return`)
-  // that conflicts with this; code is the economically correct form.
-  const leverageLoopAPY =
-    a.witryYieldAnnual - a.borrowAPY * (1 + a.expectedTRYDepreciation_annual);
+  const supplyIncentiveAPY =
+    a.requiredUSDM > 0 ? (a.supplyIncentiveBudgetMonthly_USD * 12) / a.requiredUSDM : 0;
+  const totalSupplyAPY = netSupplyAPY + supplyIncentiveAPY;
+  const borrowerIncentiveAPY =
+    a.expectedBorrow_USD > 0
+      ? (a.borrowerIncentiveBudgetMonthly_USD * 12) / a.expectedBorrow_USD
+      : 0;
+  const netBorrowAPY = a.borrowAPY - borrowerIncentiveAPY;
+
+  // Carry-only loop economics — shared helper (lib/utilization.ts). FX risk
+  // is handled separately via the Monte Carlo loopPath, not subtracted here.
+  const { effectiveLeverage, borrowedShare, netLoopAPY } = carryLoopAPY({
+    lltv: a.lltv,
+    hfBuffer: a.hfBuffer,
+    witryYieldAnnual: a.witryYieldAnnual,
+    borrowAPY: a.borrowAPY,
+    perLoopSlippageBps: a.perLoopSlippageBps,
+    loopCount: a.loopCount,
+  });
+
+  // Borrower-incentive overlay: paid on the looper's debt notional.
+  const netLoopAPY_withIncentives = netLoopAPY + borrowerIncentiveAPY * borrowedShare;
+  const loopDebtPerCollateral = a.lltv / a.hfBuffer;
+  const leverageLoopsViable = netLoopAPY > a.witryYieldAnnual;
+
   return {
+    borrowAPY: a.borrowAPY,
     grossSupplyAPY,
     netSupplyAPY,
-    incentiveAPY,
+    supplyIncentiveAPY,
     totalSupplyAPY,
-    daysToTarget,
-    retentionAfterIncentivesEnd_USD,
-    totalIncentiveSpend_USD,
-    leverageLoopAPY,
-    leverageLoopsViable: leverageLoopAPY > 0,
+    borrowerIncentiveAPY,
+    netBorrowAPY,
+    netLoopAPY,
+    netLoopAPY_withIncentives,
+    effectiveLeverage,
+    loopDebtPerCollateral,
+    leverageLoopsViable,
   };
 }
 
