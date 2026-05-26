@@ -191,8 +191,9 @@ export function VaultRecommendations() {
           Three distinct deployment artifacts: the <strong>Morpho Blue market</strong>{' '}
           (immutable once created), an optional{' '}
           <strong>per-market pre-liquidation contract</strong> (borrower opt-in), and the{' '}
-          <strong>MetaMorpho vault</strong> that supplies USDM into the market. Copy the
-          JSON below for direct use with the Morpho Blue + MetaMorpho deployment scripts.
+          <strong>MetaMorpho vault</strong> that supplies USDM into the market. The JSON
+          below is a configuration template: fill contract addresses and convert the
+          human-readable cap before submitting a deployment.
         </p>
       </div>
 

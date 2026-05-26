@@ -14,10 +14,10 @@ export default function HelpVault() {
           Three distinct artifacts: the Morpho Blue <strong>market</strong> (immutable
           LLTV/IRM/oracle), the per-market <strong>pre-liquidation contract</strong>{' '}
           (borrower opt-in, spec §4D), and the MetaMorpho <strong>vault</strong>
-          {' '}(caps, fees, timelock, roles). The two-constraint LLTV derivation, the
-          risk-tier classification, and the deploy-ready JSON aggregate every upstream
-          section into one artifact ready for the Morpho Blue + MetaMorpho deployment
-          scripts.
+          {' '}(caps, fees, timelock, roles). The two-constraint governance-tier scan
+          and risk-tier classification summarize upstream risk inputs. The JSON is a
+          configuration template: replace placeholder addresses and convert the
+          human-readable cap before any submission.
         </p>
       </header>
 

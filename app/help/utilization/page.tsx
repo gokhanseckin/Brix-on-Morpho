@@ -7,6 +7,8 @@ const INPUT_KEYS = new Set([
   'stressPctOfSupplyInput',
   'hfBufferInput',
   'rTargetOverrideInput',
+  'kinkClearanceInput',
+  'fxStressZInput',
 ] as const);
 
 export default function HelpUtilization() {
@@ -21,7 +23,7 @@ export default function HelpUtilization() {
 
       <div className="space-y-6">
         <h3 className="text-sm font-semibold text-neutral-500 uppercase tracking-wide border-b pb-1">
-          Inputs (page sliders)
+          Inputs and page controls
         </h3>
         {inputKpis.map((k) => (
           <Entry

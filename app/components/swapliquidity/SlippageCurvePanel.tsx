@@ -15,7 +15,7 @@ import {
   ReferenceLine,
   Legend,
 } from 'recharts';
-import { InfoTooltip } from '@/app/components/help/InfoTooltip';
+import { HelpPopover } from '@/app/components/help/HelpPopover';
 
 const fmtUSD = (n: number) =>
   n >= 1e6
@@ -77,7 +77,8 @@ export function SlippageCurvePanel() {
       const wTRYwei = BigInt(Math.floor((sellUSD / spot) * 1e6));
       const q = quoteLiquidatorSell(preset, spot, wTRYwei);
       const usdmOut = Number(q.amountOut) / 1e6;
-      // Effective slippage = total proceeds shortfall (includes fee + price impact).
+      // Effective slip = requested-notional proceeds shortfall; it includes fee,
+      // price impact, and any requested input left after modeled bids are exhausted.
       const effective = Math.max(0, Math.min(1, 1 - usdmOut / sellUSD));
       pts.push({ sell: sellUSD, priceSlip: q.slippagePct, effective });
       const cur = { sell: sellUSD, effective };
@@ -107,14 +108,14 @@ export function SlippageCurvePanel() {
     <section id="section-slippage-curve" className="space-y-3">
       <h2 className="text-lg font-semibold flex items-center gap-1">
         <span>2. Slippage curve</span>
-        <InfoTooltip text="Slippage as a function of single-trade sell size against the current ladder. Two curves: marginal price slip (end-of-trade price impact) and effective proceeds shortfall (1 − amountOut/sellUSD, includes fee). Effective is what hits the trader's wallet. The orange line marks the liquidator-break-even threshold (1 − 1/LIF) — only meaningful when the swap represents seized collateral of matching size." />
+        <HelpPopover chartKey="slippageCurve" />
       </h2>
       <p className="text-xs text-neutral-500 max-w-2xl">
-        Sweep of slippage vs. trade size on the current ladder. The green line is the 1% LP service
-        target. The orange line is the LIF buffer = 1 − 1/LIF({fmtPct(lltv)}) ={' '}
+        Deterministic sweep of requested sell size against the initial-spot ladder. The green line
+        is a 1% comparison reference. The orange line is the LIF buffer = 1 - 1/LIF({fmtPct(lltv)}) ={' '}
         {fmtPct(lifBuffer)}: if a liquidator interprets a swap of size X as their seized-collateral
-        dump, they break even when effective slip crosses this line and skip above it. Y-axis
-        capped at 10% to focus on the actionable range.
+        dump, AMM proceeds no longer cover repayment before gas when effective slip crosses this
+        line. The y-axis is capped at 10% for readability.
       </p>
       <div className="border border-brix-border rounded p-2 bg-brix-card">
         <ResponsiveContainer width="100%" height={280}>
@@ -151,7 +152,7 @@ export function SlippageCurvePanel() {
               stroke="#10b981"
               strokeDasharray="3 3"
               label={{
-                value: '1% target',
+                value: '1% reference',
                 position: 'right',
                 fill: '#10b981',
                 fontSize: 10,
@@ -193,7 +194,7 @@ export function SlippageCurvePanel() {
       <div className="grid grid-cols-2 gap-3 text-xs">
         <div className="p-3 border border-brix-border rounded bg-brix-card">
           <div className="text-neutral-500 uppercase tracking-wide text-[10px]">
-            Max sell at 1% effective slippage
+            Sell size at 1% effective slip
           </div>
           <div className="text-base font-mono mt-1 text-emerald-300">
             {breakeven1pct ? fmtUSD(breakeven1pct) : '> sweep max'}
@@ -201,15 +202,15 @@ export function SlippageCurvePanel() {
         </div>
         <div className="p-3 border border-brix-border rounded bg-brix-card">
           <div className="text-neutral-500 uppercase tracking-wide text-[10px]">
-            Max liquidator dump at LIF-buffer break-even ({fmtPct(lifBuffer)} effective, gas-blind)
+            Sell size at LIF-buffer crossing ({fmtPct(lifBuffer)} effective, gas-blind)
           </div>
           <div className="text-base font-mono mt-1 text-amber-300">
             {breakevenLIFbuffer ? fmtUSD(breakevenLIFbuffer) : '> sweep max'}
           </div>
           <div className="text-[10px] text-neutral-500 mt-2 leading-snug">
-            Pure AMM cutoff: the dump size where effective slip first eats the
-            entire LIF bonus. Excludes gas — a gas-aware cutoff would be
-            slightly tighter.
+            Scenario cutoff: the requested collateral-sale size where effective
+            slip first uses the entire LIF bonus. Excludes gas; a gas-aware
+            execution cutoff would be slightly tighter.
           </div>
         </div>
       </div>

@@ -11,10 +11,10 @@ export default function HelpStrategy() {
       <header>
         <h2 className="text-xl font-semibold">3. Liquidity Strategy</h2>
         <p className="text-sm text-neutral-500 mt-1 max-w-prose">
-          Supplier yield economics (gross → net → with-incentive), the Merkl
-          campaign ramp (days-to-target, total spend, retention after rewards
-          end), and the borrower-side leverage-loop viability check that drives
-          organic borrow demand.
+          Supplier yield economics (gross to net to with-incentive) and the
+          deterministic borrower loop comparison shown on the Market Simulator.
+          The loop card tests whether carry beats simply holding wiTRY; FX stress
+          is evaluated in the FX Risk and Liquidation sections.
         </p>
       </header>
 

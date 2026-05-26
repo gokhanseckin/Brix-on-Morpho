@@ -54,13 +54,13 @@ export function LiquidationDesign() {
 
       <div className="grid grid-cols-2 gap-4">
         <Kpi
-          label="P95 Morpho debt — single (USD)"
+          label="P95 residual Morpho debt (USD)"
           value={fx?.badDebt ? formatUSD(fx.badDebt.badDebtP95_USD) : '—'}
-          hint="Cascade with each liquidation priced as its own swap. Lower bound — assumes liquidators clear positions one at a time."
+          hint="Per path, profitable liquidations consume the same AMM ladder in sequence; unprofitable debt remains exposed to later FX losses."
           helpKey="badDebtP95USD"
         />
         <Kpi
-          label="P95 Morpho debt — single (% TVL)"
+          label="P95 residual Morpho debt (% TVL)"
           value={fx?.badDebt ? formatPct(fx.badDebt.badDebtP95Pct, 2) : '—'}
           tone={
             fx?.badDebt && fx.badDebt.badDebtP95Pct > 0.05
@@ -94,13 +94,14 @@ export function LiquidationDesign() {
           Each bar counts simulated FX paths whose total leftover Morpho debt
           (summed across the Beta-distributed borrower population, with sequential
           AMM liquidations and pre-liquidation cascade) lands in that USD bucket.
-          For the single-probe complement — &ldquo;if a $X seized-collateral dump lands
-          at this path&apos;s terminal spot, what&apos;s the bad-debt rate?&rdquo; — see{' '}
+          For the single-probe complement - &ldquo;if a $X seized-collateral dump lands
+          at this path&apos;s terminal spot, what is the hypothetical repayment
+          shortfall rate?&rdquo; - see{' '}
           <Link
             href="/swapliquidity#section-recovery"
             className="text-brix-accent hover:text-brix-accentHover"
           >
-            Bad-debt distribution at slider size → /swapliquidity
+            Repayment-shortfall probes on /swapliquidity
           </Link>
           .
         </p>
@@ -143,7 +144,7 @@ export function LiquidationDesign() {
           Recommendation
         </div>
         <div className="text-sm">
-          At LLTV={(inputs.lltv * 100).toFixed(1)}%, P95 Morpho debt (single) ={' '}
+          At LLTV={(inputs.lltv * 100).toFixed(1)}%, P95 residual Morpho debt ={' '}
           {fx?.badDebt ? formatUSD(fx.badDebt.badDebtP95_USD) : '—'} (
           {fx?.badDebt ? formatPct(fx.badDebt.badDebtP95Pct, 2) : '—'} of TVL). Full-horizon
           cumulative liquidation volume (

@@ -15,7 +15,7 @@ export function RecommendationTable({ analysis }: { analysis: UtilizationAnalysi
           <tr className="text-left text-neutral-500">
             <th className="py-1">u_target</th>
             <th>Borrow APY</th>
-            <th>Supplier APY</th>
+            <th>Gross Supplier APY</th>
             <th>Margin 7d</th>
             <th>Margin 30d</th>
             <th>Buffer</th>

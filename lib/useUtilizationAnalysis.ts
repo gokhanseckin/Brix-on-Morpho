@@ -41,6 +41,7 @@ export function useUtilizationAnalysis(s: PageSliders): UtilizationAnalysisOutpu
     rTarget: s.rTargetOverride,
     lltv: url.lltv,
     hfBuffer: s.hfBuffer,
+    loopCount: url.loopCount,
     witryYield7d:  url.witryYieldUSD_7d,
     witryYield30d: url.witryYieldUSD_30d,
     perLoopSlippageBps: 30,
@@ -62,6 +63,7 @@ export function useUtilizationAnalysis(s: PageSliders): UtilizationAnalysisOutpu
       uTarget: target, rTarget: inputs.rTarget, lltv: inputs.lltv,
       hfBuffer: inputs.hfBuffer, witryYieldAnnual: inputs.witryYield7d,
       perLoopSlippageBps: inputs.perLoopSlippageBps,
+      loopCount: inputs.loopCount,
       fxAnnualVol: inputs.fxAnnualVol, fxStressZ: inputs.fxStressZ,
     }) : null;
     const stress = liquidityStress({
@@ -90,6 +92,7 @@ export function useUtilizationAnalysis(s: PageSliders): UtilizationAnalysisOutpu
           uTarget: u, rTarget: rT, lltv: inputs.lltv,
           hfBuffer: inputs.hfBuffer, witryYieldAnnual: inputs.witryYield7d,
           perLoopSlippageBps: inputs.perLoopSlippageBps,
+          loopCount: inputs.loopCount,
           fxAnnualVol: inputs.fxAnnualVol, fxStressZ: inputs.fxStressZ,
         });
         const feasible = econ.loopMargin > 0;

@@ -47,7 +47,7 @@ export function LLTVSidebar() {
           Read-only. Edit on the{' '}
           <CrossPageLink href="/" className="text-brix-accent underline">
             Market Simulator
-          </CrossPageLink>. Drives the p95 1-day drawdown that feeds the LLTV formula.
+          </CrossPageLink>. Drives the selected 1-day drawdown percentile that feeds the LLTV formula.
         </p>
         <div className="space-y-1.5">
           <ReadOnlyRow label="Mode" value={s.simulationMode} />

@@ -15,6 +15,7 @@ const MODES = ['Bootstrap', 'GBM', 'GBM+Jumps', 'Scenario'] as const;
 
 export const STORAGE_KEY = 'brix:sidebar-state:v1';
 export const DEFAULT_PRE_LIQUIDATION_ENABLED = false;
+export const DEFAULT_KINK_CLEARANCE = 0;
 
 // Reject any LLTV not in the Morpho governance-allowed set.
 const parseAsLLTV = createParser({
@@ -68,7 +69,7 @@ export function useUrlState() {
     // Default 0 = no enforced buffer; the goal on /utilization is to
     // operate close to the kink for max supplier APY. Slider remains so
     // operators can dial in a buffer if they want one.
-    kinkClearance: parseAsFloat.withDefault(0.0),
+    kinkClearance: parseAsFloat.withDefault(DEFAULT_KINK_CLEARANCE),
     // FX stress-quantile multiplier on annualized USD/TRY vol. Default
     // 1.65 ≈ 95th-percentile single-tail z-score. Gates whether a levered
     // loop position survives a 1-month P95 FX move within HF headroom.

@@ -11,16 +11,15 @@ export const CHART_KEYS = [
   'competitiveBenchmark',  // LiquidityStrategy
   // Utilization (section 6)
   'looperViabilityCurve',
-  'liquidityStressTable',
-  'loopEconomicsWaterfall',
   'fxRiskCard',
   'irmHeatmap',
   'recommendationTable',
   // SwapLiquidity (section 7)
   'liquidityByTick',
   'bandAllocationTable',
-  'swapBadDebtHistogram',
-  'presetExportSchema',
+  'slippageCurve',
+  'repaymentShortfallHistogram',
+  'repaymentShortfallSweep',
 ] as const;
 
 export type ChartKey = (typeof CHART_KEYS)[number];
@@ -34,13 +33,12 @@ export const CHART_SECTION: Record<ChartKey, HelpSection> = {
   badDebtHistogram: 'liquidation',
   competitiveBenchmark: 'strategy',
   looperViabilityCurve: 'utilization',
-  liquidityStressTable: 'utilization',
-  loopEconomicsWaterfall: 'utilization',
   fxRiskCard: 'utilization',
   irmHeatmap: 'utilization',
   recommendationTable: 'utilization',
   liquidityByTick: 'swap-liquidity',
   bandAllocationTable: 'swap-liquidity',
-  swapBadDebtHistogram: 'swap-liquidity',
-  presetExportSchema: 'swap-liquidity',
+  slippageCurve: 'swap-liquidity',
+  repaymentShortfallHistogram: 'swap-liquidity',
+  repaymentShortfallSweep: 'swap-liquidity',
 };

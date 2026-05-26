@@ -67,11 +67,11 @@ export function LiquidatorSwapPanel() {
 
   return (
     <section id="section-liquidator-swap" className="space-y-3">
-      <h2 className="text-lg font-semibold">3. Liquidator swap</h2>
+      <h2 className="text-lg font-semibold">3. Liquidator swap probe</h2>
       <label className="block text-sm">
         <span>
-          Sell size (USD): {fmtUSD(sellUSD)}
-          <InfoTooltip text="USD-notional amount of wTRY the liquidator dumps into the AMM in a single swap. Slippage rises monotonically with this value — try moving the slider to feel the price-impact curve." />
+          Requested seized-wTRY probe (USD): {fmtUSD(sellUSD)}
+          <InfoTooltip text="Scenario input: USD-notional wTRY requested in one modeled sale. If represented pool liquidity is exhausted, the quote assigns no proceeds to the unfilled remainder." />
         </span>
         <input
           type="range"
@@ -88,11 +88,12 @@ export function LiquidatorSwapPanel() {
         <Kpi
           label="Effective slip (fee + impact)"
           value={fmtPct(effectiveSlip)}
+          helpKey="effectiveSlip"
           hint="1 − amountOut / sellUSD. Compare against bufferPct = 1 − 1/LIF (≈4.20% at LLTV 86%) only if this swap is a seized-collateral dump."
         />
         <Kpi label="Marginal price slip" value={fmtPct(quote.slippagePct)} helpKey="slippagePctKpi" />
-        <Kpi label="Effective price" value={quote.avgPrice.toFixed(6)} helpKey="effectivePrice" />
-        <Kpi label="Fee paid" value={fmtUSD(feeUSD)} helpKey="feePaidUSD" />
+        <Kpi label="Average fill price" value={quote.avgPrice.toFixed(6)} helpKey="effectivePrice" />
+        <Kpi label="Fee on filled input" value={fmtUSD(feeUSD)} helpKey="feePaidUSD" />
         <Kpi label="Ticks crossed" value={String(quote.ticksCrossed)} helpKey="ticksCrossed" />
       </div>
     </section>

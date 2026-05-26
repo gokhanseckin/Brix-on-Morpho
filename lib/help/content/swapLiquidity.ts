@@ -11,35 +11,35 @@ import type { ChartHelp, KpiHelp, ParamHelp } from '../types';
 export const SWAP_LIQUIDITY_PARAMS: Partial<Record<string, ParamHelp>> = {
   poolFeeTier: {
     oneLiner:
-      'Per-swap commission paid to liquidity providers. 0.30% uses tight tick spacing (60) for deeper concentration; 1.00% uses wide spacing (200) for safer LPing on a thin pool.',
+      'Scenario input: the AMM input fee. 0.30% uses tick spacing 60; 1.00% uses tick spacing 200. Changing it changes both fee charged and snapped band endpoints.',
     details: {
       description:
-        'Uniswap v3 ties fee tier to tick spacing: 0.30% → spacing 60 (fine grid), 1.00% → spacing 200 (coarse grid). Coarser grid means LP positions cover wider price ranges per tick, so your bands are less precise but more robust to small price jitter. For a low-volume launch pool, 1.00% gives LPs a meaningful incentive without needing to actively rebalance.',
+        'The code accepts fee-tier encodings 3000 and 10000. They become input fees of 0.30% and 1.00%, and tick spacings of 60 and 200. A wider spacing can move the actual tick-snapped endpoints away from the percentage offsets entered in the sidebar.',
       options: [
-        { name: '0.30%', description: 'Standard for volatile pairs. Best when you expect frequent trading and active LPs.', bestFor: 'mature pool with arb activity' },
-        { name: '1.00%', description: 'Higher fee compensates LPs for sitting on thin volume.', bestFor: 'fresh launch / low-volume pair' },
+        { name: '0.30%', description: 'Encodes fee tier 3000 and tick spacing 60.', bestFor: 'compare a lower input fee and finer tick grid' },
+        { name: '1.00%', description: 'Encodes fee tier 10000 and tick spacing 200.', bestFor: 'compare a higher input fee and coarser tick grid' },
       ],
     },
   },
   poolTVL_USD: {
     oneLiner:
-      'Total USD value seeded across both sides of the AMM. Default $500k matches a realistic launch — bigger pools mean less slippage on every liquidation.',
+      'Scenario input: configured launch value allocated across the three positions. Default is $500,000; this is not active liquidity L or measured pool TVL.',
     details: {
       description:
-        'TVL is what an LP would have to commit to the pool. It is split across three bands (Core / Absorb / Tail) per the band-share sliders. Doubling TVL roughly halves slippage for the same swap size, which directly shrinks bad-debt risk. The page treats this as a parameter to size against; for a real launch, the protocol seeds + incentivises this depth.',
+        'The builder divides this configured USD value among Core, Absorb, and Tail. Each allocation is converted into token amounts and Uniswap liquidity at the initial spot. Only positions whose range contains the current spot contribute to active L. The quote then calculates proceeds for the configured probe trade.',
       downstream: [
         { section: 'Pool state', effects: ['active liquidity at spot', 'per-band USD allocations'] },
-        { section: 'Liquidator swap', effects: ['slippage', 'USDM received'] },
-        { section: 'Bad-debt distribution', effects: ['shifts whole histogram left/right'] },
+        { section: 'Liquidator swap', effects: ['effective slip', 'marginal price slip', 'USDM received'] },
+        { section: 'Execution shortfall', effects: ['changes shortfall results for the probe scenarios'] },
       ],
     },
   },
   bandSplitCore: {
     oneLiner:
-      'Share of pool capital in the tight ±5% band around spot. Higher = less slippage on small swaps, less capacity to absorb a wTRY crash.',
+      'Scenario input: share of configured pool capital in the Core range. Its default range is -5% to +5% of initial spot.',
     details: {
       description:
-        'The Core band catches normal trading. Money parked here is the most capital-efficient (deep liquidity for the smallest price range) but the FIRST to be drained when price moves outside the band — at which point it converts to 100% of the falling asset (wTRY in a crash) and sits idle.',
+        'A narrow in-range position produces more L per allocated dollar at launch than a wide position. When a wTRY sell moves price below its lower boundary, Core no longer supplies active liquidity for additional downward movement.',
       downstream: [
         { section: 'Pool state', effects: ['active liquidity at spot', 'Core row in band table'] },
         { section: 'Liquidator swap', effects: ['slippage near spot'] },
@@ -48,12 +48,12 @@ export const SWAP_LIQUIDITY_PARAMS: Partial<Record<string, ParamHelp>> = {
   },
   bandSplitAbsorb: {
     oneLiner:
-      'Share allocated to the −25% → −10% band below spot. This is the catch net for forced liquidations during a crash; size it to expected wTRY dumps.',
+      'Scenario input: share allocated to the default -15% to -5% band below initial spot. It adds bid depth only after price reaches its range.',
     details: {
       description:
-        'The Absorb band sits below spot in pure USDM (100% one-sided). When wTRY price falls into this range — exactly when liquidators are unwinding seized collateral — the band buys wTRY at a discount and pays out USDM. Its width (15 percentage points) is sized to span the typical crash trajectory. Smaller absorb share → less protection against bad debt; larger → less Core depth for normal flow.',
+        'At the default launch spot, the Absorb range is below spot and its position is funded on the USDM side. A simulated wTRY sell that pushes price into this range can receive USDM from it. Moving allocation here changes the computed quote; it is not a recommendation for deployed liquidity.',
       downstream: [
-        { section: 'Bad-debt distribution', effects: ['governs whether bad debt fires in stressed paths'] },
+        { section: 'Execution shortfall', effects: ['changes repayment shortfall for off-center probe trades'] },
       ],
     },
   },
@@ -83,7 +83,7 @@ export const SWAP_LIQUIDITY_PARAMS: Partial<Record<string, ParamHelp>> = {
   },
   swapSellUSD: {
     oneLiner:
-      'Single-trade USD-notional wTRY dump size used by the liquidator probe in Section 2. Section 4 stress-tests the same size across all Monte Carlo terminal spots.',
+      'Scenario input: USD-notional seized wTRY probe requested in Section 3 and reused by Section 4A. Default is $1,000,000.',
   },
 };
 
@@ -112,34 +112,34 @@ const spotWtryUsdm: KpiHelp = {
   definitions: [
     { term: 'Price direction', definition: 'wTRY/USDM = USDM per 1 wTRY. With USDTRY ≈ 45, spot ≈ 0.0222 USDM per wTRY — meaning 45 wTRY to buy 1 USDM.' },
     { term: 'Why not USDTRY directly', definition: 'Uniswap v3 quotes prices as token1/token0 with token0 = wTRY (lower address-sort). Inverting once at the page boundary keeps the rest of the math conventional.' },
-    { term: 'Static baseline, not live FX', definition: 'This is the modelled baseline you control — NOT a live oracle feed. The §3 bad-debt distribution uses Monte-Carlo terminal spots (which DO vary across FX futures), but §1 and §2 use this static value as the design-point spot.' },
+    { term: 'Scenario baseline, not live FX', definition: 'This is an input you control, not a live oracle feed. Sections 1 to 3 use it as initial spot. Section 4A uses terminal values from simulated USD/TRY paths for its probe sizes while the modeled pool remains at its initial ticks.' },
     { term: 'Shared state', definition: 'usdtryBaseline is the same URL key the homepage reads. Editing the sidebar field in either page updates both, as long as you navigate with the query string preserved (open in a new tab from the URL bar, or use the back/forward buttons).' },
   ],
   impact: {
-    health: 'Anchor for every band: ±5% around this spot defines the Core band; Absorb is −25% to −10% below.',
-    sustainability: 'If FX baseline drifts, every band drifts with it. Rebalance the pool when spot crosses the rebalance threshold (15% by default).',
-    profitability: 'Drives the entry price for every liquidator swap on this page.',
+    health: 'Anchor for configured bands: at defaults Core is -5% to +5%, Absorb is -15% to -5%, and Tail is -90% to +30%.',
+    sustainability: 'The page stores a rebalance-policy field in the generated preset but does not execute or validate rebalancing.',
+    profitability: 'Sets the initial price used to size and quote design-point probe trades.',
   },
 };
 
 const activeLiquidityScaled: KpiHelp = {
   title: 'Active liquidity (scaled)',
   oneLiner:
-    'Uniswap v3 "L" parameter at the current spot — total depth available before crossing into the next tick range. Scaled by 1e12 just for readability.',
+    'Calculated Uniswap v3 L at initial spot, summed only across in-range positions and divided by 1e12 for display. It is not configured USD pool capital.',
   formula: {
     plain: 'L_active = sum of L_i for every position whose [tickLower, tickUpper) covers tickAtSpot\nL_i = liquidityForAmounts(sqrtP, sqrtA_i, sqrtB_i, amount0_i, amount1_i)\nDisplayed value = Number(L_active) / 1e12',
     latex: 'L_{\\text{active}} = \\sum_{i \\in \\text{in-range}} L_i,\\quad L_i = f(\\sqrt{P}, \\sqrt{P_a}, \\sqrt{P_b}, x_i, y_i)',
   },
   params: [COMMON.tvl!, COMMON.core!, COMMON.absorb!, COMMON.spot!],
   definitions: [
-    { term: 'L (liquidity)', definition: 'A constant in Uniswap v3 that ties a position\'s reserves to its price range. Higher L = thicker book = less slippage. The math is `liquidityForAmounts` in lib/univ3/liquidityMath.ts.' },
+    { term: 'L (liquidity)', definition: 'The Uniswap v3 parameter relating reserves to a price range. For otherwise equal conditions, higher active L reduces price movement for an input amount.' },
     { term: 'Why scale by 1e12', definition: 'L is computed in raw wei × Q96 units — too big to read. Dividing by 1e12 gives a number between 1 and a few thousand for typical configs.' },
-    { term: 'In-range positions only', definition: 'A band whose tickLower/tickUpper bracket the spot tick contributes. At launch with default settings, only the Core band is in-range; Absorb and Tail wait below spot.' },
+    { term: 'In-range positions only', definition: 'A band whose tickLower/tickUpper bracket the spot tick contributes. With current defaults, Core and Tail include initial spot; Absorb is below initial spot.' },
   ],
   impact: {
-    health: 'Higher active L = smaller price impact for the same trade size = less bad-debt risk.',
-    sustainability: 'Falls as price drifts outside the Core band; that\'s when the Absorb band starts carrying the swap.',
-    profitability: 'For LPs: fees accrue only when their position is in-range. Active L is the fee-earning slice.',
+    health: 'This quantity enters the swap path at initial spot; it does not itself measure proceeds or repayment shortfall.',
+    sustainability: 'As a simulated sell crosses ticks, the active L used by the quote changes according to each position boundary.',
+    profitability: 'The received-output and effective-slip metrics show the result of applying this liquidity to a probe.',
   },
 };
 
@@ -148,25 +148,25 @@ const poolFeeTierKpi: KpiHelp = {
   oneLiner:
     'Per-swap commission charged to traders, paid to LPs in proportion to in-range liquidity. Same value as the sidebar control — mirrored here for quick reference.',
   formula: {
-    plain: 'fee_paid = amount_in × (feeTier_bps / 10000)',
-    latex: 'F = x_{\\text{in}} \\cdot (f / 10000)',
+    plain: 'feeRate = poolFeeTier / 1,000,000\n// 3000 -> 0.003 = 0.30%; 10000 -> 0.01 = 1.00%\nfee_paid = sum of input fee charged at each executed swap step',
+    latex: 'r_f = f / 10^6',
   },
   params: [COMMON.fee!],
   definitions: [
-    { term: '0.30% (3000 bps)', definition: 'Standard volatile-pair fee. Uses tick spacing 60. Recommended once the pool has steady arb flow.' },
-    { term: '1.00% (10000 bps)', definition: 'Higher fee, wider tick spacing (200). Default for fresh launches — pays LPs enough to bother with a thin book.' },
+    { term: '0.30% (fee tier 3000)', definition: 'Charges 30 basis points of executed input and uses tick spacing 60.' },
+    { term: '1.00% (fee tier 10000)', definition: 'Charges 100 basis points of executed input and uses tick spacing 200.' },
   ],
   impact: {
-    health: 'Higher fee → less arb activity → wider spread → modestly worse liquidator recovery on stressed paths.',
-    sustainability: 'Drives the LP yield that bootstraps and retains liquidity.',
-    profitability: 'For liquidators: a 1% fee directly cuts into the LIF buffer — at 86% LLTV (4.4% buffer), a 1% AMM fee leaves ~3.4% of cushion.',
+    health: 'A higher fee lowers calculated USDM proceeds for the same executed input.',
+    sustainability: 'This page calculates the fee amount for probe trades; it does not estimate LP income or trading activity.',
+    profitability: 'For a seized-collateral probe, fees consume part of the LIF buffer before gas; at LLTV 86% that modeled buffer is 4.20%.',
   },
 };
 
 const usdmReceived: KpiHelp = {
   title: 'USDM received',
   oneLiner:
-    'What the liquidator nets from selling the seized wTRY into the AMM, after slippage and fee. Drives whether bad debt is born.',
+    'Calculated USDM output from the requested wTRY probe against the configured pool. If represented liquidity is exhausted, no proceeds are assigned to unfilled input.',
   formula: {
     plain: 'usdmReceived = sum_over_ticks( deltaY_i )  where deltaY_i = L_i × (sqrtP - sqrtP_next_i) / Q96',
     latex: 'y_{\\text{out}} = \\sum_i L_i \\cdot (\\sqrt{P_i} - \\sqrt{P_{i+1}}) / 2^{96}',
@@ -174,40 +174,60 @@ const usdmReceived: KpiHelp = {
   params: [COMMON.tvl!, COMMON.core!, COMMON.absorb!, COMMON.fee!],
   definitions: [
     { term: 'Where the math lives', definition: 'lib/univ3/swap.ts implements swapExactIn — walks ticks, applies per-step constant-product, accumulates output.' },
-    { term: 'Fee-on-input', definition: 'Uniswap v3 charges the fee on the INPUT amount before computing the swap. So a $25k notional sell at 0.30% has $24,925 effectively swapped.' },
-    { term: 'Compare to debt', definition: 'For bad-debt math, what matters is usdmReceived vs debt-at-trigger. Debt = collateral / LIF(lltv); see §4 of /help/liquidation.' },
+    { term: 'Fee-on-input', definition: 'The walker charges fee on executed input at each step. If a $25,000 requested sell is fully filled at 0.30%, its input fee is about $75 before spot-marking and integer rounding.' },
+    { term: 'Compare to repayment', definition: 'For the Section 4 probe, required repayment is collateral / LIF(lltv). A shortfall means this hypothetical execution would not repay that amount before gas; it does not assert protocol bad debt occurred.' },
   ],
   impact: {
-    health: 'Direct input to bad-debt = max(0, debt − usdmReceived).',
-    sustainability: 'A pool design that consistently delivers usdmReceived ≥ debt is the goal.',
-    profitability: 'Liquidator profit = usdmReceived + collateral-bonus − debt − gas.',
+    health: 'Direct input to the probe formula: repaymentShortfall = max(0, debtToRepay - usdmReceived).',
+    sustainability: 'The page reports this scenario output without recommending a pool size.',
+    profitability: 'Before gas, the hypothetical liquidator spread is usdmReceived - debtToRepay.',
+  },
+};
+
+const effectiveSlip: KpiHelp = {
+  title: 'Effective slip (fee + impact)',
+  oneLiner:
+    'Calculated proceeds shortfall versus the requested USD-notional probe. It includes the input fee, execution price movement, and any input left without modeled bids.',
+  formula: {
+    plain: 'effectiveSlip = max(0, 1 - usdmReceived / requestedSellUSD)\n// For a seized-collateral probe, compare with:\nLIF_buffer = 1 - 1 / LIF(lltv)',
+    latex: '\\sigma_{\\mathrm{eff}} = \\max(0, 1 - y_{\\mathrm{out}} / C)',
+  },
+  params: [COMMON.tvl!, COMMON.fee!, COMMON.lltv!],
+  definitions: [
+    { term: 'Requested sell notional', definition: 'The slider sets a USD value of wTRY collateral. The code converts that value to wTRY at the scenario spot before requesting the swap.' },
+    { term: 'Repayment interpretation', definition: 'Only when the requested input represents seized collateral is the LIF buffer a repayment break-even reference. Gas is excluded here.' },
+  ],
+  impact: {
+    health: 'This is an execution-scenario output, not a report of realized protocol loss.',
+    sustainability: 'Changing pool capital, ranges, or fee changes this computed curve.',
+    profitability: 'A seized-collateral probe covers repayment before gas only while effective slip is no larger than the LIF buffer.',
   },
 };
 
 const slippagePctKpi: KpiHelp = {
-  title: 'Slippage',
+  title: 'Marginal price slip',
   oneLiner:
-    '(entry price − exit price) ÷ entry price. Pure price impact from this swap, before any LIF buffer is applied.',
+    '(entry price - exit price) / entry price for this sell. This is final-price movement, not total proceeds shortfall.',
   formula: {
     plain: 'slippage = (entryPrice - exitPrice) / entryPrice    // for sells (zeroForOne)\nentryPrice = sqrtPriceX96ToPrice(pool.sqrtPriceX96)\nexitPrice  = sqrtPriceX96ToPrice(swap.finalSqrtPriceX96)',
     latex: '\\sigma = (p_0 - p_1) / p_0',
   },
   params: [COMMON.tvl!, COMMON.core!, COMMON.absorb!],
   definitions: [
-    { term: 'Not the same as bad debt', definition: 'A 3% slippage is benign at LLTV 86% (4.4% LIF buffer absorbs it). Slippage > LIF buffer is the actual bad-debt threshold.' },
-    { term: 'Why slippage grows with size', definition: 'Larger sells push price further along the LP curve, sweeping deeper ticks where positions are thinner. Slippage is monotonic in swap size — see the property test in tests/univ3/swap.test.ts.' },
+    { term: 'Not effective slip', definition: 'This metric measures the final marginal pool price. Effective slip instead compares all USDM proceeds with the requested collateral notional and includes fee.' },
+    { term: 'Why it grows with size', definition: 'A larger executable sell moves farther along the active liquidity ranges and can cross initialized ticks.' },
   ],
   impact: {
-    health: 'Slippage > LIF buffer = bad debt. For LLTV 86% the threshold is ~4.4%.',
-    sustainability: 'Pool depth and Absorb-band sizing are the levers to keep slippage low.',
-    profitability: 'Direct cost to the liquidator on every sell.',
+    health: 'Use effective slip and repayment shortfall, rather than this endpoint metric alone, for the liquidation probe interpretation.',
+    sustainability: 'Pool allocation and band widths determine how quickly the modeled marginal price moves.',
+    profitability: 'This is context for execution quality; total modeled proceeds are shown separately.',
   },
 };
 
 const effectivePrice: KpiHelp = {
-  title: 'Effective price',
+  title: 'Average fill price',
   oneLiner:
-    'Volume-weighted average price across every tick the swap traversed. Usually between entry and exit price.',
+    'Calculated USDM received per wTRY input consumed by the swap. If a requested probe cannot be fully filled, this average covers the filled input only.',
   formula: {
     plain: 'effectivePrice = amountOut / amountIn',
     latex: 'p_{\\text{eff}} = y_{\\text{out}} / x_{\\text{in}}',
@@ -215,7 +235,7 @@ const effectivePrice: KpiHelp = {
   params: [COMMON.tvl!, COMMON.fee!],
   definitions: [
     { term: 'Why it differs from entry', definition: 'A single tick has constant L, so within it the price moves continuously along the constant-product curve. The average across the swept range is closer to entry than to exit (concentrated at the start).' },
-    { term: 'Use case', definition: 'A liquidator reports effectivePrice to the protocol when claiming the bonus. The number on /swapliquidity is what they would actually quote.' },
+    { term: 'No execution assertion', definition: 'The number is an AMM quote result for this scenario. The page does not assert that a liquidator executes it or reports it elsewhere.' },
   ],
   impact: {
     health: 'Lower effective price (further from entry) = bigger loss to slippage.',
@@ -227,7 +247,7 @@ const effectivePrice: KpiHelp = {
 const feePaidUSD: KpiHelp = {
   title: 'Fee paid',
   oneLiner:
-    'Total LP fees from this swap, in USD-equivalent. A direct cost to the liquidator (and revenue to LPs).',
+    'Calculated fee on the wTRY input consumed by the modeled swap, marked in USD at initial spot.',
   formula: {
     plain: 'feePaid_USD = (feePaid_token0 / 1e6) × spot',
     latex: 'F_{\\text{USD}} = (F_{x_0} / 10^6) \\cdot p_{\\text{spot}}',
@@ -235,91 +255,91 @@ const feePaidUSD: KpiHelp = {
   params: [COMMON.fee!, COMMON.spot!],
   definitions: [
     { term: 'Why USD', definition: 'The swap walker accounts fees in token0 (wTRY) wei. Multiplying by spot gives a stable USD number to compare across pool configs.' },
-    { term: 'feePaid token granularity', definition: 'Fee accrues per-step on the gross input; the sum is exact in wei. The 1e6 factor is the page\'s arbitrary "wei-per-dollar" scale.' },
+    { term: 'Filled input only', definition: 'Fee accrues per executed step. If modeled liquidity is exhausted before the requested wTRY amount is consumed, unfilled input is not charged a fee.' },
   ],
   impact: {
-    health: 'Eats directly into the LIF buffer — same threshold logic as slippage.',
-    sustainability: 'Drives the per-block fee tape that bootstraps LP yield.',
-    profitability: 'Total cost to liquidator = slippage_USD + feePaid_USD + gas.',
+    health: 'For a seized-collateral probe, this fee contributes to effective slip before any gas cost.',
+    sustainability: 'This is calculated trade fee, not an estimate of recurring LP revenue.',
+    profitability: 'The page folds the fee into USDM output and effective slip.',
   },
 };
 
 const ticksCrossed: KpiHelp = {
   title: 'Ticks crossed',
   oneLiner:
-    'How many initialized ticks the swap walker traversed. Higher = the swap moved through more LP positions = deeper price impact.',
+    'Number of initialized price boundaries traversed by the executed portion of the modeled swap.',
   formula: {
     plain: 'ticksCrossed = count of tick boundaries where liquidityNet was applied during the swap',
   },
   params: [COMMON.tvl!, COMMON.core!, COMMON.absorb!],
   definitions: [
     { term: 'Initialized tick', definition: 'A tick where at least one LP position begins or ends. The default asymmetric ladder has 6 initialized ticks (2 per band).' },
-    { term: 'Why care', definition: 'Most swaps stay within the Core band (0 ticks crossed). When the count jumps to 1+, the swap has drained Core and is now consuming Absorb-band depth — a signal that the pool is being stressed.' },
+    { term: 'Why care', definition: 'A count of zero means execution remained in the starting active-liquidity interval. A positive count means a band boundary changed active L during the quote.' },
   ],
   impact: {
-    health: 'A liquidator swap crossing ticks means price moved across the Core/Absorb boundary — Absorb band is doing its job.',
-    sustainability: 'A high tick count signals you should rebalance the pool back to centre on spot.',
-    profitability: 'More ticks = more slippage = less USDM out.',
+    health: 'This reports the quote route through configured ranges; it is not a shortfall threshold.',
+    sustainability: 'It helps inspect which configured ranges were reached in the scenario.',
+    profitability: 'The output and effective-slip KPIs contain the corresponding proceeds effect.',
   },
 };
 
-const zeroBadDebtPct: KpiHelp = {
-  title: 'Paths with zero bad debt',
+const pathsWithNoShortfall: KpiHelp = {
+  title: 'Paths with no repayment shortfall',
   oneLiner:
-    'Share of Monte-Carlo futures where the AMM proceeds fully covered the debt — the LIF buffer absorbed all slippage.',
+    'Share of sampled terminal-FX probe scenarios whose AMM proceeds cover repayment before gas. This is not protocol bad debt.',
   formula: {
-    plain: 'zeroBadDebtPct = count(paths with badDebt = 0) / count(paths)',
-    latex: '\\zeta = | \\{ p : \\text{badDebt}(p) = 0 \\} | / | \\{ p \\} |',
+    plain: 'shortfall_i = max(0, debtToRepay - ammSale_i) / debtToRepay\npathsWithNoShortfall = count(shortfall_i = 0) / sampledPathCount',
+    latex: '\\zeta = |\\{i : s_i = 0\\}| / n',
   },
   params: [COMMON.tvl!, COMMON.core!, COMMON.absorb!, COMMON.lltv!],
   definitions: [
-    { term: 'Healthy target', definition: 'A safe pool design has ζ ≥ 95% — even the worst 5% of paths only book a tiny amount of bad debt.' },
-    { term: 'Why it can be 100%', definition: 'For an LLTV with a generous LIF buffer (e.g. 0.86 → 4.4%) and a deep pool, ALL paths recover fully. The histogram becomes a single bar at 0%.' },
+    { term: 'Sampled scenario', definition: 'The panel takes up to 200 terminal spots from the selected FX simulation, holds pool ticks at their initial positions, and requests the slider-sized collateral sale at each terminal value.' },
+    { term: 'Execution shortfall', definition: 'A non-zero value means the hypothetical liquidator receives less USDM than the repayment amount before gas. A real protocol outcome also depends on whether and how liquidation occurs.' },
   ],
   impact: {
-    health: 'Higher is better. <90% means the pool design is undersized for the chosen LLTV.',
-    sustainability: 'The lever to push this up is either Absorb-band share or total TVL.',
-    profitability: 'Indirect: paths that book bad debt also dilute supplier APY.',
+    health: 'This is a calculated probe summary, not a safety classification.',
+    sustainability: 'Changing the pool inputs or selected FX simulation changes this percentage.',
+    profitability: 'A no-shortfall probe covers repayment before gas under the modeled execution only.',
   },
 };
 
-const medianBadDebtRate: KpiHelp = {
-  title: 'Median bad-debt rate',
+const medianRepaymentShortfallRate: KpiHelp = {
+  title: 'Median repayment-shortfall rate',
   oneLiner:
-    'Typical bad-debt rate across simulated futures. Equals zero when more than half of paths recover fully.',
+    'Middle sampled repayment-shortfall rate for the slider-sized hypothetical liquidator sale.',
   formula: {
-    plain: 'badDebtRate(p) = badDebt(p) / debtAtTrigger\nmedian = sort(badDebtRate).at(n/2)',
-    latex: '\\text{med}(b) = b_{(\\lceil n/2 \\rceil)}',
+    plain: 'shortfallRate_i = max(0, debtToRepay - ammSale_i) / debtToRepay\nmedian = sort(shortfallRate).at(floor(n / 2))',
+    latex: '\\operatorname{median}(s_i)',
   },
   params: [COMMON.tvl!, COMMON.lltv!],
   definitions: [
-    { term: 'Why often 0%', definition: 'Most MC paths land inside the LIF buffer, so half the distribution sits at exactly zero. The 95th-percentile KPI is the more interesting number for safe designs.' },
-    { term: 'How to read it with the histogram', definition: 'If the bar at 0% covers >50% of paths, median = 0% even though the distribution has a tail. Always pair it with the p95 KPI.' },
+    { term: 'Zero median', definition: 'If at least half of sampled probe scenarios cover repayment before gas, the displayed median is zero even when other samples show shortfall.' },
+    { term: 'Denominator', definition: 'The rate divides shortfall by required debt repayment, not by configured pool capital or collateral value.' },
   ],
   impact: {
-    health: 'Non-zero median means the AVERAGE liquidation books bad debt — the pool is structurally under-sized.',
-    sustainability: 'A non-zero median is the loudest "fix this before launch" signal.',
-    profitability: 'Median bad debt is what suppliers eat on a typical bad day.',
+    health: 'Reports a scenario median only; the home cascade is the protocol-debt calculation.',
+    sustainability: 'Provides a central summary for comparing different configured ladders.',
+    profitability: 'A non-zero median means the modeled sale fails to cover repayment before gas in the middle sampled scenario.',
   },
 };
 
-const p95BadDebtRate: KpiHelp = {
-  title: '95th-percentile bad-debt rate',
+const p95RepaymentShortfallRate: KpiHelp = {
+  title: '95th-percentile repayment-shortfall rate',
   oneLiner:
-    'Bad case: the worst 1-in-20 future. This is the number the protocol\'s insurance buffer or supplier-loss tolerance must cover.',
+    '95th percentile of sampled liquidator repayment-shortfall rates for the selected probe trade and FX simulation.',
   formula: {
-    plain: 'p95 = sort(badDebtRate).at(0.95 × n)',
-    latex: 'b_{(95)} = b_{(\\lceil 0.95 n \\rceil)}',
+    plain: 'p95 = sort(shortfallRate).at(floor(0.95 * n))',
+    latex: 's_{95} = s_{(\\lfloor 0.95 n \\rfloor)}',
   },
   params: [COMMON.tvl!, COMMON.lltv!, COMMON.absorb!],
   definitions: [
-    { term: 'Acceptance target', definition: 'A typical risk target is p95 < 1% — even in 95% of futures, less than 1% of seized debt becomes a loss.' },
-    { term: 'What pushes p95 up', definition: 'Either FX scenarios so extreme that price falls past the Absorb band entirely, or under-sized Absorb-band capital relative to expected dump size.' },
+    { term: 'Percentile meaning', definition: 'After sorting sampled shortfall rates, the panel selects the item at floor(0.95 * n). It is a statistic of the selected simulation sample, not a probability guarantee.' },
+    { term: 'What changes it', definition: 'Terminal FX spots, slider probe size, LLTV, configured capital, band allocation, ranges, and fee tier all affect the quote or repayment reference.' },
   ],
   impact: {
-    health: 'The single most important risk number on the page.',
-    sustainability: 'Sized to absorb the 1-in-20 stressed future, not just the average.',
-    profitability: 'A high p95 forces a wider safety margin on the recommended LLTV.',
+    health: 'Use it to compare modeled probe stress; use the home cascade for estimated unresolved Morpho debt.',
+    sustainability: 'The page does not turn this statistic into a policy recommendation.',
+    profitability: 'It reports the modeled before-gas repayment gap at a high sampled quantile.',
   },
 };
 
@@ -328,13 +348,14 @@ export const SWAP_LIQUIDITY_KPIS: Partial<Record<string, KpiHelp>> = {
   activeLiquidityScaled,
   poolFeeTierKpi,
   usdmReceived,
+  effectiveSlip,
   slippagePctKpi,
   effectivePrice,
   feePaidUSD,
   ticksCrossed,
-  zeroBadDebtPct,
-  medianBadDebtRate,
-  p95BadDebtRate,
+  pathsWithNoShortfall,
+  medianRepaymentShortfallRate,
+  p95RepaymentShortfallRate,
 };
 
 // ---------------------------------------------------------------------------
@@ -342,28 +363,28 @@ export const SWAP_LIQUIDITY_KPIS: Partial<Record<string, KpiHelp>> = {
 // ---------------------------------------------------------------------------
 
 const liquidityByTick: ChartHelp = {
-  title: 'Liquidity by tick',
+  title: 'Net liquidity changes by tick',
   oneLiner:
-    'A histogram of capital across price levels — each bar is a "wall of money" a liquidator\'s swap must consume before the price moves further.',
+    'Boundary map of configured Uniswap liquidity. Bars show changes in L at initialized ticks, not USD capital available at each price.',
   axes: {
     x: 'price (USDM per wTRY) — each bar sits at the price where a band opens or closes',
     y: 'net liquidity at that tick (raw L ÷ 1e12 for readability)',
   },
   bands: [
-    { name: 'Tall bars', meaning: 'Lots of capital at this price. The swap absorbs a large sell without moving the price much — a good fill for the liquidator.' },
-    { name: 'Short or missing bars', meaning: 'Thin market at this price. Even a modest sell pushes the price down sharply — the liquidator takes a worse fill.' },
-    { name: 'Negative bars', meaning: 'The upper edge of a band — liquidity is removed as price rises past this tick. Equal in size to the positive bar that opened the same band.' },
+    { name: 'Positive bars', meaning: 'In the upward-price crossing convention stored by Uniswap, a position begins contributing L at its lower boundary.' },
+    { name: 'Negative bars', meaning: 'In the upward-price crossing convention, a position stops contributing L at its upper boundary.' },
+    { name: 'Reading a wTRY sell', meaning: 'A wTRY sell moves price downward, so boundaries are crossed from right to left and active-liquidity changes apply in the reverse direction.' },
   ],
   definitions: [
     { term: 'What a tick is', definition: 'Uniswap v3 divides the price axis into thousands of discrete slots called ticks. Each tick maps to a specific price. Liquidity providers deposit capital between two ticks, not across the whole range.' },
     { term: 'Why bars appear in pairs', definition: 'Each LP band opens at a lower tick (positive bar) and closes at an upper tick (negative bar). With 3 bands — Core, Absorb, Tail — you see up to 6 bars total, matching the band-allocation table below.' },
-    { term: 'How a swap consumes bars', definition: 'When a liquidator sells wTRY, the swap walks ticks left (price falls). Each positive bar adds depth; each crossed negative bar removes it. When depth hits zero, no more bids exist at that price.' },
-    { term: 'Red dotted line', definition: 'Current spot price. Bars to the left are below spot (the downside crash protection); bars to the right are above spot (buy-side depth).' },
+    { term: 'How a swap uses the map', definition: 'When a modeled wTRY sell crosses a boundary, the walker updates active L from liquidityNet and continues until the input is processed or represented active liquidity is exhausted.' },
+    { term: 'Yellow line', definition: 'Initial spot price used to materialize the configured positions and start design-point quotes.' },
   ],
   impact: {
-    health: 'Tall bars just below the red line = strong crash protection. The liquidator can sell seized collateral without cratering the price.',
-    sustainability: 'Capital concentrated only at spot wastes the upside budget. The asymmetric ladder intentionally stacks depth below spot.',
-    profitability: 'The total area under bars between spot and the liquidator\'s exit price determines realized slippage — more area means less slippage and higher recovery.',
+    health: 'This chart explains where active L changes; calculated proceeds and shortfall are reported in later sections.',
+    sustainability: 'It shows the configured position layout after percentage endpoints have been snapped to usable ticks.',
+    profitability: 'A quote follows these ranges to calculate output; the chart alone is not a fill-price calculation.',
   },
 };
 
@@ -376,77 +397,100 @@ const bandAllocationTable: ChartHelp = {
     y: '(not a chart — tabular)',
   },
   bands: [
-    { name: 'Core (±5% around spot)', meaning: 'The tight band that catches normal trading. Default 30% of TVL. Converts 100% to wTRY if price falls outside.' },
-    { name: 'Absorb (−25% → −10%)', meaning: 'The catch net for liquidations. Default 50% of TVL, parked entirely in USDM at deploy — ready to buy wTRY when it crashes into this range.' },
-    { name: 'Tail (−50% → +15%)', meaning: 'Backstop for extreme moves. Default 20% of TVL. Wide range, lower depth per tick — provides a continuous bid even in catastrophic scenarios.' },
+    { name: 'Core (-5% to +5%)', meaning: 'Default 30% allocation in a narrow initial-spot range.' },
+    { name: 'Absorb (-15% to -5%)', meaning: 'Default 50% allocation below initial spot; it is one-sided in USDM at launch with the default endpoints.' },
+    { name: 'Tail (-90% to +30%)', meaning: 'Default 20% allocation in a broad range that includes initial spot.' },
   ],
   definitions: [
     { term: 'Range column', definition: 'Lower → upper price boundary of the band, expressed in USDM per wTRY. Computed from band-percentage offsets relative to current spot.' },
     { term: 'USD column', definition: 'How much capital the band holds at deploy. Sums to poolTVL_USD (with sub-cent rounding).' },
-    { term: 'Why asymmetric', definition: 'Liquidations only happen on the downside (wTRY falls vs USDM). Symmetric LP positions waste 50% of capital on the upside. The asymmetric ladder concentrates depth where it actually gets used.' },
+    { term: 'Configured capital vs active L', definition: 'The USD column is launch marked allocation. A row contributes to active L only when the modeled spot lies inside its snapped tick range.' },
   ],
   impact: {
-    health: 'The Absorb band is where bad-debt risk is killed or born.',
-    sustainability: 'Bands need rebalancing once spot drifts outside the Core range (default trigger: 15% drift).',
-    profitability: 'For LPs: each band has different fee-earning characteristics. Core earns most fees; Absorb earns one big payday during a crash.',
+    health: 'Changing allocations changes the execution scenarios; this table does not label a configuration safe or unsafe.',
+    sustainability: 'The builder emits a rebalance policy, but this page does not model future rebalance execution.',
+    profitability: 'The quote panels compute output after applying the selected allocation and range inputs.',
   },
 };
 
-const swapBadDebtHistogram: ChartHelp = {
-  title: 'Bad-debt distribution',
+const slippageCurve: ChartHelp = {
+  title: 'Effective slip and marginal-price curve',
   oneLiner:
-    'Histogram of bad-debt rate across simulated FX futures. Each bar is the count of Monte-Carlo paths landing in a bad-debt bucket.',
+    'Deterministic sweep of requested wTRY sell notional against the initial-spot pool. Effective slip includes fees and unfilled notional; marginal slip is endpoint price movement.',
   axes: {
-    x: 'bad-debt rate (badDebt ÷ debt-at-trigger), 0% on the left',
-    y: 'number of Monte-Carlo paths in that bucket',
+    x: 'requested wTRY sell notional in USD, log scale',
+    y: 'calculated slip rate, displayed from 0% to 10%',
   },
   bands: [
-    { name: 'Tall bar at 0% (left edge)', meaning: 'Healthy: most paths recover fully because the LIF buffer + Absorb band soaked up all slippage.' },
-    { name: 'Long right tail', meaning: 'Tail risk: a few stressed paths push past the LIF buffer. These are the paths the p95 KPI is showing you.' },
-    { name: 'Bimodal (two humps)', meaning: 'A liquidity cliff: paths split into "below threshold = fine" and "above threshold = ugly." Usually means the Absorb band is undersized for typical dump amounts.' },
-    { name: 'Roughly uniform / flat', meaning: 'No clear safety zone. Treat as alarm: the pool design has no buffer; redesign before launch.' },
+    { name: 'Purple line', meaning: 'effectiveSlip = max(0, 1 - USDM received / requested sell notional).' },
+    { name: 'Blue dashed line', meaning: 'Marginal price slip = (entry price - final price) / entry price.' },
+    { name: 'Green reference', meaning: 'A visible 1% comparison line; the code does not treat it as a requirement.' },
+    { name: 'Orange reference', meaning: 'The LLTV-dependent LIF buffer. It is a before-gas repayment reference only when the probe represents seized collateral.' },
   ],
   definitions: [
-    { term: 'How a single path is scored', definition: 'For each MC path: take the terminal spot price, build the pool at that spot, sell $25k of seized wTRY through it, compute badDebt = max(0, debt − usdmReceived).' },
-    { term: 'Sampling', definition: 'Up to 200 paths are sampled from the Monte-Carlo set (stride = floor(n / 200)). 20 histogram bins span [0, max bad-debt rate].' },
-    { term: 'Probe size', definition: 'Fixed at $25k of collateral notional — calibrated to a realistic per-liquidation event at small-vault scale.' },
+    { term: 'Sweep', definition: 'The chart requests 70 log-spaced sells from $1,000 through max($5,000,000, five times configured capital).' },
+    { term: 'Initial-spot quote', definition: 'Every point builds and quotes the configured ladder at spot = 1 / usdtryBaseline; no Monte Carlo path enters this chart.' },
   ],
   impact: {
-    health: 'The right tail length is the protocol\'s tail-risk signal.',
-    sustainability: 'A bar at 0% containing ≥95% of paths means the design is sized correctly.',
-    profitability: 'Each non-zero bar represents future paths where suppliers eat a loss.',
+    health: 'Displays calculated trade-response curves rather than a protocol-debt forecast.',
+    sustainability: 'Useful for comparing configured capital and ranges against identical requested probes.',
+    profitability: 'The orange crossing is a gas-blind repayment break-even reference for seized-collateral interpretation.',
   },
 };
 
-const presetExportSchema: ChartHelp = {
-  title: 'Preset export schema',
+const repaymentShortfallHistogram: ChartHelp = {
+  title: 'Repayment-shortfall distribution',
   oneLiner:
-    'JSON the kumbaya.xyz deploy script (or any external tool) reads to spin up the same pool design on-chain. Round-trippable through URL state.',
+    'Distribution of a hypothetical liquidator repayment shortfall across sampled terminal FX spots. It is not protocol bad debt.',
   axes: {
-    x: '(not a chart — JSON payload)',
-    y: '(not a chart — JSON payload)',
+    x: 'repayment shortfall / debt to repay',
+    y: 'count of sampled terminal-FX probe scenarios',
   },
   bands: [
-    { name: 'feeTier', meaning: 'Basis points: 3000 = 0.30%, 10000 = 1.00%. Maps to Uniswap v3 fee-tier address.' },
-    { name: 'tickSpacing', meaning: 'Tick grid step. Locked to feeTier — 60 for 0.30%, 200 for 1.00%.' },
-    { name: 'positions[]', meaning: 'Array of LP positions to mint. Each entry has tickLower/tickUpper (integer ticks), liquidityUSD (USD value at deploy), and a label (\'core\' | \'absorb\' | \'tail\').' },
-    { name: 'rebalancePolicy', meaning: 'When to rotate positions back to center: triggerPct = drift threshold (15% default), intervalDays = minimum gap between rebalances.' },
+    { name: 'Zero-shortfall mass', meaning: 'Sampled probe scenarios whose calculated AMM proceeds cover repayment before gas.' },
+    { name: 'Positive-shortfall mass', meaning: 'Sampled probe scenarios where the requested sale output is less than repayment.' },
   ],
   definitions: [
-    { term: 'Roundtrip', definition: 'The page reads the same URL state to derive these fields. Sharing the URL = sharing the preset.' },
-    { term: 'Tick math', definition: 'tickLower/Upper are derived from band-percentage offsets via priceToTick(spot × (1 + offset)), then snapped to tickSpacing. See lib/poolPreset.ts.' },
-    { term: 'liquidityUSD vs L', definition: 'liquidityUSD is the human-friendly capital amount. The deploy script converts it to token amounts at spot, then to Uniswap\'s L via liquidityForAmounts.' },
+    { term: 'Fixed pool', definition: 'The ladder is materialized once at the initial spot. It is not rebuilt at each simulated terminal spot.' },
+    { term: 'Probe sizing', definition: 'At each terminal spot, the same slider USD collateral value is converted into a wTRY amount and requested against the fixed pool.' },
+    { term: 'Sampling', definition: 'The chart uses up to 200 terminal spots from the selected simulation and bins the resulting shortfall rates into 20 buckets.' },
   ],
   impact: {
-    health: 'Sharing this JSON makes a pool design auditable and reproducible.',
-    sustainability: 'Rebalance policy is what keeps the live pool aligned with the simulation.',
-    profitability: 'A misconfigured preset is the gap between "the lab says safe" and "the live pool ate bad debt."',
+    health: 'The home simulator separately estimates unresolved Morpho debt after modeled liquidation behavior.',
+    sustainability: 'Changing scenarios or pool configuration changes this comparison distribution.',
+    profitability: 'Shortfall means this single hypothetical sale does not cover repayment before gas.',
+  },
+};
+
+const repaymentShortfallSweep: ChartHelp = {
+  title: 'Repayment shortfall versus probe size',
+  oneLiner:
+    'Deterministic initial-spot sweep showing when requested seized-collateral sales stop covering repayment before gas.',
+  axes: {
+    x: 'requested collateral sale notional in USD, log scale',
+    y: 'effective slip and repayment-shortfall rate',
+  },
+  bands: [
+    { name: 'Effective slip line', meaning: 'Proceeds shortfall relative to requested collateral value.' },
+    { name: 'Repayment shortfall line', meaning: 'Only the portion of loss beyond the LIF bonus, divided by debt to repay.' },
+    { name: 'Break-even marker', meaning: 'Interpolated probe size where effective slip reaches 1 - 1 / LIF(lltv); gas is excluded.' },
+  ],
+  definitions: [
+    { term: 'Debt to repay', definition: 'For each requested collateral notional C, debtToRepay = C / LIF(lltv).' },
+    { term: 'Shortfall', definition: 'repaymentShortfall = max(0, debtToRepay - AMM proceeds).' },
+    { term: 'No Monte Carlo', definition: 'This sweep quotes the pool at initial spot and does not use simulated terminal FX values or the Section 3 slider position.' },
+  ],
+  impact: {
+    health: 'It describes a hypothetical execution cutoff, not realized protocol loss.',
+    sustainability: 'Use identical probe assumptions when comparing configured ladders.',
+    profitability: 'Positive repayment shortfall means before-gas AMM proceeds do not cover the hypothetical repayment.',
   },
 };
 
 export const SWAP_LIQUIDITY_CHARTS: Partial<Record<string, ChartHelp>> = {
   liquidityByTick,
   bandAllocationTable,
-  swapBadDebtHistogram,
-  presetExportSchema,
+  slippageCurve,
+  repaymentShortfallHistogram,
+  repaymentShortfallSweep,
 };
