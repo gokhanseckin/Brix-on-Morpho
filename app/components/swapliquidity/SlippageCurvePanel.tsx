@@ -208,10 +208,8 @@ export function SlippageCurvePanel() {
           </div>
           <div className="text-[10px] text-neutral-500 mt-2 leading-snug">
             Pure AMM cutoff: the dump size where effective slip first eats the
-            entire LIF bonus. Excludes gas. The home page&apos;s{' '}
-            <span className="text-neutral-300">Profitable debt range</span> KPI
-            uses a stricter gas-aware liquidator-P&amp;L cutoff, so its upper
-            bound is slightly tighter than this number.
+            entire LIF bonus. Excludes gas — a gas-aware cutoff would be
+            slightly tighter.
           </div>
         </div>
       </div>
